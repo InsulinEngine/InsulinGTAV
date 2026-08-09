@@ -1,16 +1,22 @@
 # Ozark Menu-Base — 1:1-Port auf PS4 (InsulinGTAV)
 
 **Datum:** 2026-08-09
-**Status:** Design bestätigt (Ansatz A: source-treuer Port mit dünnem Platform-Layer)
+**Status:** Design bestätigt (Ansatz A: source-treuer Port mit dünnem Platform-Layer).
+Revidiert 2026-08-09 nach Referenz-Prüfung: STL-Realität geklärt (siehe „STL" unten).
 
 ## Ziel
 
-Die Menu-Base des Ozark-Menüs (PC, V34-Source) wird 1:1 in das PS4-GHPLUGIN-Projekt
-**InsulinGTAV** portiert (OpenOrbis-Toolchain + GoldHEN SDK, Ziel `build/InsulinGTAV.prx`,
-GTA V PS4 **CUSA00411 v1.57**, Story Mode). „1:1" heißt: Ozarks Dateibaum, Namespaces,
-Klassennamen und Logik bleiben identisch, sodass spätere Ozark-Feature-Dateien per
-Copy + Minimal-Diff nachgezogen werden können. Features selbst sind **nicht** Teil dieses
-Projekts — nur das Submenu-System mit einem Demo-Skelett.
+Die Menu-Base des Ozark-Menüs (PC, V34-Source) wird als **architektur-treuer 1:1-Port** in
+das PS4-GHPLUGIN-Projekt **InsulinGTAV** übernommen (OpenOrbis-Toolchain + GoldHEN SDK, Ziel
+`build/InsulinGTAV.prx`, GTA V PS4 **CUSA00411 v1.57**, Story Mode). „1:1" heißt hier:
+Ozarks Dateibaum, Namespaces, Klassennamen, Klassenhierarchie und Logik bleiben identisch —
+**das exakt gleiche Submenu-System** (`submenu`/`base_option`-Hierarchie, virtuelle
+`load/update`, `add_option<T>` mit ref-gezählten Options, break/scroll-Logik, Renderer). Der
+**einzige mechanische, projektweite Eingriff** in die Ozark-Quellen ist die Umschreibung
+`std::` → `stl::` (Begründung im STL-Abschnitt); alles andere bleibt textuell so nah wie
+möglich am Original, damit spätere Ozark-Feature-Dateien per Copy + gleicher mechanischer
+Transform nachgezogen werden können. Features selbst sind **nicht** Teil dieses Projekts —
+nur das Submenu-System mit einem Demo-Skelett.
 
 ## Referenzen
 
@@ -60,13 +66,15 @@ InsulinGTAV/src/
     invoker/natives.h         generierte v1.57-Natives (snake_case, RVA-basiert)
     invoker/scaleform.h       handgewrappte Scaleform-Natives
     types/base_types.h
+  stl/ …                   Mini-STL (Muster aus InsulinGTA5, erweitert): string, vector,
+                           shared_ptr, function, stack, pair, unordered_map, tuple, new
   platform/
     stdafx.h               Shim statt Ozark-stdafx: PS4-Includes, XOR()->Passthrough,
-                           POD-Typen (color_rgba, …), kein Windows
+                           POD-Typen, kein Windows; zieht die stl/-Header herein
     log.{h,cpp}            LOG()-Makros -> GoldHEN-Notification + klog
     pad.{h,cpp}            scePad-Abfrage (nur Fallback, s. Input)
-  menu/ …                  1:1 Ozark-Baum (s. Scope)
-  global/ …                1:1 Ozark (ui_vars, vars-Subset)
+  menu/ …                  Ozark-Baum (s. Scope), std:: -> stl:: transformiert
+  global/ …                Ozark (ui_vars, vars-Subset), std:: -> stl:: transformiert
   util/math.h              1:1 Ozark
 ```
 
@@ -124,18 +132,33 @@ Game-Keyboard-Native (`display_onscreen_keyboard`-Familie) umgestellt — diesel
 ist in InsulinGTA5 Phase 2a bereits on-console gelaufen. API von `menu::input` bleibt
 unverändert.
 
-## STL-Risiko & Milestone 0
+## STL (geklärt: Mini-STL statt libc++)
 
-Ozark nutzt `std::string`, `std::vector`, `std::shared_ptr` durchgehend (u. a. in
-Options-Listen und Renderer-Signaturen). Ob libc++ im GHPLUGIN-Kontext (ohne
-`.init_array`) vollständig funktioniert, ist unbewiesen → **M0 gate-t den ganzen Port:**
+GHPLUGIN-Plugins linken **SceLibcInternal, nicht libc++** — die C++-Standardbibliothek
+(`std::string/vector/shared_ptr/function/…`) steht schlicht nicht zur Verfügung. Das ist
+kein Restrisiko mehr, sondern durch die Invoker-Referenz **bestätigt**: InsulinGTA5 hat aus
+genau diesem Grund eine eigene Mini-STL unter `src/stl/` gebaut
+(`string, vector, shared_ptr, function, stack, pair, new`) und im on-console gemergten
+Menü-Code durchgehend `stl::` statt `std::` verwendet.
 
-- M0-Smoke-Test im .prx on-console: `std::string`-Ops (append/format), `std::vector`
-  push/grow, `std::shared_ptr`, function-local static mit Konstruktor (`__cxa_guard`),
-  Heap-Allokation im Game-Prozess.
-- Schlägt M0 fehl → Fallback: API-gleiche Eigen-Typen (`fixed_string`,
-  Mini-`vector`/`shared_ptr`) im `platform/`-Layer; die Ozark-Dateien bleiben trotzdem
-  unverändert (Typen kommen über das `stdafx.h`-Shim herein).
+Konsequenz für den Port (das ist der oben genannte einzige mechanische Eingriff):
+
+- **Mini-STL von Tag 1.** Der Port bringt eine Mini-STL nach `src/stl/` mit (Muster aus
+  InsulinGTA5) und **erweitert sie** um alles, was Ozarks Menu-Base zusätzlich braucht:
+  reicherer `string` (`operator[]`, `clear`, `find`, `substr`, `+=`, Iteration,
+  `std::string`-Konstruktion aus `stl::string`), `unordered_map` (klein, vektor-basiert),
+  `function` (bereits vorhanden, ggf. `STL_FUNCTION_CAP` anheben), `tuple`,
+  `initializer_list`-Ersatz, Algorithmen (`find_if`).
+- **Transform `std::` → `stl::`** je portierter Datei; `#include <…>`-STL-Header werden
+  gegen die `stl/`-Header getauscht. Der Transform ist mechanisch und wird für spätere
+  Feature-Dateien identisch angewandt.
+- **`STL_FREESTANDING`** wird als Compile-Define gesetzt (Placement-new aus `stl/new.h`).
+
+**Milestone 0** ist damit kein Ja/Nein-Gate mehr, sondern das Fundament: Mini-STL nach
+`src/stl/` bringen + erweitern und im .prx on-console verifizieren
+(`string` append/format/`operator[]`, `vector` push/grow, `shared_ptr` refcount,
+function-local static mit Ctor / `__cxa_guard`, Heap im Game-Prozess). Erst wenn dieser
+Baustein grün ist, beginnt der Menü-Port darauf.
 
 ## Logging & Fehlerbehandlung
 
@@ -148,14 +171,18 @@ Options-Listen und Renderer-Signaturen). Ob libc++ im GHPLUGIN-Kontext (ohne
 
 | # | Inhalt | Akzeptanz |
 |---|---|---|
-| M0 | STL-Smoke-Test im .prx | alle Tests grün via Notify/klog |
+| M0 | Mini-STL nach src/stl/ bringen + erweitern, Smoke-Test im .prx | alle Tests grün via Notify/klog |
 | M1 | Invoker + setVectors, Tick-Hook, Input-Natives verifiziert, `base` + `renderer` + leeres Main-Submenü | Menü öffnet mit L1+○, Header/Background rendern im Ozark-Look |
 | M2 | Submenu-System + alle 9 Options-Typen im Demo-Skelett | Navigation (rein/raus/scrollen/wrap), jeder Options-Typ bedienbar |
 | M3 | Instructionals, Notify/Stacked-Display, On-Screen-Keyboard | Button-Leiste korrekt, Test-Notification, Texteingabe in number-Option |
 
 ## Risiken
 
-- **STL im GHPLUGIN** — durch M0 vorgezogen; Fallback definiert.
+- **STL im GHPLUGIN** — geklärt: Mini-STL statt libc++ (s. STL-Abschnitt). Restrisiko ist
+  nur noch der Umfang der Mini-STL-Erweiterung; wird in M0 abgesichert.
+- **`std::` → `stl::`-Transform-Lücken** — eine Ozark-Datei nutzt ein STL-Feature, das die
+  Mini-STL (noch) nicht kann. Mitigierung: Feature in `stl/` nachrüsten, nicht die
+  Ozark-Logik umbauen.
 - **Native-Drift** in von der Base genutzten Natives (Input, HUD, Scaleform) — Verifikation
   per IDA + Basic-Referenz; Korrektur per `MANUAL_RVA`.
 - **Sprites/Texturen:** Ozark-Default rendert ohne PNGs (Sentinel-Quads); sollte `notify`
