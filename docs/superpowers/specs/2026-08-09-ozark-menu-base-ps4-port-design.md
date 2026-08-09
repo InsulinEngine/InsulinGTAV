@@ -95,10 +95,13 @@ Der „Basic"-Invoker (`C:\Users\BBC\Desktop\Basic\Basic`) wurde geprüft:
 - Seine `natives.h` zielt auf eine **andere Spielversion**: 0 von 2839 gemeinsamen Natives
   haben denselben RVA, Abweichungen regional −0x19A0…−0x5400 → **nicht** als RVA-Quelle
   nutzbar.
-- **Übernommen wird:** der `setVectors()`-Mechanismus (Vector3-Out-Param-Fixup: Natives
-  schreiben Vector4-Slots, die nach dem Call in die Vector3-Pointer der Argumente
-  zurückkopiert werden). Unser Invoker hat die Kontext-Felder bereits, führt den Fixup aber
-  nie aus — ohne ihn liefern Natives wie `GET_MODEL_DIMENSIONS` keine Ergebnisse.
+- **`setVectors()` wird NICHT übernommen** (Implementierungs-Befund, revidiert 2026-08-09):
+  In Basic ist der Mechanismus toter Code — `vectorCount` wird nie erhöht, `argVectors` nie
+  gesetzt. Basic übergibt Vector3-Out-Parameter als **rohe Zeiger**, die die Native direkt
+  beschreibt — und genau das tut unser Invoker über `push<T>` (T=Pointer) bereits. Ein
+  umleitender Fixup wäre zudem unsicher, weil der Invoker In- nicht von Out-Parametern
+  unterscheiden kann (z. B. `create_itemset(vector3*)` = Eingabe). Unser Invoker bleibt also
+  unverändert; die Entscheidung ist in `src/rage/invoker/invoker.h` dokumentiert.
 - **Als Referenz genutzt:** 6492 benannte Natives mit PC-Hash-Kommentaren (unsere: 2840)
   für Namens-Cross-Check und als Suchhilfe (Basic-RVA + Regional-Delta) beim
   IDA-Verifizieren von Drift-Verdachtsfällen.
@@ -187,5 +190,6 @@ Baustein grün ist, beginnt der Menü-Port darauf.
   per IDA + Basic-Referenz; Korrektur per `MANUAL_RVA`.
 - **Sprites/Texturen:** Ozark-Default rendert ohne PNGs (Sentinel-Quads); sollte `notify`
   Icons aus Custom-Dicts erwarten, werden sie durch Game-YTD-Assets (`commonmenu`) ersetzt.
-- **Vector-Fixup:** neue Invoker-Funktionalität → in M1 mit einem bekannten
-  Vector3-Out-Native gegentesten.
+- **Vector3-Out-Params:** rohe-Zeiger-Pfad (wie Basic, on-console-validiert); kein Redirect.
+  Vector3-*Rückgabe*-Natives (z. B. `get_gameplay_cam_rot`) sind für die 2D-Menü-Base nicht
+  nötig und werden bei Bedarf gestubbt.

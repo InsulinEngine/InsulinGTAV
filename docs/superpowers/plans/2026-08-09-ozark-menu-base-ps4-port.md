@@ -4,7 +4,7 @@
 
 **Goal:** Port Ozark's GTA V menu *base* (submenu system, option types, renderer, input, instructionals, notifications, on-screen keyboard) into the InsulinGTAV GoldHEN plugin so it opens, renders in the Ozark look, and is fully navigable on a PS4 running CUSA00411 v1.57 — features excluded, demo skeleton only.
 
-**Architecture:** A GoldHEN `.prx` (GHPLUGIN) links SceLibcInternal (no libc++), so the port rides on a project-local **mini-STL** (`src/stl/`) with a mechanical `std:: → stl::` transform of the Ozark sources. Native calls go through the **InsulinGTA5 invoker** (runtime-base + RVA, CUSA00411 v1.57), extended with a Vector3 out-param fixup. The menu ticks once per frame from a **detour on a per-frame script-thread native** (the InsulinGTA5 `game_thread` pattern). A thin `platform/` shim replaces Ozark's Windows `stdafx.h`.
+**Architecture:** A GoldHEN `.prx` (GHPLUGIN) links SceLibcInternal (no libc++), so the port rides on a project-local **mini-STL** (`src/stl/`) with a mechanical `std:: → stl::` transform of the Ozark sources. Native calls go through the **InsulinGTA5 invoker** (runtime-base + RVA, CUSA00411 v1.57; Vector3 out-params pass as raw pointers). The menu ticks once per frame from a **detour on a per-frame script-thread native** (the InsulinGTA5 `game_thread` pattern). A thin `platform/` shim replaces Ozark's Windows `stdafx.h`.
 
 **Tech Stack:** C++17, OpenOrbis PS4 toolchain (clang 18, lld), GoldHEN Plugin SDK (crtprx.o, libGoldHEN_Hook.a, Detour), CMake via `add_orbis_target(... TYPE GHPLUGIN)`.
 
@@ -31,10 +31,12 @@
 |---|---|
 | Ozark base sources | `C:\Users\BBC\Desktop\GTA\GTA5Menus-main\ozark\GTAV\src\...` |
 | Invoker + natives + scaleform | `E:\Projects\PS4\InsulinGTA5\src\rage\invoker\*`, `src\rage\types\base_types.h` |
+ageinvoker*`, `src
+age	ypesbase_types.h` |
 | Mini-STL pattern | `E:\Projects\PS4\InsulinGTA5\src\stl\*` |
 | Frame-hook pattern | `E:\Projects\PS4\InsulinGTA5\src\game\game_thread.{h,cpp}` |
 | module_start wiring | `E:\Projects\PS4\InsulinGTA5\src\InsulinGTA5.cpp` |
-| "Basic" invoker (setVectors, PC-hash names) | `C:\Users\BBC\Desktop\Basic\Basic\{invoker.cpp,invoker.h,natives.h}` |
+| "Basic" invoker (PC-hash names, control-input proof) | `C:\Users\BBC\Desktop\Basic\Basic\{invoker.cpp,invoker.h,natives.h}` |
 
 ## File Structure
 
@@ -45,7 +47,7 @@ src/
     new.h string.h vector.h shared_ptr.h function.h stack.h pair.h
     unordered_map.h tuple.h algorithm.h            (new additions)
   rage/
-    invoker/invoker.{h,cpp}  copied + setVectors fixup
+    invoker/invoker.{h,cpp}  copied (raw-pointer Vector3 out-params; no redirect)
     invoker/natives.h        copied (CUSA00411 v1.57)
     invoker/scaleform.h      copied
     types/base_types.h       copied
@@ -215,55 +217,26 @@ git add src/stl src/stl_smoke.h && git commit -m "feat(stl): mini-STL foundation
 
 ---
 
-### Task 2: Copy the invoker + add the Vector3 out-param fixup
+### Task 2: Copy the invoker (raw-pointer Vector3 out-params; no redirect) ✓ DONE
 
 **Files:**
 - Create: `src/rage/invoker/invoker.h`, `src/rage/invoker/invoker.cpp`, `src/rage/invoker/natives.h`, `src/rage/invoker/scaleform.h`, `src/rage/types/base_types.h` (copied from InsulinGTA5)
-- Modify: `src/rage/invoker/invoker.h` (add vector fixup)
 
 **Interfaces:**
 - Consumes: nothing.
 - Produces: `rage::invoker::invoke<R>(rva, args...)`, `rage::invoker::resolve_base()`, `rage::invoker::g_eboot_base`, `native::*` wrappers, `sf::*` scaleform wrappers, handle typedefs (`Void, Any, Ped, ...`, `math::vector3<T>`).
 
-- [ ] **Step 1: Copy the five files verbatim** from `E:\Projects\PS4\InsulinGTA5\src\rage\...` into `src/rage/...` (same relative paths).
+**Implementation finding (why no fixup):** Basic's `setVectors()` is dead code — `vectorCount`
+is never incremented and `argVectors` never populated. Basic passes Vector3 out-params as raw
+pointers that the native writes through, and that is exactly what our `push<T>` (T=pointer)
+already does. A redirect would also be unsafe (the invoker cannot tell out- from in-params,
+e.g. `create_itemset(vector3*)` is an INPUT). So the invoker is copied unchanged; the decision
+is documented in `invoker.h`.
 
-- [ ] **Step 2: Write the failing test — a Vector3 out-param.** Ozark's renderer/`get_gameplay_cam_rot` and later features read Vector3 out-params; without the fixup the caller's vector never receives the result. Add to `src/stl_smoke.h` a compile-level check that the fixup fields exist (behavioral test is on-console). Add to invoker a documented `apply_vector_results()`.
-
-- [ ] **Step 3: Add the fixup to `native_setup` in `invoker.h`.** The context already declares `m_script_vectors[4]` and `m_result_vectors[4]`. The "Basic" invoker copies each `Vector4` temp back into the caller's `Vector3*` after the call. Add to `native_context`:
-
-```cpp
-// After a native writes its Vector3 out-params into m_result_vectors, copy
-// them back into the caller-supplied pointers. Ozark/ScriptHookV ABI parity.
-void apply_vector_results() {
-    while (m_data_count > 0) {
-        --m_data_count;
-        vec3f* dst = m_script_vectors[m_data_count];
-        if (dst) { dst->x = m_result_vectors[m_data_count].x;
-                   dst->y = m_result_vectors[m_data_count].y;
-                   dst->z = m_result_vectors[m_data_count].z; }
-    }
-}
-```
-And in `native_setup`, when a `vec3f*` argument is pushed, register it:
-
-```cpp
-void push_vector(vec3f* ptr) {
-    m_script_vectors[m_data_count] = ptr;
-    *(void**)&m_temp_buffer[8 * m_argument_count] = &m_result_vectors[m_data_count];
-    m_data_count++; m_argument_count++;
-}
-```
-
-- [ ] **Step 4: Call the fixup in `invoke()`.** In the `invoke` template, after `handler(&ctx);` add `ctx.apply_vector_results();`. Guard: only meaningful when `m_data_count > 0`, which is 0 for non-vector natives, so it is a no-op otherwise.
-
-- [ ] **Step 5: Route `vec3f*` arguments through `push_vector`.** In the variadic `push`, add an overload `void push(vec3f* v) { push_vector(v); }` so `native::get_model_dimensions(hash, &min, &max)` registers both out-pointers. (Non-pointer args keep the existing `push`.)
-
-- [ ] **Step 6: Build.** Expected: compiles.
-
-- [ ] **Step 7: Commit**
-```bash
-git add src/rage && git commit -m "feat(invoker): copy InsulinGTA5 invoker + Vector3 out-param fixup"
-```
+- [x] **Step 1: Copy the five files verbatim** from `E:\Projects\PS4\InsulinGTA5\src\rage\...`.
+- [x] **Step 2: Document the raw-pointer decision** in `invoker.h` (no `setVectors` redirect).
+- [x] **Step 3: Compile-test** a TU calling `get_hash_key` + `get_model_dimensions(&min,&max)` with the toolchain flags. Exit 0.
+- [x] **Step 4: Commit** `feat(invoker): copy InsulinGTA5 invoker/natives/scaleform (CUSA00411 v1.57)`.
 
 ---
 
@@ -644,7 +617,7 @@ git add -A && git commit -m "feat(menu): base + renderer + entrypoints; hand-wra
 
 **Spec coverage** (each spec section → task):
 - Scope "portiert wird" list → Tasks 6-15 (every named module). ✓
-- Invoker decision + setVectors → Task 2. ✓
+- Invoker decision (raw-pointer Vector3 out-params, no redirect) → Task 2. ✓
 - Basic natives.h as name/drift reference → Task 8a (RVA verification note). ✓
 - Control-natives input + L1+○ + scePad fallback → Task 6. ✓
 - On-screen keyboard → Task 14 Step 3. ✓
@@ -657,6 +630,6 @@ git add -A && git commit -m "feat(menu): base + renderer + entrypoints; hand-wra
 
 **Placeholder scan:** No "TBD"/"handle edge cases". The one deliberate deferral (unverified RVAs in Task 8a) is explicit with a defined fallback (no-op + log + fixed width estimate) and a verification requirement — not a silent gap.
 
-**Type consistency:** `stl::` names used consistently; `apply_vector_results`/`push_vector` match between Task 2 steps; `is_open_bind_pressed` defined in Task 6 and used in Task 8. `menu::ui::init()` introduced in Task 7 Step 3 and called in Task 8 Step 5. Handler API names (`get_total_options`, `set_submenu`, `set_submenu_previous`) consistent between Tasks 8/10/12.
+**Type consistency:** `stl::` names used consistently; `is_open_bind_pressed` defined in Task 6 and used in Task 8. `menu::ui::init()` introduced in Task 7 Step 3 and called in Task 8 Step 5. Handler API names (`get_total_options`, `set_submenu`, `set_submenu_previous`) consistent between Tasks 8/10/12.
 
 **Ordering caveat (flagged, not a defect):** Tasks 8/9/12 have a mutual reference (renderer↔handler↔options). The plan builds through it with a Task-8 handler stub replaced in Task 12; the executor may legally reorder these three as long as each interim commit builds. Every other task is strictly ordered.
