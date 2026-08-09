@@ -2,6 +2,7 @@
 #include "menu/base/base.h"
 #include "menu/base/submenu_handler.h"
 #include "menu/base/submenus/main.h"
+#include "menu/base/submenus/self.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/notify.h"
@@ -50,6 +51,11 @@ namespace menu {
         menu::submenu::handler::load();   // m_current = main_menu::get()
         main_menu::get()->load();
         demo_child::get()->load();
+
+        // Feature submenu: load + register so its feature_update runs each frame.
+        self_menu::get()->load();
+        menu::submenu::handler::add_submenu(self_menu::get());
+
         register_demo_panel();
     }
 
@@ -62,6 +68,10 @@ namespace menu {
         menu::input::update();
         menu::base::update();
         menu::input::mi_update();
+
+        // Per-frame feature loop (godmode etc. re-applied every frame, whether or
+        // not the owning submenu is open).
+        menu::submenu::handler::feature_update();
 
         // Notifications + stacked display + side panels render every frame
         // (panels::update no-ops while the menu is closed).

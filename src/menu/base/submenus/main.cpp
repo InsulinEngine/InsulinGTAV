@@ -8,6 +8,7 @@
 #include "menu/base/options/scroll.h"
 #include "menu/base/options/radio.h"
 #include "menu/base/options/color_option.h"
+#include "menu/base/submenus/self.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "platform/log.h"
@@ -37,6 +38,10 @@ void main_menu::load() {
     g_demo_list[2].m_name.set("High");  g_demo_list[2].m_result = 2;
     g_demo_radio.m_sprite = stl::make_pair("commonmenu", "shop_art_icon");
     g_demo_radio.m_count = 0;
+
+    add_option(submenu_option("Self")
+        .add_submenu<self_menu>()
+        .add_tooltip("Player features (godmode, heal, weapons ...)"));
 
     add_option(submenu_option("Demo Submenu")
         .add_submenu<demo_child>()
