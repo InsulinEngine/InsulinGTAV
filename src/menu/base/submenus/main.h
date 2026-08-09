@@ -1,8 +1,8 @@
 #pragma once
 #include "menu/base/submenu.h"
 
-// Demo root submenu. For M1 it is empty (the menu opens and renders the frame +
-// header). M2 fills load() with one of each option type.
+// Demo root submenu + one child, exercising the option types ported in M2
+// (button / toggle / break / submenu_option). Fully navigable.
 class main_menu : public menu::submenu::submenu {
 public:
     static main_menu* get();
@@ -13,6 +13,17 @@ public:
     void feature_update() override;
 
     main_menu()
+        : menu::submenu::submenu()
+    {}
+};
+
+class demo_child : public menu::submenu::submenu {
+public:
+    static demo_child* get();
+
+    void load() override;
+
+    demo_child()
         : menu::submenu::submenu()
     {}
 };

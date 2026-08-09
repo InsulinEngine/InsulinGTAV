@@ -1,6 +1,7 @@
 #include "menu/menu.h"
 #include "menu/base/base.h"
 #include "menu/base/submenu_handler.h"
+#include "menu/base/submenus/main.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
 #include "global/ui_vars.h"
@@ -9,9 +10,11 @@
 namespace menu {
     void build() {
         // Bind the string/pointer-bearing texture globals (skipped by the absent
-        // .init_array), then set up the submenu tree.
+        // .init_array), then set up the submenu tree and populate the demo.
         global::ui::init();
-        menu::submenu::handler::load();
+        menu::submenu::handler::load();   // m_current = main_menu::get()
+        main_menu::get()->load();
+        demo_child::get()->load();
     }
 
     void tick() {

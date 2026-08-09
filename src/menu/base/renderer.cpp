@@ -264,6 +264,12 @@ namespace menu::renderer {
     void renderer::draw_sprite(stl::pair<stl::string, stl::string> asset, math::vector2<float> position, math::vector2<float> scale, float rotation, color_rgba color) {
         if (global::ui::g_stop_rendering) return;
 
+        // Sentinel dict: a disabled/missing menu_texture resolves to "randomha".
+        // Ozark's texture-bypass hook turns those sprite draws into solid colour
+        // quads. We don't port that game hook; instead draw the quad directly, so
+        // the header/scroller/footer bars show as solid colour without any PNG.
+        if (asset.first == "randomha") { draw_rect_unaligned(position, scale, color); return; }
+
         if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures") {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
@@ -273,6 +279,9 @@ namespace menu::renderer {
 
     void renderer::draw_sprite_aligned(stl::pair<stl::string, stl::string> asset, math::vector2<float> position, math::vector2<float> scale, float rotation, color_rgba color) {
         if (global::ui::g_stop_rendering) return;
+
+        // See draw_sprite: sentinel -> solid colour quad (aligned).
+        if (asset.first == "randomha") { draw_rect(position, scale, color); return; }
 
         if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures") {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
