@@ -4,14 +4,33 @@
 #include "menu/base/options/toggle.h"
 #include "menu/base/options/break.h"
 #include "menu/base/options/submenu_option.h"
+#include "menu/base/options/number.h"
+#include "menu/base/options/scroll.h"
+#include "menu/base/options/radio.h"
+#include "menu/base/options/color_option.h"
 #include "platform/log.h"
 
-// Demo state the toggles bind to (POD globals = constant-initialised).
+// Demo state (POD globals = constant-initialised; the string/map-bearing ones
+// are zero-init and populated at runtime in load()).
 static bool g_demo_toggle_a = false;
 static bool g_demo_toggle_b = true;
+static int g_demo_int = 50;
+static float g_demo_float = 1.0f;
+static int g_demo_list_index = 0;
+static scroll_struct<int> g_demo_list[3];
+static radio_context g_demo_radio;
+static int g_demo_radio_ignored = 0;
+static color_rgba g_demo_color = color_rgba(220, 76, 81, 255);
 
 void main_menu::load() {
     set_name("InsulinGTAV");
+
+    // runtime-init the string/map-bearing demo state (no .init_array on console).
+    g_demo_list[0].m_name.set("Low");   g_demo_list[0].m_result = 0;
+    g_demo_list[1].m_name.set("Medium"); g_demo_list[1].m_result = 1;
+    g_demo_list[2].m_name.set("High");  g_demo_list[2].m_result = 2;
+    g_demo_radio.m_sprite = stl::make_pair("commonmenu", "shop_art_icon");
+    g_demo_radio.m_count = 0;
 
     add_option(submenu_option("Demo Submenu")
         .add_submenu<demo_child>()
@@ -31,10 +50,29 @@ void main_menu::load() {
         .add_toggle(g_demo_toggle_b)
         .add_tooltip("Another toggle, starts on"));
 
-    add_option(break_option("More").ref());
+    add_option(number_option<int>(SCROLLSELECT, "Int Slider")
+        .add_number(g_demo_int, "%i", 1)
+        .add_min(0).add_max(100)
+        .add_tooltip("D-Pad left/right to change"));
 
-    add_option(button_option("Notify Frame Time")
-        .add_click([] { platform::notify("tick alive"); }));
+    add_option(number_option<float>(SCROLLSELECT, "Float Slider")
+        .add_number(g_demo_float, "%.1f", 0.1f)
+        .add_min(0.f).add_max(10.f)
+        .add_tooltip("Float value with step 0.1"));
+
+    add_option(scroll_option<int>(SCROLLSELECT, "List Option")
+        .add_scroll(g_demo_list_index, 0, 3, g_demo_list)
+        .add_tooltip("A scroll list: Low / Medium / High"));
+
+    add_option(color_option("Color Picker")
+        .add_color(g_demo_color)
+        .add_tooltip("Select to open the HSV picker"));
+
+    add_option(break_option("Radio Group").ref());
+
+    add_option(radio_option("Radio: Alpha").add_radio(g_demo_radio));
+    add_option(radio_option("Radio: Beta").add_radio(g_demo_radio));
+    add_option(radio_option("Radio: Gamma").add_radio(g_demo_radio));
 }
 
 void main_menu::update_once() {}

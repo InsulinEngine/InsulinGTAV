@@ -15,7 +15,9 @@ void toggle_option::render(int position) {
     m_on_update(this, position);
 
     menu::renderer::draw_text(m_name.get(), { global::ui::g_position.x + 0.004f + m_offset, global::ui::g_position.y + (position * global::ui::g_option_scale) + 0.004f }, menu::renderer::get_normalized_font_scale(global::ui::g_option_font, global::ui::g_option_height), global::ui::g_option_font, color);
-    menu::renderer::draw_sprite({ "ozarktextures", "toggle_circle.png" }, { global::ui::g_position.x + global::ui::g_toggle_position.x - (0.23f - global::ui::g_scale.x), global::ui::g_position.y + global::ui::g_toggle_position.y + (position * global::ui::g_option_scale) }, global::ui::g_toggle_scale, 0.f, toggle_color);
+    // Ozark uses a custom toggle_circle.png; without assets draw a solid colour
+    // quad via the sentinel dict (green when on, red when off).
+    menu::renderer::draw_sprite({ "randomha", "" }, { global::ui::g_position.x + global::ui::g_toggle_position.x - (0.23f - global::ui::g_scale.x), global::ui::g_position.y + global::ui::g_toggle_position.y + (position * global::ui::g_option_scale) }, global::ui::g_toggle_scale, 0.f, toggle_color);
 }
 
 void toggle_option::render_selected(int position, stl::stack<stl::string> submenu_name_stack) {
