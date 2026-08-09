@@ -16,6 +16,15 @@ add_orbis_target(InsulinGTAV
 
 target_include_directories(InsulinGTAV PRIVATE src)
 
+# Newer ld.lld (LLVM 18) defaults to -z separate-code, which splits headers into
+# their own vaddr-0 segment and pushes .text to 0x4000. create-fself then drops
+# the empty header segment, leaving the module based at 0x4000 -- and GoldHEN's
+# loader only accepts modules based at 0, so a 0x4000 module silently fails to
+# load and module_start never runs (no notify, no log). Force the pre-18
+# single-segment layout so the module base is 0. (Root cause + fix proven in
+# ../OrbisLibServer; we build with clang/lld 18.1.8.)
+target_link_options(InsulinGTAV PRIVATE "LINKER:--no-rosegment")
+
 # GHPLUGIN links SceLibcInternal, not libc++: use the project-local mini-STL.
 target_compile_definitions(InsulinGTAV PRIVATE STL_FREESTANDING)
 target_compile_options(InsulinGTAV PRIVATE
