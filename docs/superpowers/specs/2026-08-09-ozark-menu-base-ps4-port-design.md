@@ -36,7 +36,8 @@ Projekts — nur das Submenu-System mit einem Demo-Skelett.
   (Untermenüs mit Titel + Beispieloptionen), damit das System demonstrierbar ist
 - `global/ui_vars.{h,cpp}` — UI-Konfiguration (Positionen, Farben, Max-Options, Open-Key)
 - `global/vars.{h,cpp}` — minimales Subset (nur was die Base referenziert)
-- `util/math.h`
+- `util/math.h`; kleine header-nahe Ozark-Helfer (z. B. `util/va` für String-Formatierung)
+  dürfen mitgenommen werden, wenn ein Base-Modul sie direkt braucht
 
 **Nicht portiert (bewusst):**
 
