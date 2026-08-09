@@ -1,0 +1,7 @@
+# CMake build output (eboot.bin / .prx / .sprx / .pkg all land here)
+build/
+CMakeUserPresets.json
+
+# Editor / IDE clutter
+.vs/
+*.user

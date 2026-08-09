@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "name": "OpenOrbis",
+            "includePath": [
+                "${env:OO_PS4_TOOLCHAIN}/include",
+                "${env:OO_PS4_TOOLCHAIN}/include/c++/v1",
+                "${workspaceFolder}/**"
+            ],
+            "compilerPath": "clang",
+            "compilerArgs": ["--target=x86_64-pc-freebsd12-elf"],
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}
