@@ -7,6 +7,7 @@
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "menu/base/util/panels.h"
+#include "util/config.h"
 #include "global/ui_vars.h"
 #include "rage/invoker/natives.h"
 
@@ -41,8 +42,11 @@ namespace menu {
 
     void build() {
         // Bind the string/pointer-bearing texture globals (skipped by the absent
-        // .init_array), then set up the submenu tree and populate the demo.
+        // .init_array), load the config file, then set up the submenu tree and
+        // populate the demo. Config is loaded BEFORE the submenus so each
+        // add_savable() reads the persisted value.
         global::ui::init();
+        util::config::load();
         menu::submenu::handler::load();   // m_current = main_menu::get()
         main_menu::get()->load();
         demo_child::get()->load();

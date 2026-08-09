@@ -2,6 +2,8 @@
 #include "platform/stdafx.h"
 #include "option.h"
 #include "menu/base/base.h"
+#include "util/config.h"
+#include "stl/type_traits.h"
 
 template<typename Type>
 class number_option : public base_option {
@@ -24,8 +26,28 @@ public:
     number_option& can_loop() { m_loop = true; return *this; }
     number_option& add_translate() { m_name.set_translate(true); m_tooltip.set_translate(true); return *this; }
     number_option& add_hotkey() { m_has_hotkey = true; return *this; }
-    // Config persistence out of scope.
-    number_option& add_savable(stl::stack<stl::string> /*menu_stack*/) { return *this; }
+    number_option& add_savable(stl::stack<stl::string> menu_stack) {
+        if (menu_stack.size() <= 0) return *this;
+
+        m_savable = true;
+        if (m_number && m_requirement()) {
+            if (stl::is_same<Type, float>::value) {
+                *m_number = (Type)util::config::read_float(menu_stack, m_name.get_original().c_str(), (float)*m_number, { "Values" });
+            } else {
+                *m_number = (Type)util::config::read_int(menu_stack, m_name.get_original().c_str(), (int)*m_number, { "Values" });
+            }
+
+            if (m_type == TOGGLE && m_toggle) {
+                *m_toggle = util::config::read_bool(menu_stack, m_name.get_original().c_str(), *m_toggle);
+                m_toggle_cache = *m_toggle;
+                if (*m_toggle) m_on_click();
+            }
+
+            if (m_has_min && *m_number < m_min) *m_number = m_min;
+            if (m_has_max && *m_number > m_max) *m_number = m_max;
+        }
+        return *this;
+    }
     number_option& add_offset(float offset) { m_offset = offset; return *this; }
 
     void render(int position);

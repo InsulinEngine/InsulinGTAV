@@ -3,6 +3,7 @@
 #include "menu/base/base.h"
 #include "rage/types/base_types.h"
 #include "util/math.h"
+#include "util/config.h"
 
 class color_option : public base_option {
 public:
@@ -20,8 +21,16 @@ public:
     color_option& add_translate() { m_name.set_translate(true); m_tooltip.set_translate(true); return *this; }
     color_option& add_instructional(stl::string text, eScaleformButtons color_option) { m_instructionals.push_back({ text, (int)color_option, false }); return *this; }
     color_option& add_instructional(stl::string text, eControls color_option) { m_instructionals.push_back({ text, (int)color_option, true }); return *this; }
-    // Config persistence out of scope.
-    color_option& add_savable(stl::stack<stl::string> /*menu_stack*/) { return *this; }
+    color_option& add_savable(stl::stack<stl::string> menu_stack) {
+        if (menu_stack.size() <= 0) return *this;
+
+        m_savable = true;
+        if (m_color && m_requirement()) {
+            util::config::read_color(menu_stack, m_name.get_original().c_str(), m_color, { "Color" });
+            m_color_cache = *m_color;
+        }
+        return *this;
+    }
 
     color_rgba* get_color() { return m_color; }
 

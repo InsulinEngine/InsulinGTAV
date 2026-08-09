@@ -4,6 +4,7 @@
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/hotkeys.h"
+#include "util/config.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include <stdlib.h>
@@ -60,6 +61,19 @@ void number_option<Type>::render_selected(int position, stl::stack<stl::string> 
 
         if (!dont_process) {
             m_on_click();
+        }
+    }
+
+    // Persist on change.
+    if (m_savable) {
+        if (m_number_cache != *m_number) {
+            m_number_cache = *m_number;
+            if (stl::is_same<Type, float>::value) util::config::write_float(submenu_name_stack, m_name.get_original(), (float)*m_number, { "Values" });
+            else util::config::write_int(submenu_name_stack, m_name.get_original(), (int)*m_number, { "Values" });
+        }
+        if (m_type == TOGGLE && m_toggle && m_toggle_cache != *m_toggle) {
+            m_toggle_cache = *m_toggle;
+            util::config::write_bool(submenu_name_stack, m_name.get_original(), *m_toggle);
         }
     }
 

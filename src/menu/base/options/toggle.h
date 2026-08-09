@@ -2,6 +2,7 @@
 #include "platform/stdafx.h"
 #include "option.h"
 #include "menu/base/base.h"
+#include "util/config.h"
 
 class toggle_option : public base_option {
 public:
@@ -17,8 +18,16 @@ public:
     toggle_option& add_translate() { m_name.set_translate(true); m_tooltip.set_translate(true); return *this; }
     toggle_option& add_hotkey() { m_has_hotkey = true; return *this; }
     toggle_option& add_toggle(bool& tog) { m_toggle = &tog; return *this; }
-    // Config persistence is out of scope; kept as a no-op for call compatibility.
-    toggle_option& add_savable(stl::stack<stl::string> /*menu_stack*/) { return *this; }
+    toggle_option& add_savable(stl::stack<stl::string> menu_stack) {
+        if (menu_stack.size() <= 0) return *this;
+
+        m_savable = true;
+        if (m_toggle && m_requirement()) {
+            *m_toggle = util::config::read_bool(menu_stack, m_name.get_original().c_str(), *m_toggle);
+            if (*m_toggle) m_on_click();
+        }
+        return *this;
+    }
     toggle_option& add_offset(float offset) { m_offset = offset; return *this; }
 
     void render(int position);

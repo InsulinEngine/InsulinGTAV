@@ -4,6 +4,7 @@
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/hotkeys.h"
+#include "util/config.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 
@@ -26,6 +27,10 @@ void toggle_option::render_selected(int position, stl::stack<stl::string> submen
     if (m_toggle && m_requirement() && menu::input::is_option_pressed()) {
         *m_toggle = !*m_toggle;
         m_on_click();
+
+        if (m_savable) {
+            util::config::write_bool(submenu_name_stack, m_name.get_original(), *m_toggle);
+        }
     }
 }
 

@@ -24,6 +24,9 @@ static radio_context g_demo_radio;
 static int g_demo_radio_ignored = 0;
 static color_rgba g_demo_color = color_rgba(220, 76, 81, 255);
 static bool g_show_stat = false;
+static bool g_saved_toggle = false;
+static int g_saved_int = 25;
+static color_rgba g_saved_color = color_rgba(80, 160, 240, 255);
 
 void main_menu::load() {
     set_name("InsulinGTAV");
@@ -118,6 +121,24 @@ void demo_child::load() {
         .add_click([] { platform::notify("child button 1"); }));
     add_option(button_option("Child Button 2")
         .add_click([] { platform::notify("child button 2"); }));
+
+    add_option(break_option("Saved (survive restart)").ref());
+
+    add_option(toggle_option("Saved Toggle")
+        .add_toggle(g_saved_toggle)
+        .add_savable(get_submenu_name_stack())
+        .add_tooltip("Persists across a restart"));
+
+    add_option(number_option<int>(SCROLLSELECT, "Saved Int")
+        .add_number(g_saved_int, "%i", 1)
+        .add_min(0).add_max(100)
+        .add_savable(get_submenu_name_stack())
+        .add_tooltip("Persists across a restart"));
+
+    add_option(color_option("Saved Color")
+        .add_color(g_saved_color)
+        .add_savable(get_submenu_name_stack())
+        .add_tooltip("Persists across a restart"));
 }
 
 demo_child* demo_child::get() {

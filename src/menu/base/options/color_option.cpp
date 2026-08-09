@@ -3,6 +3,7 @@
 #include "menu/base/util/instructionals.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
+#include "util/config.h"
 
 void color_option::render(int position) {
     bool selected = menu::base::is_option_selected(position);
@@ -39,5 +40,12 @@ void color_option::render_selected(int position, stl::stack<stl::string> submenu
         menu::input::push([this] {
             menu::input::color(m_color);
         });
+    }
+
+    if (m_savable && m_color) {
+        if (m_color->r != m_color_cache.r || m_color->g != m_color_cache.g || m_color->b != m_color_cache.b || m_color->a != m_color_cache.a) {
+            m_color_cache = *m_color;
+            util::config::write_color(submenu_name_stack, m_name.get_original(), m_color_cache, { "Color" });
+        }
     }
 }

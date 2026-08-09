@@ -1,6 +1,7 @@
 #pragma once
 #include <stddef.h>
 #include <stdlib.h>
+#include <initializer_list>
 #include "stl/new.h"
 
 namespace stl {
@@ -8,6 +9,7 @@ namespace stl {
     class vector {
     public:
         vector() {}
+        vector(std::initializer_list<T> il) { reserve(il.size()); for (const T& v : il) push_back(v); }
         vector(const vector& o) { copy_from(o); }
         vector& operator=(const vector& o) {
             if (this != &o) { destroy_all(); free(m_data); m_data = nullptr;
