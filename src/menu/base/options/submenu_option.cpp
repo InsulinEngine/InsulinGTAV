@@ -18,7 +18,11 @@ void submenu_option::render(int position) {
         if (m_override.m_enabled) {
             menu::renderer::draw_sprite_aligned(m_override.m_asset, { global::ui::g_position.x + m_override.m_offset.x - (0.23f - global::ui::g_scale.x), global::ui::g_position.y + (position * global::ui::g_option_scale) + m_override.m_offset.y }, m_override.m_scale, 0.f, *m_override.m_color);
         } else {
-            menu::renderer::draw_sprite_aligned({ "ozarktextures", "arrow.png" }, { global::ui::g_position.x + global::ui::g_submenu_arrow_position.x - (0.23f - global::ui::g_scale.x), global::ui::g_position.y + (position * global::ui::g_option_scale) + global::ui::g_submenu_arrow_position.y }, global::ui::g_submenu_arrow_scale, 0.f, bar_color);
+            // Ozark draws a custom arrow.png here; without the asset pipeline that
+            // renders as a placeholder square (same as the toggle). Draw a ">"
+            // chevron glyph instead: asset-free, right-aligned, and clearly a
+            // submenu indicator distinct from the toggle.
+            menu::renderer::draw_text(">", { global::ui::g_position.x + 0.004f, global::ui::g_position.y + (position * global::ui::g_option_scale) + 0.004f }, menu::renderer::get_normalized_font_scale(global::ui::g_option_font, global::ui::g_option_height), global::ui::g_option_font, bar_color, JUSTIFY_RIGHT, { 0.f, (1.0f - (1.0f - (global::ui::g_position.x + (0.315f / 2.f)) - global::ui::g_wrap)) - 0.005f });
         }
     }
 
