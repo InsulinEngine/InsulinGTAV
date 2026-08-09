@@ -2,10 +2,8 @@
 #include "platform/stdafx.h"
 #include "util/localization.h"
 
-// Instructional-button bar, stubbed for M1. The real scaleform implementation
-// (instructional_buttons movie via sf::) lands in M3; the enums eControls /
-// eScaleformButtons come from platform/compat.h. Until then the bar simply does
-// not render (the menu is fully usable without it).
+// Real instructional-button bar via the game's instructional_buttons scaleform
+// movie. eControls / eScaleformButtons come from platform/compat.h.
 namespace instructionals {
     static localization t_open_category("Open Category", true, true);
     static localization t_close_menu("Close Menu", true, true);
@@ -19,11 +17,11 @@ namespace instructionals {
 
     class instructionals {
     public:
-        void setup() {}
-        void add_instructional(stl::string /*text*/, eControls /*control*/) {}
-        void add_instructional(stl::string /*text*/, eScaleformButtons /*button*/) {}
-        void add_instructional(stl::string /*text*/, int /*vk*/) {}
-        void close() {}
+        void setup();
+        void add_instructional(stl::string text, eControls control);
+        void add_instructional(stl::string text, eScaleformButtons button_option);
+        void add_instructional(stl::string text, int vk);
+        void close();
     private:
         int m_count = 0;
         int m_handle = 0;

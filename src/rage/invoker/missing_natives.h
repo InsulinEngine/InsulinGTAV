@@ -72,8 +72,23 @@ namespace native {
     static Void push_scaleform_movie_function_parameter_float(float value) {
         return rage::invoker::invoke<Void>(0x9D19A0, value);
     }
+    static Void push_scaleform_movie_function_parameter_int(int value) {
+        return rage::invoker::invoke<Void>(0x9D1990, value);
+    }
+    static Void push_scaleform_movie_function_parameter_bool(bool value) {
+        return rage::invoker::invoke<Void>(0x9D19C0, value);
+    }
     static Void pop_scaleform_movie_function_void() {
         return rage::invoker::invoke<Void>(0x9D1870);
+    }
+    static Void draw_scaleform_movie_fullscreen(int scaleform, int r, int g, int b, int a, int p5) {
+        return rage::invoker::invoke<Void>(0x9D11F0, scaleform, r, g, b, a, p5);
+    }
+    // SCALEFORM_MOVIE_METHOD_ADD_PARAM_PLAYER_NAME_STRING (hash 0xE83A3E3557A56640):
+    // pushes a string that the movie treats as a player-name substring. Used by
+    // the instructional bar to pass the control-button icon token.
+    static Void _0xE83A3E3557A56640(const char* value) {
+        return rage::invoker::invoke<Void>(0x9D1A50, value);
     }
 
     // Camera rotation (globe spin). Fallback {0,0,0} -> the globe renders but
