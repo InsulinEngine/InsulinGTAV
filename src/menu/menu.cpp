@@ -6,10 +6,39 @@
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
+#include "menu/base/util/panels.h"
 #include "global/ui_vars.h"
 #include "rage/invoker/natives.h"
 
 namespace menu {
+    // Demo side-panel render callback (m_update is a plain function pointer).
+    static math::vector2<float> demo_panel_update(menu::panels::panel_child& child) {
+        menu::panels::panel p(child, global::ui::g_panel_bar);
+        p.item("Health", "100");
+        p.item("Armor", "50");
+        p.item_full("Session", "Story Mode");
+        return p.get_render_scale();
+    }
+
+    static void register_demo_panel() {
+        panels::panel_parent* parent = new panels::panel_parent();
+        parent->m_render = true;
+        parent->m_id = "demo";
+        parent->m_name = "Demo";
+
+        panels::panel_child child{};
+        child.m_parent = parent;
+        child.m_render = true;
+        child.m_id = "info";
+        child.m_double_sided = true;
+        child.m_panel_option_count_left = 3;
+        child.m_panel_option_count_right = 0;
+        child.m_update = demo_panel_update;
+
+        parent->m_children_panels.push_back(child);
+        panels::get_panels().push_back(parent);
+    }
+
     void build() {
         // Bind the string/pointer-bearing texture globals (skipped by the absent
         // .init_array), then set up the submenu tree and populate the demo.
@@ -17,6 +46,7 @@ namespace menu {
         menu::submenu::handler::load();   // m_current = main_menu::get()
         main_menu::get()->load();
         demo_child::get()->load();
+        register_demo_panel();
     }
 
     void tick() {
@@ -29,9 +59,10 @@ namespace menu {
         menu::base::update();
         menu::input::mi_update();
 
-        // Notifications + stacked display render every frame (independent of the
-        // menu being open).
+        // Notifications + stacked display + side panels render every frame
+        // (panels::update no-ops while the menu is closed).
         menu::notify::update();
         menu::display::render();
+        menu::panels::update();
     }
 }
