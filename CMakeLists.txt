@@ -32,4 +32,9 @@ target_compile_options(InsulinGTAV PRIVATE
     -fno-exceptions
     -fno-rtti
     -Wno-invalid-offsetof
+    # The menu runs single-threaded on the game script thread, so guarded
+    # function-local statics are unnecessary -- and dropping them removes the
+    # __cxa_guard_acquire/release import dependency (one less symbol that must
+    # resolve inside the game process at load time).
+    -fno-threadsafe-statics
 )

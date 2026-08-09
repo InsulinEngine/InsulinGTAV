@@ -31,6 +31,10 @@
 #ifndef VERSION
 #define VERSION 34
 #endif
+#ifndef VERSION_TYPE
+#define VERSION_TYPE ""
+#endif
+#define TRANSLATE(name) name.get().c_str()   // localization -> const char*
 
 template<typename T, int N> constexpr int NUMOF(T(&)[N]) { return N; }
 
