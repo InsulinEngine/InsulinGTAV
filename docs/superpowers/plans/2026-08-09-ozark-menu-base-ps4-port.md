@@ -17,12 +17,17 @@ STL/invoker smoke). **Also done:** Task 7 (ui_vars/vars/localization/math — co
 no init_array). Build recipe: Ninja generator required (VS/cl.exe cannot cross-compile) — see
 the memory note or `build.bat`.
 
-**Next:** Task 6 (input), Task 8 (base+renderer). **Known blocker for a faithful renderer:**
-Task 8a's 16 missing base natives (text-width/line-count, scaleform push/pop,
-get_control_instructional_button, get_gameplay_cam_rot, is_input_disabled, play_sound_frontend,
-draw_scaleform_movie_fullscreen) need IDA-verified RVAs against the CUSA00411 v1.57 eboot before
-the renderer/instructionals are faithful. Until verified, wrap them as no-op/log with a fixed
-width estimate (documented), or verify first.
+**Task 8a RESOLVED (2026-08-09).** The "16 missing natives" collapsed: the 6 scaleform
+push/pop/param + draw_fullscreen were already covered by `scaleform.h` (v1.57-validated). The 5
+genuinely-needed text/instructional natives were reversed against the v1.57 IDB
+(`E:\Projects\IDA\PS4\GTA5\eboot_named.i64`, imagebase 0x0) and live in
+`src/rage/invoker/missing_natives.h`: begin/end text width (0x9E0710/0x9E0720), begin/end line
+count (0x9E0750/0x9E0760), get_control_instructional_button = GET_CONTROL_INSTRUCTIONAL_BUTTONS_STRING
+(0xAA0FD0). Non-critical `get_text_scale_height` / `play_sound_frontend` / `is_input_disabled`
+are documented fallbacks (not renamed in the IDB; sound cosmetic, height→identity, input-gate→
+menu's own flag). The renderer + instructionals are now unblocked.
+
+**Next:** Task 6 (input), Task 8 (base+renderer), then options/handler/instructionals/OSK/demo.
 
 ## Global Constraints
 
