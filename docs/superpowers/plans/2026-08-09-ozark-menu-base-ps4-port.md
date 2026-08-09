@@ -10,8 +10,11 @@
 
 ## Progress (2026-08-09)
 
-**Milestone 0 COMPLETE (compile-verified; on-console gate open).** `build/InsulinGTAV.prx`
-builds. Done + committed: Task 1 (mini-STL), Task 2 (invoker; raw-pointer Vector3, no
+**Milestone 0 COMPLETE — ON-CONSOLE CONFIRMED (2026-08-09).** `build/InsulinGTAV.prx` loads on
+a GoldHEN console and reports `base=0x400000  HASH(insulin)=0x0669D57F OK | STL=OK`, frame hook
+installed. Invoker + ABI + mini-STL all validated on hardware. (Load blocker fixed: lld-18
+rosegment pushed the module base to 0x4000, which GoldHEN rejects; `--no-rosegment` restores base
+0 — see CMakeLists.) Done + committed: Task 1 (mini-STL), Task 2 (invoker; raw-pointer Vector3, no
 setVectors redirect), Task 3 (platform shim), Task 4 (frame hook), Task 5 (module_start +
 STL/invoker smoke). **Also done:** Task 7 (ui_vars/vars/localization/math — constexpr colours,
 no init_array). Build recipe: Ninja generator required (VS/cl.exe cannot cross-compile) — see
