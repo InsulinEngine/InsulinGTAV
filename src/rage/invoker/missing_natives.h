@@ -61,4 +61,26 @@ namespace native {
     static bool is_input_disabled(int /*inputGroup*/) {
         return false;
     }
+
+    // --- scaleform method natives (renderer globe) ------------------------
+    // These are the modern names for BEGIN/END_SCALEFORM_MOVIE_METHOD +
+    // SCALEFORM_MOVIE_METHOD_ADD_PARAM_FLOAT, whose RVAs are the v1.57-validated
+    // ones already used by scaleform.h (sf::). natives.h omits these names.
+    static bool push_scaleform_movie_function(int handle, const char* method) {
+        return rage::invoker::invoke<bool>(0x9D16D0, handle, method);
+    }
+    static Void push_scaleform_movie_function_parameter_float(float value) {
+        return rage::invoker::invoke<Void>(0x9D19A0, value);
+    }
+    static Void pop_scaleform_movie_function_void() {
+        return rage::invoker::invoke<Void>(0x9D1870);
+    }
+
+    // Camera rotation (globe spin). Fallback {0,0,0} -> the globe renders but
+    // does not spin. Returning by value avoids the native's Vector3-return path
+    // (unverified through this invoker). TODO: verify GET_GAMEPLAY_CAM_ROT if the
+    // spin is wanted.
+    static math::vector3<float> get_gameplay_cam_rot(int /*rotationOrder*/) {
+        return math::vector3<float>(0.f, 0.f, 0.f);
+    }
 }
