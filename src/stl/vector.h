@@ -42,6 +42,17 @@ namespace stl {
         const T* begin() const { return m_data; }
         const T* end() const { return m_data + m_size; }
 
+        // Erase the element at pos; returns the iterator to the next element.
+        T* erase(T* pos) {
+            if (pos < m_data || pos >= m_data + m_size) return m_data + m_size;
+            size_t i = (size_t)(pos - m_data);
+            m_data[i].~T();
+            for (size_t j = i; j + 1 < m_size; ++j)
+                new (m_data + j) T(m_data[j + 1]), m_data[j + 1].~T();
+            --m_size;
+            return m_data + i;
+        }
+
     private:
         void grow(size_t new_cap) {
             T* nd = (T*)malloc(new_cap * sizeof(T));

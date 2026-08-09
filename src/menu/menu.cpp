@@ -4,6 +4,8 @@
 #include "menu/base/submenus/main.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
+#include "menu/base/util/notify.h"
+#include "menu/base/util/stacked_display.h"
 #include "global/ui_vars.h"
 #include "rage/invoker/natives.h"
 
@@ -26,5 +28,10 @@ namespace menu {
         menu::input::update();
         menu::base::update();
         menu::input::mi_update();
+
+        // Notifications + stacked display render every frame (independent of the
+        // menu being open).
+        menu::notify::update();
+        menu::display::render();
     }
 }

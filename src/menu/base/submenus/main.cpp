@@ -8,6 +8,8 @@
 #include "menu/base/options/scroll.h"
 #include "menu/base/options/radio.h"
 #include "menu/base/options/color_option.h"
+#include "menu/base/util/notify.h"
+#include "menu/base/util/stacked_display.h"
 #include "platform/log.h"
 
 // Demo state (POD globals = constant-initialised; the string/map-bearing ones
@@ -21,6 +23,7 @@ static scroll_struct<int> g_demo_list[3];
 static radio_context g_demo_radio;
 static int g_demo_radio_ignored = 0;
 static color_rgba g_demo_color = color_rgba(220, 76, 81, 255);
+static bool g_show_stat = false;
 
 void main_menu::load() {
     set_name("InsulinGTAV");
@@ -39,8 +42,22 @@ void main_menu::load() {
     add_option(break_option("Options").ref());
 
     add_option(button_option("Say Hello")
-        .add_tooltip("Sends a notification")
-        .add_click([] { platform::notify("Hello from InsulinGTAV!"); }));
+        .add_tooltip("Ozark stacked notification")
+        .add_click([] { menu::notify::stacked("InsulinGTAV", "Hello from the menu!", global::ui::g_success); }));
+
+    add_option(button_option("Multi-line Notify")
+        .add_tooltip("A stacked notification with several lines")
+        .add_click([] {
+            stl::vector<stl::string> lines;
+            lines.push_back("Line one of the notify");
+            lines.push_back("Line two, a bit longer");
+            lines.push_back("Line three");
+            menu::notify::stacked_lines("Notice", lines);
+        }));
+
+    add_option(toggle_option("Stacked Display Row")
+        .add_toggle(g_show_stat)
+        .add_tooltip("Toggle a bottom-right key/value row"));
 
     add_option(toggle_option("Demo Toggle A")
         .add_toggle(g_demo_toggle_a)
@@ -76,7 +93,16 @@ void main_menu::load() {
 }
 
 void main_menu::update_once() {}
-void main_menu::update() {}
+
+void main_menu::update() {
+    // Drive the demo stacked-display row each frame from the toggle.
+    if (g_show_stat) {
+        menu::display::update("demo", "Int Slider", stl::string::format("%i", g_demo_int));
+    } else {
+        menu::display::disable("demo");
+    }
+}
+
 void main_menu::feature_update() {}
 
 main_menu* main_menu::get() {
