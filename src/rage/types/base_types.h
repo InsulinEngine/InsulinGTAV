@@ -31,8 +31,12 @@ namespace math {
     struct vector2 {
         T x, y;
 
-        vector2() : x(0), y(0) {}
-        vector2(T in_x, T in_y) : x(in_x), y(in_y) {}
+        // constexpr so namespace-scope vector2 globals (ui_vars positions/scales)
+        // are constant-initialised. Without it they are dynamic-init, which
+        // GoldHEN skips (no .init_array), zeroing every position/scale and
+        // collapsing the whole menu to (0,0) size 0 -> invisible.
+        constexpr vector2() : x(0), y(0) {}
+        constexpr vector2(T in_x, T in_y) : x(in_x), y(in_y) {}
 
         vector2 operator*(float v) const { return vector2(x * v, y * v); }
         vector2 operator/(float v) const { return (v == 0.f) ? vector2(0, 0) : vector2(x / v, y / v); }
@@ -54,8 +58,8 @@ namespace math {
     struct vector3 {
         T x, y, z;
 
-        vector3() : x(0), y(0), z(0) {}
-        vector3(T in_x, T in_y, T in_z) : x(in_x), y(in_y), z(in_z) {}
+        constexpr vector3() : x(0), y(0), z(0) {}
+        constexpr vector3(T in_x, T in_y, T in_z) : x(in_x), y(in_y), z(in_z) {}
 
         vector3 operator*(float v) const { return vector3(x * v, y * v, z * v); }
         vector3 operator+(const vector3& o) const { return vector3(x + o.x, y + o.y, z + o.z); }
