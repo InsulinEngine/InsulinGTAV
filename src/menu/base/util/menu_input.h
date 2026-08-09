@@ -22,6 +22,7 @@ namespace menu::input {
         bool m_color_active = false;
         color_rgba* m_color_target = nullptr;
         color_hsv m_hsv = { 0.f, 0.f, 0.f };
+        int m_alpha = 255;
     };
 
     menu_input* get_menu_input();
