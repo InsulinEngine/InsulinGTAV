@@ -98,4 +98,15 @@ namespace native {
     static math::vector3<float> get_gameplay_cam_rot(int /*rotationOrder*/) {
         return math::vector3<float>(0.f, 0.f, 0.f);
     }
+
+    // --- Vector3-returning coord natives (spawn positioning) --------------
+    // RVAs IDA-verified against v1.57. The native writes its Vector3 into the
+    // return slot, which the invoker reads back by value (same path the "Basic"
+    // menu uses on-console).
+    static math::vector3<float> get_entity_coords(Entity entity, bool alive) {
+        return rage::invoker::invoke<math::vector3<float>>(0x9B2BC0, entity, alive);
+    }
+    static math::vector3<float> get_offset_from_entity_in_world_coords(Entity entity, float x, float y, float z) {
+        return rage::invoker::invoke<math::vector3<float>>(0x9B3470, entity, x, y, z);
+    }
 }

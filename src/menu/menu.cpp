@@ -3,8 +3,10 @@
 #include "menu/base/submenu_handler.h"
 #include "menu/base/submenus/main.h"
 #include "menu/base/submenus/self.h"
+#include "menu/base/submenus/vehicle.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
+#include "menu/base/util/control.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "menu/base/util/panels.h"
@@ -52,9 +54,11 @@ namespace menu {
         main_menu::get()->load();
         demo_child::get()->load();
 
-        // Feature submenu: load + register so its feature_update runs each frame.
+        // Feature submenus: load + register so their feature_update runs each frame.
         self_menu::get()->load();
         menu::submenu::handler::add_submenu(self_menu::get());
+        vehicle_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_menu::get());
 
         register_demo_panel();
     }
@@ -70,8 +74,10 @@ namespace menu {
         menu::input::mi_update();
 
         // Per-frame feature loop (godmode etc. re-applied every frame, whether or
-        // not the owning submenu is open).
+        // not the owning submenu is open), then the control manager's request
+        // queues (model/asset streaming for spawns).
         menu::submenu::handler::feature_update();
+        menu::control::update();
 
         // Notifications + stacked display + side panels render every frame
         // (panels::update no-ops while the menu is closed).

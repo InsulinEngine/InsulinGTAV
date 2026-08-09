@@ -9,6 +9,7 @@
 #include "menu/base/options/radio.h"
 #include "menu/base/options/color_option.h"
 #include "menu/base/submenus/self.h"
+#include "menu/base/submenus/vehicle.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "platform/log.h"
@@ -42,6 +43,10 @@ void main_menu::load() {
     add_option(submenu_option("Self")
         .add_submenu<self_menu>()
         .add_tooltip("Player features (godmode, heal, weapons ...)"));
+
+    add_option(submenu_option("Vehicle")
+        .add_submenu<vehicle_menu>()
+        .add_tooltip("Spawn vehicles (via the control manager)"));
 
     add_option(submenu_option("Demo Submenu")
         .add_submenu<demo_child>()
