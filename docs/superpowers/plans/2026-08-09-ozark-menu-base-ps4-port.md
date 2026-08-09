@@ -8,6 +8,22 @@
 
 **Tech Stack:** C++17, OpenOrbis PS4 toolchain (clang 18, lld), GoldHEN Plugin SDK (crtprx.o, libGoldHEN_Hook.a, Detour), CMake via `add_orbis_target(... TYPE GHPLUGIN)`.
 
+## Progress (2026-08-09)
+
+**Milestone 0 COMPLETE (compile-verified; on-console gate open).** `build/InsulinGTAV.prx`
+builds. Done + committed: Task 1 (mini-STL), Task 2 (invoker; raw-pointer Vector3, no
+setVectors redirect), Task 3 (platform shim), Task 4 (frame hook), Task 5 (module_start +
+STL/invoker smoke). **Also done:** Task 7 (ui_vars/vars/localization/math — constexpr colours,
+no init_array). Build recipe: Ninja generator required (VS/cl.exe cannot cross-compile) — see
+the memory note or `build.bat`.
+
+**Next:** Task 6 (input), Task 8 (base+renderer). **Known blocker for a faithful renderer:**
+Task 8a's 16 missing base natives (text-width/line-count, scaleform push/pop,
+get_control_instructional_button, get_gameplay_cam_rot, is_input_disabled, play_sound_frontend,
+draw_scaleform_movie_fullscreen) need IDA-verified RVAs against the CUSA00411 v1.57 eboot before
+the renderer/instructionals are faithful. Until verified, wrap them as no-op/log with a fixed
+width estimate (documented), or verify first.
+
 ## Global Constraints
 
 - **Target:** GTA V PS4 **CUSA00411 v1.57**; artifact `build/InsulinGTAV.prx` (GHPLUGIN).
