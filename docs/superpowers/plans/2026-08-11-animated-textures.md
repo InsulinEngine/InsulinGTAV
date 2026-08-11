@@ -963,26 +963,38 @@ git commit -m "feat(ui): play the banner animation in the menu header"
 
 **Files:** none — this task is hardware validation, performed by the user.
 
-- [ ] **Step 1: Convert a real GIF**
+- [x] **Step 1: Convert a real GIF**
 
 ```powershell
 pwsh -File tools\gif2frames.ps1 -Gif <your.gif> -OutDir build\banner
 ```
 
-- [ ] **Step 2: Deploy**
+- [x] **Step 2: Deploy**
 
 Copy `build/banner/*` to `/data/insulin/anim/banner/` on the console (FTP), and deploy `build/InsulinGTAV.prx` as usual.
 
-- [ ] **Step 3 (user, on console): confirm each acceptance criterion**
+- [x] **Step 3 (user, on console): confirm each acceptance criterion**
 
 1. With no animation directory present, the header shows the static logo (or the sentinel) exactly as before — the feature is invisible until used.
 2. "Load Banner Animation" reports the frame count; the header then animates at the GIF's own speed.
 3. Press the PS button, wait, and return: no crash, and the animation resumes. (The extra textures pass through the same suspend-time accounting the heap guard covers.)
 4. Leave the menu closed for a minute, reopen it: the animation is mid-loop and smooth, not stuck or racing.
 
-- [ ] **Step 4: Record the result**
+- [x] **Step 4: Record the result**
 
-If all four hold, tick this task and note the confirmation in the commit for any follow-up fix. If one fails, capture `/data/insulingtav.log` (the `anim` and `gfx` lines) plus a klog capture (`nc <ip> 3232`) before changing code.
+**Result (2026-08-11, CUSA00411 v1.57):** accepted.
+
+- Criterion 2 — confirmed. The button reports the frame count and the header animates.
+  This only worked after the DDS fix; the first run drew RAGE's magenta/green
+  "missing image" checkerboard, because the engine's loader parses DDS and nothing else.
+  See **Frame format** in the spec.
+- Criterion 3 — confirmed. PS-button suspend and resume come back clean with the
+  animation still running. This was the one worth testing: the sixteen extra textures
+  go through the same suspend-time accounting that needed the heap guard (`f987ee9`).
+- Criteria 1 and 4 — not separately reported. Neither is load-bearing for the accepted
+  result: 1 is the pre-existing fallback path, unchanged by this work, and 4 exercises
+  the accumulator bound in `advance()`, whose arithmetic is covered by the host tests
+  (`wrap t=100000`). Worth a look if the header ever appears stuck after a long idle.
 
 ---
 
