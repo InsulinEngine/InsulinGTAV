@@ -12,6 +12,7 @@
 #include "menu/base/options/dropdown.h"
 #include "menu/base/options/modal.h"
 #include "menu/base/util/notify.h"
+#include "menu/base/util/animated_texture.h"
 #include "menu/base/submenus/self.h"
 #include "menu/base/submenus/vehicle.h"
 #include "menu/base/submenus/settings.h"
@@ -87,6 +88,14 @@ void main_menu::load() {
             if (t.add_directory("/data/insulin") == 0)
                 t.add("logo", "/data/insulin/logo.dds");   // fallback if the dir scan yields nothing
             t.commit();
+        }));
+
+    add_option(button_option("Load Banner Animation")
+        .add_tooltip("Plays /data/insulin/anim/banner as the menu header")
+        .add_click([] {
+            menu::animated_texture* a = menu::animation::load_banner();
+            if (a) menu::notify::stacked("Animation", stl::string::format("%i frames", a->frame_count()), global::ui::g_success);
+            else   menu::notify::stacked("Animation", "Nothing loadable in /data/insulin/anim/banner", global::ui::g_error);
         }));
 
     add_option(toggle_option("Stacked Display Row")

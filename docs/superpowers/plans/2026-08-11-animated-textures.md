@@ -10,6 +10,13 @@
 
 **Design spec:** `docs/superpowers/specs/2026-08-11-animated-textures-design.md` — read it first; this plan implements it and does not restate its reasoning.
 
+> **Superseded in one respect (2026-08-11, after the first console run):** every code
+> block below that writes or names `*.png` frames is obsolete. The engine's image loader
+> is DDS-only and silently substitutes a magenta/green checkerboard for anything else, so
+> `tools/gif2frames.ps1` emits uncompressed DDS instead. The tree is the current truth;
+> see **Frame format** in the spec for the disassembly that settled it. The blocks are
+> left as written so the executed steps still match their commits.
+
 ## Global Constraints
 
 - **Target:** GTA V PS4 **CUSA00411 v1.57**; artifact `build/InsulinGTAV.prx` (GHPLUGIN).
@@ -55,7 +62,7 @@ The loader lives with the type rather than in `rage::gfx` because it depends on 
 - Consumes: nothing.
 - Produces: `menu::frame_clock::total_ms(const uint16_t* delays, int count) -> int` and `menu::frame_clock::frame_at(const uint16_t* delays, int count, int elapsed_ms, bool loop) -> int`. Task 3 calls both.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/frame_clock_test.cpp`:
 
@@ -117,7 +124,7 @@ int main() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.exe
@@ -125,7 +132,7 @@ clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.e
 
 Expected: FAIL to compile — `'menu/base/util/frame_clock.h' file not found`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `src/menu/base/util/frame_clock.h`:
 
@@ -176,7 +183,7 @@ namespace menu::frame_clock {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.exe && ./build/frame_clock_test.exe
@@ -184,7 +191,7 @@ clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.e
 
 Expected: every line prefixed `ok`, final line `all passed`, exit code 0.
 
-- [ ] **Step 5: Confirm the PS4 build still succeeds**
+- [x] **Step 5: Confirm the PS4 build still succeeds**
 
 ```bash
 ./build.bat
@@ -192,7 +199,7 @@ Expected: every line prefixed `ok`, final line `all passed`, exit code 0.
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced. (The header is not referenced yet; this only proves it does not break the tree.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/menu/base/util/frame_clock.h tests/frame_clock_test.cpp
@@ -205,50 +212,103 @@ git commit -m "feat(ui): frame-selection maths for animated textures, host-teste
 
 **Files:**
 - Create: `tools/gif2frames.ps1`
-- Test: run it against a generated fixture GIF (commands below; no test file is committed)
+- Test: `tests/gif2frames_test.ps1`
 
 **Interfaces:**
 - Consumes: nothing.
 - Produces: a directory of `000.png…NNN.png` plus `frames.json` in the shape Task 4 parses:
   `{ "loop": bool, "default_delay": int, "frames": [ { "file": string, "delay": int } ] }`
 
-- [ ] **Step 1: Create the fixture GIF and confirm what a correct reader sees**
+> **Outcome differs from the plan:** the frames are `000.dds…NNN.dds`. PNG loads as a
+> checkerboard on hardware — see the note at the top of this file. The manifest shape is
+> unchanged, since it carries file names rather than an extension assumption.
 
-This 85-byte GIF89a has two 1×1 frames with delays of 10 and 20 hundredths of a second. Run in PowerShell from the repo root:
+- [x] **Step 1: Write the failing test**
+
+The fixture is built byte by byte rather than shipped as a binary: an 85-byte GIF89a with two 1×1 frames whose stored delays are 10 and 20 hundredths of a second. Those exact bytes were written and read back with `System.Drawing` while this plan was being written — a correct reader reports `frames=2` and property `0x5100` = `10,0,0,0,20,0,0,0` (a packed array of 4-byte little-endian ints, one per frame, in 1/100 s), i.e. 100 ms and 200 ms.
+
+Create `tests/gif2frames_test.ps1`:
 
 ```powershell
-$b = [byte[]]@(0x47,0x49,0x46,0x38,0x39,0x61, 0x01,0x00, 0x01,0x00, 0x80,0x00,0x00,
-      0x00,0x00,0x00, 0xFF,0xFF,0xFF, 0x21,0xFF,0x0B) +
-     [System.Text.Encoding]::ASCII.GetBytes("NETSCAPE2.0") +
-     [byte[]]@(0x03,0x01,0x00,0x00,0x00,
-      0x21,0xF9,0x04,0x00,0x0A,0x00,0x00,0x00,
-      0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
-      0x21,0xF9,0x04,0x00,0x14,0x00,0x00,0x00,
-      0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
-      0x3B)
-New-Item -ItemType Directory -Force build\fixture | Out-Null
-[System.IO.File]::WriteAllBytes("$PWD\build\fixture\two.gif", $b)
+<#
+    Tests tools/gif2frames.ps1 against a hand-built fixture GIF.
+    Run:  pwsh -File tests/gif2frames_test.ps1
+    Exit: 0 all passed, 1 something failed.
+#>
+$ErrorActionPreference = 'Stop'
+$root    = Split-Path -Parent $PSScriptRoot
+$script  = Join-Path $root 'tools\gif2frames.ps1'
+$work    = Join-Path $root 'build\fixture'
+$failed  = 0
+
+function Check([string]$what, $got, $want) {
+    if ("$got" -ne "$want") { Write-Host "FAIL $what : got '$got', want '$want'"; $script:failed++ }
+    else                    { Write-Host "ok   $what = $got" }
+}
+
+# --- fixture: GIF89a, 1x1, two frames, delays 10 and 20 (1/100 s) ------------
+$bytes = [byte[]]@(0x47,0x49,0x46,0x38,0x39,0x61, 0x01,0x00, 0x01,0x00, 0x80,0x00,0x00,
+          0x00,0x00,0x00, 0xFF,0xFF,0xFF, 0x21,0xFF,0x0B) +
+         [System.Text.Encoding]::ASCII.GetBytes("NETSCAPE2.0") +
+         [byte[]]@(0x03,0x01,0x00,0x00,0x00,
+          0x21,0xF9,0x04,0x00,0x0A,0x00,0x00,0x00,
+          0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
+          0x21,0xF9,0x04,0x00,0x14,0x00,0x00,0x00,
+          0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
+          0x3B)
+
+New-Item -ItemType Directory -Force -Path $work | Out-Null
+$gif = Join-Path $work 'two.gif'
+[System.IO.File]::WriteAllBytes($gif, $bytes)
+
+# The fixture must be readable, or every assertion below tests nothing.
 Add-Type -AssemblyName System.Drawing
-$img = [System.Drawing.Image]::FromFile("$PWD\build\fixture\two.gif")
-$dim = New-Object System.Drawing.Imaging.FrameDimension $img.FrameDimensionsList[0]
-"frames=$($img.GetFrameCount($dim)) delays=$($img.GetPropertyItem(0x5100).Value -join ',')"
-$img.Dispose()
+$img = [System.Drawing.Image]::FromFile($gif)
+try {
+    $dim = New-Object System.Drawing.Imaging.FrameDimension $img.FrameDimensionsList[0]
+    Check 'fixture frame count' $img.GetFrameCount($dim) 2
+    Check 'fixture delay table' ($img.GetPropertyItem(0x5100).Value -join ',') '10,0,0,0,20,0,0,0'
+} finally { $img.Dispose() }
+
+# --- full conversion --------------------------------------------------------
+$out = Join-Path $work 'out'
+if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+& pwsh -File $script -Gif $gif -OutDir $out | Out-Null
+
+Check 'wrote 000.png'  (Test-Path (Join-Path $out '000.png')) 'True'
+Check 'wrote 001.png'  (Test-Path (Join-Path $out '001.png')) 'True'
+Check 'wrote manifest' (Test-Path (Join-Path $out 'frames.json')) 'True'
+
+$m = Get-Content (Join-Path $out 'frames.json') -Raw | ConvertFrom-Json
+Check 'manifest frame count' $m.frames.Count 2
+Check 'frame 0 file'         $m.frames[0].file '000.png'
+Check 'frame 0 delay (ms)'   $m.frames[0].delay 100
+Check 'frame 1 delay (ms)'   $m.frames[1].delay 200
+Check 'loop flag'            $m.loop 'True'
+Check 'default delay'        $m.default_delay 66
+
+# --- down-sampling keeps total duration and says so -------------------------
+$out1 = Join-Path $work 'out1'
+if (Test-Path $out1) { Remove-Item $out1 -Recurse -Force }
+& pwsh -File $script -Gif $gif -OutDir $out1 -MaxFrames 1 3>$null | Out-Null
+
+$m1 = Get-Content (Join-Path $out1 'frames.json') -Raw | ConvertFrom-Json
+Check 'sampled frame count'   $m1.frames.Count 1
+Check 'folded delay (100+200)' $m1.frames[0].delay 300
+
+if ($failed) { Write-Host "`n$failed FAILED"; exit 1 }
+Write-Host "`nall passed"; exit 0
 ```
 
-Expected output (verified while writing this plan):
-`frames=2 delays=10,0,0,0,20,0,0,0`
-
-That property is a packed array of 4-byte little-endian ints, one per frame, in 1/100 s — so frame delays here are 100 ms and 200 ms.
-
-- [ ] **Step 2: Run the converter to verify it does not exist yet**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```powershell
-pwsh -File tools\gif2frames.ps1 -Gif build\fixture\two.gif -OutDir build\fixture\out
+pwsh -File tests\gif2frames_test.ps1
 ```
 
-Expected: FAIL — the script file does not exist.
+Expected: the two fixture checks pass (proving the fixture itself is sound), then failure — `tools/gif2frames.ps1` does not exist yet, so the run throws and no output files appear.
 
-- [ ] **Step 3: Write the converter**
+- [x] **Step 3: Write the converter**
 
 Create `tools/gif2frames.ps1`:
 
@@ -354,29 +414,20 @@ try {
 
 Note on the redraw: `SelectActiveFrame` mutates the shared `Image`, so each frame is copied into its own `Bitmap` before saving — saving `$img` directly writes the same frame every time in some GDI+ versions.
 
-- [ ] **Step 4: Run the converter against the fixture and check its output**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```powershell
-pwsh -File tools\gif2frames.ps1 -Gif build\fixture\two.gif -OutDir build\fixture\out
-Get-ChildItem build\fixture\out | Select-Object -ExpandProperty Name
-Get-Content build\fixture\out\frames.json -Raw
+pwsh -File tests\gif2frames_test.ps1
 ```
 
-Expected: `000.png`, `001.png`, `frames.json`; the console line reports `2 frame(s), 1x1, 300 ms total`; and the manifest contains `"delay": 100` for `000.png` and `"delay": 200` for `001.png`, with `"loop": true` and `"default_delay": 66`.
+Expected: every line prefixed `ok`, final line `all passed`, exit code 0. In particular `frame 0 delay (ms) = 100`, `frame 1 delay (ms) = 200` (the GIF's hundredths converted to milliseconds) and `folded delay (100+200) = 300` (down-sampling preserves total duration).
 
-- [ ] **Step 5: Check the down-sampling path reports rather than truncates silently**
+If the run reports `sampled frame count` correct but `folded delay` wrong, the delay-folding loop is summing the wrong span — check that the last kept frame folds in every remaining frame up to `$count`, not just up to the next kept index.
 
-```powershell
-pwsh -File tools\gif2frames.ps1 -Gif build\fixture\two.gif -OutDir build\fixture\out1 -MaxFrames 1
-Get-Content build\fixture\out1\frames.json -Raw
-```
-
-Expected: a warning that the GIF has 2 frames and is sampled to 1, one `000.png`, and a single manifest entry with `"delay": 300` — the dropped frame's time folded in, total duration unchanged.
-
-- [ ] **Step 6: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-git add tools/gif2frames.ps1
+git add tools/gif2frames.ps1 tests/gif2frames_test.ps1
 git commit -m "feat(tools): GIF to frame-directory converter via System.Drawing"
 ```
 
@@ -394,7 +445,7 @@ git commit -m "feat(tools): GIF to frame-directory converter via System.Drawing"
 
 There is no host test for this task: the type depends on the mini-STL and `platform/stdafx.h`, which do not build for the host. Its only non-trivial logic is delegated to the Task 1 header, which is tested. The gate here is the PS4 build.
 
-- [ ] **Step 1: Write the header**
+- [x] **Step 1: Write the header**
 
 Create `src/menu/base/util/animated_texture.h`:
 
@@ -472,7 +523,7 @@ namespace menu {
 }
 ```
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 Create `src/menu/base/util/animated_texture.cpp`:
 
@@ -523,7 +574,10 @@ namespace menu {
 
     stl::pair<stl::string, stl::string> animated_texture::current() const {
         if (m_names.size() == 0) return stl::make_pair(stl::string(""), stl::string(""));
-        return stl::make_pair(m_dict, m_names[current_index()]);
+        // Named rather than make_pair'd: stl::decay strips references but not cv,
+        // so deducing from const members here would yield pair<const string,
+        // const string>, which does not convert to the return type.
+        return stl::pair<stl::string, stl::string>(m_dict, m_names[current_index()]);
     }
 
     namespace animation {
@@ -571,8 +625,14 @@ Notes:
 - `create()` returns a pointer into the registry vector. Callers must not hold it across another `create()` — a `push_back` can reallocate. Task 4 uses it immediately and drops it; nothing else stores one.
 - `r[i].name == name` is valid: `stl::string` defines `operator==(const char*)` and `operator==(const string&)` (`src/stl/string.h:43-44`). No `strcmp` needed.
 - `s.name = name` is valid: `string(const char* s)` is a non-explicit constructor (`src/stl/string.h:17`).
+- `stl::make_pair` cannot be used from a `const` member function. `stl::decay`
+  (`src/stl/pair.h:6-20`) specialises on `T&`, `T&&` and arrays but never removes
+  cv, so a `const stl::string` member deduces to `pair<const string, const string>`
+  — no conversion to `pair<string, string>` exists and the build fails. Name the
+  pair type at the call site instead. This bit `current()`; the other two
+  `make_pair` calls pass non-const prvalues and are unaffected.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 ./build.bat
@@ -580,7 +640,7 @@ Notes:
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/menu/base/util/animated_texture.h src/menu/base/util/animated_texture.cpp
@@ -599,7 +659,7 @@ git commit -m "feat(ui): animated_texture playback + animation registry"
 - Consumes: `menu::animation::create` (Task 3); `rage::gfx::menu_textures()`, `texture_dictionary::add(name, path)`, `texture_dictionary::commit()` (existing, `src/rage/gfx.h`).
 - Produces: `menu::animation::load_from_dir(const char* name, const char* dir) -> animated_texture*` (nullptr when nothing loadable was found) and `menu::animation::load_banner() -> animated_texture*`. Task 5 calls `load_banner()`.
 
-- [ ] **Step 1: Declare the loader**
+- [x] **Step 1: Declare the loader**
 
 In `src/menu/base/util/animated_texture.h`, inside `namespace animation`, after `create(...)`:
 
@@ -617,7 +677,7 @@ In `src/menu/base/util/animated_texture.h`, inside `namespace animation`, after 
         animated_texture* load_banner();
 ```
 
-- [ ] **Step 2: Implement it**
+- [x] **Step 2: Implement it**
 
 In `src/menu/base/util/animated_texture.cpp`, extend the includes:
 
@@ -766,7 +826,7 @@ and add inside `namespace animation`, after `create(...)`:
 
 Note on `&(*(tj::json*)list)[i]`: `tj::json::operator[](size_t)` exists only as a non-const overload (it auto-vivifies), so indexing a `const json*` needs the cast. The element is known to exist because the loop is bounded by `list->size()`.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 ./build.bat
@@ -774,7 +834,7 @@ Note on `&(*(tj::json*)list)[i]`: `tj::json::operator[](size_t)` exists only as 
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/menu/base/util/animated_texture.h src/menu/base/util/animated_texture.cpp
@@ -794,7 +854,7 @@ git commit -m "feat(ui): load animation frames from a directory + frames.json"
 - Consumes: `menu::animation::update`, `menu::animation::header_asset`, `menu::animation::load_banner` (Tasks 3-4).
 - Produces: nothing further.
 
-- [ ] **Step 1: Advance animations once per tick**
+- [x] **Step 1: Advance animations once per tick**
 
 In `src/menu/menu.cpp`, add the include next to the other menu utils:
 
@@ -810,7 +870,7 @@ and in `tick()`, immediately after `global::ui::g_delta = native::get_frame_time
         menu::animation::update(global::ui::g_delta);
 ```
 
-- [ ] **Step 2: Draw the animated header**
+- [x] **Step 2: Draw the animated header**
 
 In `src/menu/base/renderer.cpp`, add the include:
 
@@ -837,7 +897,7 @@ with:
         } else {
 ```
 
-- [ ] **Step 3: Keep the øZARK title suppressed when an animation is showing**
+- [x] **Step 3: Keep the øZARK title suppressed when an animation is showing**
 
 Further down the same file, the title text is drawn only when no banner is loaded. Change:
 
@@ -852,7 +912,7 @@ to:
             if (!rage::gfx::banner_ready() && !(title_anim && title_anim->ready())) {
 ```
 
-- [ ] **Step 4: Add the load button**
+- [x] **Step 4: Add the load button**
 
 In `src/menu/base/submenus/main.cpp`, add the include:
 
@@ -874,7 +934,7 @@ and add this option directly after the existing `"Load Custom Textures"` button:
 
 The signature is `stacked(stl::string title, stl::string text, color_rgba color = global::ui::g_notify_bar, uint32_t timeout = 6000)` (`src/menu/base/util/notify.h:44`), so the three-argument form above is correct.
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 ```bash
 ./build.bat
@@ -882,7 +942,7 @@ The signature is `stacked(stl::string title, stl::string text, color_rgba color 
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced.
 
-- [ ] **Step 6: Re-run the host tests (nothing in Tasks 3-5 should have changed the timing core)**
+- [x] **Step 6: Re-run the host tests (nothing in Tasks 3-5 should have changed the timing core)**
 
 ```bash
 clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.exe && ./build/frame_clock_test.exe
@@ -890,7 +950,7 @@ clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.e
 
 Expected: `all passed`, exit 0.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/menu/menu.cpp src/menu/base/renderer.cpp src/menu/base/submenus/main.cpp
@@ -903,26 +963,38 @@ git commit -m "feat(ui): play the banner animation in the menu header"
 
 **Files:** none — this task is hardware validation, performed by the user.
 
-- [ ] **Step 1: Convert a real GIF**
+- [x] **Step 1: Convert a real GIF**
 
 ```powershell
 pwsh -File tools\gif2frames.ps1 -Gif <your.gif> -OutDir build\banner
 ```
 
-- [ ] **Step 2: Deploy**
+- [x] **Step 2: Deploy**
 
 Copy `build/banner/*` to `/data/insulin/anim/banner/` on the console (FTP), and deploy `build/InsulinGTAV.prx` as usual.
 
-- [ ] **Step 3 (user, on console): confirm each acceptance criterion**
+- [x] **Step 3 (user, on console): confirm each acceptance criterion**
 
 1. With no animation directory present, the header shows the static logo (or the sentinel) exactly as before — the feature is invisible until used.
 2. "Load Banner Animation" reports the frame count; the header then animates at the GIF's own speed.
 3. Press the PS button, wait, and return: no crash, and the animation resumes. (The extra textures pass through the same suspend-time accounting the heap guard covers.)
 4. Leave the menu closed for a minute, reopen it: the animation is mid-loop and smooth, not stuck or racing.
 
-- [ ] **Step 4: Record the result**
+- [x] **Step 4: Record the result**
 
-If all four hold, tick this task and note the confirmation in the commit for any follow-up fix. If one fails, capture `/data/insulingtav.log` (the `anim` and `gfx` lines) plus a klog capture (`nc <ip> 3232`) before changing code.
+**Result (2026-08-11, CUSA00411 v1.57):** accepted.
+
+- Criterion 2 — confirmed. The button reports the frame count and the header animates.
+  This only worked after the DDS fix; the first run drew RAGE's magenta/green
+  "missing image" checkerboard, because the engine's loader parses DDS and nothing else.
+  See **Frame format** in the spec.
+- Criterion 3 — confirmed. PS-button suspend and resume come back clean with the
+  animation still running. This was the one worth testing: the sixteen extra textures
+  go through the same suspend-time accounting that needed the heap guard (`f987ee9`).
+- Criteria 1 and 4 — not separately reported. Neither is load-bearing for the accepted
+  result: 1 is the pre-existing fallback path, unchanged by this work, and 4 exercises
+  the accumulator bound in `advance()`, whose arithmetic is covered by the host tests
+  (`wrap t=100000`). Worth a look if the header ever appears stuck after a long idle.
 
 ---
 

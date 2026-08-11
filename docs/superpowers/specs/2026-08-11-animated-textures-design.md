@@ -95,18 +95,20 @@ static custom logo → the game/sentinel header.
 
 ```
 /data/insulin/logo.dds            static custom textures (unchanged)
-/data/insulin/anim/banner/        000.png … 015.png + frames.json
+/data/insulin/anim/banner/        000.dds … 015.dds + frames.json
 ```
 
 `frames.json`, parsed with the existing `tj` mini-JSON (as themes and language files are):
 
 ```json
 { "loop": true, "default_delay": 66,
-  "frames": [ { "file": "000.png", "delay": 66 } ] }
+  "frames": [ { "file": "000.dds", "delay": 66 } ] }
 ```
 
-Without the manifest the directory is scanned for `*.png` / `*.dds` in name order and every
-frame gets 66 ms (≈ 15 fps), so a folder of PNGs alone is a valid animation.
+Without the manifest the directory is scanned for `*.dds` / `*.png` in name order and every
+frame gets 66 ms (≈ 15 fps), so a folder of frames alone is a valid animation. `.png` is
+still scanned only so that it produces a named error rather than being skipped in silence —
+see **Frame format** below for why PNG cannot work.
 Per-frame delays exist because GIFs genuinely vary them frame to frame; the conversion
 script writes the real values.
 
@@ -128,12 +130,30 @@ None of these are fatal; the menu keeps running.
 | Menu closed for a long time | accumulator taken modulo total duration before stepping |
 | Loaded with no session up | same as the existing custom-texture path: the factory singleton is null, `create_texture_from_file` logs and returns null |
 
+## Frame format
+
+**Revised 2026-08-11 after the first console run.** The original decision — emit PNG,
+treat DDS as an optional manual optimisation — was wrong, and wrong in a way that produced
+no error message. `grcImage::Load` (eboot RVA `0x19CF830`) reads four bytes and requires
+the `DDS ` magic; it parses no other container. A PNG fails there and its caller
+(`0x19C3680`) substitutes a built-in 32×32 magenta/green checkerboard. The constructor
+wraps that in a genuine texture and the factory (`0x1A0FB10`) returns a valid pointer
+regardless — it never even reads the constructor's result. Every layer above therefore
+sees success, and the animation plays sixteen checkerboards.
+
+Frames are consequently written as **uncompressed B8G8R8A8** (`dxgiFormat` 87 behind a
+`DX10` header), which the loader maps to internal format 11 with alpha preserved. BC1/DXT
+would be ~8× smaller and is what the engine uses natively, but writing a block compressor
+in PowerShell is a project of its own; uncompressed needs only a 148-byte header and a
+pixel copy.
+
+`create_texture_from_file` now checks the magic itself before calling the factory, so a
+non-DDS file is a log error instead of stripes on screen.
+
 ## Memory
 
-Sixteen 512×192 PNG frames are decompressed to RGBA by the engine, ≈ 6 MB — the default
-path. The same frames as DXT5 DDS would be ≈ 1.5 MB; the loader accepts both, since it
-takes file names from the manifest rather than filtering by extension. Converting to DDS
-is a manual optimisation, not part of v1 tooling (see below).
+Sixteen 512×192 uncompressed BGRA frames are ≈ 6 MB. The same frames as DXT5 would be
+≈ 1.5 MB, which is the reason to revisit block compression if the budget ever bites.
 
 ## Tooling
 
@@ -142,12 +162,12 @@ including the real per-frame delays. Without it the feature is not usable, so it
 of the work.
 
 It uses .NET `System.Drawing` directly (`FrameDimension.Time` for the frames, property item
-`0x5100` for the delay table, which GIF stores in 1/100 s units) and emits PNG. Neither
-ffmpeg nor ImageMagick is installed on the development machine and neither ships with
-Windows, so depending on one would mean the script fails on first use; `System.Drawing` is
-present with PowerShell 7 on Windows. Consequences: PNG output only — DDS conversion would
-need a block compressor and is left as a manual step — and frames are written at the GIF's
-own resolution, with resizing likewise manual.
+`0x5100` for the delay table, which GIF stores in 1/100 s units) and writes uncompressed
+DDS. Neither ffmpeg nor ImageMagick is installed on the development machine and neither
+ships with Windows, so depending on one would mean the script fails on first use;
+`System.Drawing` is present with PowerShell 7 on Windows. It supplies the pixels; the DDS
+header is written by hand, which is a few dozen bytes and needs no library at all.
+Consequence: frames are written at the GIF's own resolution, with resizing left manual.
 
 ## On-console acceptance
 

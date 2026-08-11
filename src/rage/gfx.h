@@ -27,13 +27,17 @@ namespace rage::gfx {
         // lowercased file stem is used ("/data/insulin/logo.dds" -> "logo").
         // Buffers the texture; call commit() to (re)inject. Re-adding a name
         // replaces it. Returns true if the texture was created.
+        // DDS only -- the engine's image loader parses no other format, and hands
+        // back a magenta/green checkerboard for anything else (see gfx.cpp).
         bool add(const char* tex_name, const char* path);
 
         // Add an already-created grcTexture under `tex_name`.
         bool add_texture(const char* tex_name, void* tex);
 
         // Scan `dir` for *.dds / *.png and add each (name = lowercased file stem).
-        // Returns the number added. Call commit() afterwards.
+        // Returns the number added. Call commit() afterwards. .png is still scanned
+        // on purpose: add() rejects it with a named error, which beats a stray PNG
+        // being silently skipped when someone wonders why their texture is missing.
         int add_directory(const char* dir);
 
         // (Re)build the pgDictionary from the buffered textures and inject/refresh
