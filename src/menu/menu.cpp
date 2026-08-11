@@ -11,6 +11,7 @@
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "menu/base/util/panels.h"
+#include "menu/base/util/animated_texture.h"
 #include "util/config.h"
 #include "global/ui_vars.h"
 #include "platform/system_ui.h"
@@ -107,6 +108,10 @@ namespace menu {
 
         // g_delta drives the scroller lerp; refresh it from the frame time.
         global::ui::g_delta = native::get_frame_time();
+
+        // Step every loaded animation before anything draws, so update and render
+        // stay separate and the renderer keeps no side effects.
+        menu::animation::update(global::ui::g_delta);
 
         // Input first (open bind L1+O + navigation), then base (control-disable +
         // render + handler update), then drain any deferred menu-input actions.

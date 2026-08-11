@@ -6,6 +6,7 @@
 #include "menu/base/util/textures.h"
 #include "menu/base/util/fonts.h"
 #include "menu/base/util/menu_input.h"
+#include "menu/base/util/animated_texture.h"
 #include "menu/base/submenus/main.h"
 #include "rage/gfx.h"
 #include <math.h>
@@ -46,8 +47,11 @@ namespace menu::renderer {
         // it into the txd store as "insulin"/"logo"; draw it at full colour.
         // Otherwise fall back to the sentinel / game header texture.
         stl::pair<stl::string, stl::string> texture = get_texture(global::ui::m_header);
-        if (rage::gfx::banner_ready()) {
-            draw_sprite_aligned({ "insulin", "logo" }, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
+        // Header source, in order: the "banner" animation's current frame, the
+        // static custom logo, then the game/sentinel texture below.
+        menu::animated_texture* banner_anim = menu::animation::get("banner");
+        if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
+            draw_sprite_aligned(menu::animation::header_asset(), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
         } else {
             draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
         }
@@ -126,7 +130,8 @@ namespace menu::renderer {
         if (menu::submenu::handler::get_current() == main_menu::get()) {
             // A loaded custom banner IS the branding -- drop the øZARK title text
             // so it doesn't overlap the header image.
-            if (!rage::gfx::banner_ready()) {
+            menu::animated_texture* title_anim = menu::animation::get("banner");
+            if (!rage::gfx::banner_ready() && !(title_anim && title_anim->ready())) {
                 draw_text("~s~&#248;ZARK " VERSION_TYPE, { global::ui::g_position.x + 0.005f, global::ui::g_position.y - 0.061f }, 0.77f, global::ui::g_header_font, global::ui::g_title, JUSTIFY_LEFT);
             }
         } else {
