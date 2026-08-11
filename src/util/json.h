@@ -91,6 +91,10 @@ namespace tj {
             return 0;
         }
 
+        // --- object iteration in insertion order ----------------------------
+        size_t member_count() const { return (m_type == object_t && m_object) ? m_object->size() : 0; }
+        const char* key_at(size_t i) const { return (m_type == object_t && m_object && i < m_object->size()) ? (*m_object)[i].first.c_str() : ""; }
+
         // --- safe typed value with default ----------------------------------
         bool value_bool(const char* key, bool def) const { const json* c = find(key); return c && c->is_boolean() ? c->get_bool() : def; }
         long long value_int(const char* key, long long def) const { const json* c = find(key); return c && c->is_number() ? c->get_int() : def; }

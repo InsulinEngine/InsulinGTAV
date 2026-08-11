@@ -1,5 +1,6 @@
 #pragma once
 #include "platform/stdafx.h"
+#include "util/translation.h"
 
 // Trimmed localization: the base only needs it to carry an original string and
 // hand it back. The PC build registered every instance in a global translation
@@ -22,7 +23,7 @@ public:
     void register_translation() {}   // no-op: no translation table on PS4
 
     stl::string get_original() { return m_original; }
-    stl::string get() { return m_translate ? m_mapped : m_original; }
+    stl::string get() { return (m_translate && util::i18n::active()) ? util::i18n::translate(m_original) : m_original; }
     bool has_translation() { return m_translate; }
 
 private:
