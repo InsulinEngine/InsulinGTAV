@@ -1,6 +1,7 @@
 #include "menu/base/util/menu_input.h"
 #include "menu/base/base.h"
 #include "menu/base/renderer.h"
+#include "menu/base/util/overlay.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 
@@ -88,6 +89,9 @@ namespace menu::input {
                 m_color_target = nullptr;
             }
         }
+
+        // Dropdown / modal overlays render on top and capture input while active.
+        menu::overlay::update();
     }
 
     void menu_input::push(stl::function<void()> function) {
