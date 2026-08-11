@@ -6,13 +6,19 @@
 #include "menu/base/options/submenu_option.h"
 #include "menu/base/options/number.h"
 #include "menu/base/options/scroll.h"
+#include "menu/base/options/scrollbar.h"
 #include "menu/base/options/radio.h"
 #include "menu/base/options/color_option.h"
+#include "menu/base/options/dropdown.h"
+#include "menu/base/options/modal.h"
+#include "menu/base/util/notify.h"
 #include "menu/base/submenus/self.h"
 #include "menu/base/submenus/vehicle.h"
+#include "menu/base/submenus/settings.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "platform/log.h"
+#include "rage/gfx.h"
 
 // Demo state (POD globals = constant-initialised; the string/map-bearing ones
 // are zero-init and populated at runtime in load()).
@@ -21,6 +27,8 @@ static bool g_demo_toggle_b = true;
 static int g_demo_int = 50;
 static float g_demo_float = 1.0f;
 static int g_demo_list_index = 0;
+static int g_demo_bar = 60;
+static int g_demo_dropdown = 1;
 static scroll_struct<int> g_demo_list[3];
 static radio_context g_demo_radio;
 static int g_demo_radio_ignored = 0;
@@ -48,6 +56,10 @@ void main_menu::load() {
         .add_submenu<vehicle_menu>()
         .add_tooltip("Spawn vehicles (via the control manager)"));
 
+    add_option(submenu_option("Settings")
+        .add_submenu<settings_menu>()
+        .add_tooltip("Themes (save / reset / apply)"));
+
     add_option(submenu_option("Demo Submenu")
         .add_submenu<demo_child>()
         .add_tooltip("Open a child submenu"));
@@ -66,6 +78,15 @@ void main_menu::load() {
             lines.push_back("Line two, a bit longer");
             lines.push_back("Line three");
             menu::notify::stacked_lines("Notice", lines);
+        }));
+
+    add_option(button_option("Load Custom Textures")
+        .add_tooltip("Loads every .dds/.png in /data/insulin into the \"insulin\" dictionary; \"logo\" becomes the header")
+        .add_click([] {
+            auto& t = rage::gfx::menu_textures();
+            if (t.add_directory("/data/insulin") == 0)
+                t.add("logo", "/data/insulin/logo.dds");   // fallback if the dir scan yields nothing
+            t.commit();
         }));
 
     add_option(toggle_option("Stacked Display Row")
@@ -94,9 +115,26 @@ void main_menu::load() {
         .add_scroll(g_demo_list_index, 0, 3, g_demo_list)
         .add_tooltip("A scroll list: Low / Medium / High"));
 
+    add_option(scrollbar_option<int>("Scrollbar")
+        .add_number(g_demo_bar, "%i", 5)
+        .add_min(0).add_max(100)
+        .add_tooltip("Slider with a filled progress bar (D-Pad left/right)"));
+
     add_option(color_option("Color Picker")
         .add_color(g_demo_color)
         .add_tooltip("Select to open the HSV picker"));
+
+    add_option(dropdown_option("Dropdown")
+        .add_index(g_demo_dropdown)
+        .add_items({ "Off", "Low", "Medium", "High", "Ultra" })
+        .add_tooltip("Cross opens a list; D-Pad left/right cycles")
+        .add_change([](int i) { menu::notify::stacked("Dropdown", stl::string::format("Picked %i", i)); }));
+
+    add_option(modal_option("Modal Dialog")
+        .add_message("Are you sure you want to do the thing?")
+        .add_confirm([] { menu::notify::stacked("Modal", "Confirmed", global::ui::g_success); })
+        .add_cancel([] { menu::notify::stacked("Modal", "Cancelled", global::ui::g_error); })
+        .add_tooltip("Opens a centered confirm/cancel dialog"));
 
     add_option(break_option("Radio Group").ref());
 
