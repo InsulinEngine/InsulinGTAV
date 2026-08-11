@@ -434,7 +434,7 @@ git commit -m "feat(tools): GIF to frame-directory converter via System.Drawing"
 
 There is no host test for this task: the type depends on the mini-STL and `platform/stdafx.h`, which do not build for the host. Its only non-trivial logic is delegated to the Task 1 header, which is tested. The gate here is the PS4 build.
 
-- [ ] **Step 1: Write the header**
+- [x] **Step 1: Write the header**
 
 Create `src/menu/base/util/animated_texture.h`:
 
@@ -512,7 +512,7 @@ namespace menu {
 }
 ```
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 Create `src/menu/base/util/animated_texture.cpp`:
 
@@ -563,7 +563,10 @@ namespace menu {
 
     stl::pair<stl::string, stl::string> animated_texture::current() const {
         if (m_names.size() == 0) return stl::make_pair(stl::string(""), stl::string(""));
-        return stl::make_pair(m_dict, m_names[current_index()]);
+        // Named rather than make_pair'd: stl::decay strips references but not cv,
+        // so deducing from const members here would yield pair<const string,
+        // const string>, which does not convert to the return type.
+        return stl::pair<stl::string, stl::string>(m_dict, m_names[current_index()]);
     }
 
     namespace animation {
@@ -611,8 +614,14 @@ Notes:
 - `create()` returns a pointer into the registry vector. Callers must not hold it across another `create()` — a `push_back` can reallocate. Task 4 uses it immediately and drops it; nothing else stores one.
 - `r[i].name == name` is valid: `stl::string` defines `operator==(const char*)` and `operator==(const string&)` (`src/stl/string.h:43-44`). No `strcmp` needed.
 - `s.name = name` is valid: `string(const char* s)` is a non-explicit constructor (`src/stl/string.h:17`).
+- `stl::make_pair` cannot be used from a `const` member function. `stl::decay`
+  (`src/stl/pair.h:6-20`) specialises on `T&`, `T&&` and arrays but never removes
+  cv, so a `const stl::string` member deduces to `pair<const string, const string>`
+  — no conversion to `pair<string, string>` exists and the build fails. Name the
+  pair type at the call site instead. This bit `current()`; the other two
+  `make_pair` calls pass non-const prvalues and are unaffected.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 ./build.bat
@@ -620,7 +629,7 @@ Notes:
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/menu/base/util/animated_texture.h src/menu/base/util/animated_texture.cpp
