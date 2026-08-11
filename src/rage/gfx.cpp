@@ -79,8 +79,32 @@ namespace rage::gfx {
     }
 
     // --------------------------------------------------------------------------
+    // The engine's image loader (grcImage::Load, RVA 0x19CF830) reads four bytes
+    // and requires the 'DDS ' magic -- it parses nothing else, no PNG, no JPEG.
+    // What makes that dangerous is the failure path: its caller (0x19C3680)
+    // substitutes a built-in 32x32 magenta/green checkerboard, the constructor
+    // builds a genuine texture around it, and the factory returns a valid pointer.
+    // Success and failure are therefore indistinguishable downstream, and a wrong
+    // file shows up as stripes on screen with a clean log. Check the magic here so
+    // it is an error instead.
+    static bool is_dds_file(const char* path) {
+        int fd = sceKernelOpen(path, 0 /* O_RDONLY */, 0);
+        if (fd < 0) { LOG_ERROR("gfx: \"%s\": open failed (%d)", path, fd); return false; }
+        char magic[4] = { 0, 0, 0, 0 };
+        long n = sceKernelRead(fd, magic, sizeof(magic));
+        sceKernelClose(fd);
+        if (n != 4 || magic[0] != 'D' || magic[1] != 'D' || magic[2] != 'S' || magic[3] != ' ') {
+            LOG_ERROR("gfx: \"%s\": not a DDS file (%02X %02X %02X %02X) -- the engine loads DDS only",
+                      path, (unsigned char)magic[0], (unsigned char)magic[1],
+                      (unsigned char)magic[2], (unsigned char)magic[3]);
+            return false;
+        }
+        return true;
+    }
+
     void* create_texture_from_file(const char* path) {
         if (!rage::invoker::g_eboot_base) return nullptr;
+        if (!is_dds_file(path)) return nullptr;
         void* factory = *(void**)at(RVA_FACTORY_SINGLETON);
         if (!factory) { LOG_ERROR("gfx: texture factory singleton is null (render device not up?)"); return nullptr; }
 

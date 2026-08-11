@@ -10,6 +10,13 @@
 
 **Design spec:** `docs/superpowers/specs/2026-08-11-animated-textures-design.md` — read it first; this plan implements it and does not restate its reasoning.
 
+> **Superseded in one respect (2026-08-11, after the first console run):** every code
+> block below that writes or names `*.png` frames is obsolete. The engine's image loader
+> is DDS-only and silently substitutes a magenta/green checkerboard for anything else, so
+> `tools/gif2frames.ps1` emits uncompressed DDS instead. The tree is the current truth;
+> see **Frame format** in the spec for the disassembly that settled it. The blocks are
+> left as written so the executed steps still match their commits.
+
 ## Global Constraints
 
 - **Target:** GTA V PS4 **CUSA00411 v1.57**; artifact `build/InsulinGTAV.prx` (GHPLUGIN).
@@ -211,6 +218,10 @@ git commit -m "feat(ui): frame-selection maths for animated textures, host-teste
 - Consumes: nothing.
 - Produces: a directory of `000.png…NNN.png` plus `frames.json` in the shape Task 4 parses:
   `{ "loop": bool, "default_delay": int, "frames": [ { "file": string, "delay": int } ] }`
+
+> **Outcome differs from the plan:** the frames are `000.dds…NNN.dds`. PNG loads as a
+> checkerboard on hardware — see the note at the top of this file. The manifest shape is
+> unchanged, since it carries file names rather than an extension assumption.
 
 - [x] **Step 1: Write the failing test**
 
