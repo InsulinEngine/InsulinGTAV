@@ -70,7 +70,9 @@ static void run_smoke_test()
              (unsigned)h, SMOKE_EXPECTED,
              h == SMOKE_EXPECTED ? "OK" : "MISMATCH",
              stl_ok ? "OK" : "FAIL");
-    notify(msg);
+    // Log-only. This fires on every boot and the numbers are only useful next to
+    // a crash RIP, which means reading the log anyway -- on screen it was noise.
+    log_line(msg);
 }
 
 static void *worker(void *arg)
@@ -114,14 +116,14 @@ int module_start(size_t argc, const void *argp)
                     : "heap guard FAILED (PS-button crash may persist)");
 
     bool hook_ok = game::install_frame_hook();
-    notify(hook_ok ? "frame hook installed"
-                   : "frame hook FAILED (smoke test still runs)");
+    log_line(hook_ok ? "frame hook installed"
+                     : "frame hook FAILED (smoke test still runs)");
 
     if (hook_ok)
     {
         menu::build();
         game::set_frame_callback(menu::tick);
-        notify("menu built");
+        log_line("menu built");
     }
 
     OrbisPthread thr;
