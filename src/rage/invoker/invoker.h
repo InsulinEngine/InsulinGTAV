@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <string.h>
+#include "rage/types/base_types.h"   // math::vector3 for the padded return read
 
 // GTA V native invoker for the PS4 CUSA00411 v1.57 eboot.
 //
@@ -24,6 +25,15 @@
 // the invoker cannot tell an out-param from an in-param (e.g. create_itemset
 // takes a vector3* INPUT), so redirecting would corrupt inputs. The
 // m_script_vectors/m_result_vectors fields exist only for ABI-layout parity.
+//
+// Vector3 RETURN VALUES are different: the native writes the result into THREE
+// 8-byte return-buffer slots (x@+0, y@+8, z@+16 -- the script-stack layout;
+// verified in the v1.57 eboot at NAT_GET_ENTITY_COORDS 0x9B2BC0 and
+// NAT_GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS 0x9B3470, which end in
+//   vmovss [rax], [rax+8], [rax+10h]).
+// A packed 12-byte read of math::vector3<float> would yield {x, 0, native's y}
+// -- exactly the "vehicle spawns nowhere" bug. get_return is therefore
+// specialised below to read the padded layout.
 
 namespace rage::invoker {
 
@@ -82,6 +92,16 @@ namespace rage::invoker {
 		template<typename T>
 		T get_return() { return *(T*)m_temp_buffer; }
 	};
+
+	// Vector3 returns occupy three 8-byte slots (see the header comment). Reading
+	// them packed silently drops y into z and zeroes y.
+	template<>
+	inline math::vector3<float> native_setup::get_return<math::vector3<float>>() {
+		return math::vector3<float>(
+			*(float*)&m_temp_buffer[0],
+			*(float*)&m_temp_buffer[8],
+			*(float*)&m_temp_buffer[16]);
+	}
 
 	typedef void(*native_handler)(native_context*);
 

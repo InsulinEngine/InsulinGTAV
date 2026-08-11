@@ -23,9 +23,11 @@ typedef uint32_t Hash;
 // math:: is the single authority for the vector types shared between the
 // generated natives.h (which takes math::vector3<float>* out-params) and the
 // ported Ozark menu code (which does vector2 arithmetic for 2D layout).
-// vector3 is packed {x,y,z}: the 2D menu base never reads a native scrVector3
-// result, so the PC scrVector3 padding is unnecessary here. util/math.h adds
-// the remaining Ozark helpers (vector3_, matrix, within, ease, repeat) on top.
+// vector3 is packed {x,y,z}. Natives that RETURN a Vector3 write it into three
+// 8-byte slots, not packed - invoker.h specialises get_return to bridge that
+// (do not "fix" it by padding this struct; menu code does packed arithmetic on
+// it everywhere). util/math.h adds the remaining Ozark helpers (vector3_,
+// matrix, within, ease, repeat) on top.
 namespace math {
     template<typename T>
     struct vector2 {
