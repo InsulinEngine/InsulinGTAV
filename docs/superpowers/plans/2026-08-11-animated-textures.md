@@ -205,48 +205,97 @@ git commit -m "feat(ui): frame-selection maths for animated textures, host-teste
 
 **Files:**
 - Create: `tools/gif2frames.ps1`
-- Test: run it against a generated fixture GIF (commands below; no test file is committed)
+- Test: `tests/gif2frames_test.ps1`
 
 **Interfaces:**
 - Consumes: nothing.
 - Produces: a directory of `000.png…NNN.png` plus `frames.json` in the shape Task 4 parses:
   `{ "loop": bool, "default_delay": int, "frames": [ { "file": string, "delay": int } ] }`
 
-- [ ] **Step 1: Create the fixture GIF and confirm what a correct reader sees**
+- [ ] **Step 1: Write the failing test**
 
-This 85-byte GIF89a has two 1×1 frames with delays of 10 and 20 hundredths of a second. Run in PowerShell from the repo root:
+The fixture is built byte by byte rather than shipped as a binary: an 85-byte GIF89a with two 1×1 frames whose stored delays are 10 and 20 hundredths of a second. Those exact bytes were written and read back with `System.Drawing` while this plan was being written — a correct reader reports `frames=2` and property `0x5100` = `10,0,0,0,20,0,0,0` (a packed array of 4-byte little-endian ints, one per frame, in 1/100 s), i.e. 100 ms and 200 ms.
+
+Create `tests/gif2frames_test.ps1`:
 
 ```powershell
-$b = [byte[]]@(0x47,0x49,0x46,0x38,0x39,0x61, 0x01,0x00, 0x01,0x00, 0x80,0x00,0x00,
-      0x00,0x00,0x00, 0xFF,0xFF,0xFF, 0x21,0xFF,0x0B) +
-     [System.Text.Encoding]::ASCII.GetBytes("NETSCAPE2.0") +
-     [byte[]]@(0x03,0x01,0x00,0x00,0x00,
-      0x21,0xF9,0x04,0x00,0x0A,0x00,0x00,0x00,
-      0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
-      0x21,0xF9,0x04,0x00,0x14,0x00,0x00,0x00,
-      0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
-      0x3B)
-New-Item -ItemType Directory -Force build\fixture | Out-Null
-[System.IO.File]::WriteAllBytes("$PWD\build\fixture\two.gif", $b)
+<#
+    Tests tools/gif2frames.ps1 against a hand-built fixture GIF.
+    Run:  pwsh -File tests/gif2frames_test.ps1
+    Exit: 0 all passed, 1 something failed.
+#>
+$ErrorActionPreference = 'Stop'
+$root    = Split-Path -Parent $PSScriptRoot
+$script  = Join-Path $root 'tools\gif2frames.ps1'
+$work    = Join-Path $root 'build\fixture'
+$failed  = 0
+
+function Check([string]$what, $got, $want) {
+    if ("$got" -ne "$want") { Write-Host "FAIL $what : got '$got', want '$want'"; $script:failed++ }
+    else                    { Write-Host "ok   $what = $got" }
+}
+
+# --- fixture: GIF89a, 1x1, two frames, delays 10 and 20 (1/100 s) ------------
+$bytes = [byte[]]@(0x47,0x49,0x46,0x38,0x39,0x61, 0x01,0x00, 0x01,0x00, 0x80,0x00,0x00,
+          0x00,0x00,0x00, 0xFF,0xFF,0xFF, 0x21,0xFF,0x0B) +
+         [System.Text.Encoding]::ASCII.GetBytes("NETSCAPE2.0") +
+         [byte[]]@(0x03,0x01,0x00,0x00,0x00,
+          0x21,0xF9,0x04,0x00,0x0A,0x00,0x00,0x00,
+          0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
+          0x21,0xF9,0x04,0x00,0x14,0x00,0x00,0x00,
+          0x2C,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00, 0x02,0x02,0x44,0x01,0x00,
+          0x3B)
+
+New-Item -ItemType Directory -Force -Path $work | Out-Null
+$gif = Join-Path $work 'two.gif'
+[System.IO.File]::WriteAllBytes($gif, $bytes)
+
+# The fixture must be readable, or every assertion below tests nothing.
 Add-Type -AssemblyName System.Drawing
-$img = [System.Drawing.Image]::FromFile("$PWD\build\fixture\two.gif")
-$dim = New-Object System.Drawing.Imaging.FrameDimension $img.FrameDimensionsList[0]
-"frames=$($img.GetFrameCount($dim)) delays=$($img.GetPropertyItem(0x5100).Value -join ',')"
-$img.Dispose()
+$img = [System.Drawing.Image]::FromFile($gif)
+try {
+    $dim = New-Object System.Drawing.Imaging.FrameDimension $img.FrameDimensionsList[0]
+    Check 'fixture frame count' $img.GetFrameCount($dim) 2
+    Check 'fixture delay table' ($img.GetPropertyItem(0x5100).Value -join ',') '10,0,0,0,20,0,0,0'
+} finally { $img.Dispose() }
+
+# --- full conversion --------------------------------------------------------
+$out = Join-Path $work 'out'
+if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+& pwsh -File $script -Gif $gif -OutDir $out | Out-Null
+
+Check 'wrote 000.png'  (Test-Path (Join-Path $out '000.png')) 'True'
+Check 'wrote 001.png'  (Test-Path (Join-Path $out '001.png')) 'True'
+Check 'wrote manifest' (Test-Path (Join-Path $out 'frames.json')) 'True'
+
+$m = Get-Content (Join-Path $out 'frames.json') -Raw | ConvertFrom-Json
+Check 'manifest frame count' $m.frames.Count 2
+Check 'frame 0 file'         $m.frames[0].file '000.png'
+Check 'frame 0 delay (ms)'   $m.frames[0].delay 100
+Check 'frame 1 delay (ms)'   $m.frames[1].delay 200
+Check 'loop flag'            $m.loop 'True'
+Check 'default delay'        $m.default_delay 66
+
+# --- down-sampling keeps total duration and says so -------------------------
+$out1 = Join-Path $work 'out1'
+if (Test-Path $out1) { Remove-Item $out1 -Recurse -Force }
+& pwsh -File $script -Gif $gif -OutDir $out1 -MaxFrames 1 3>$null | Out-Null
+
+$m1 = Get-Content (Join-Path $out1 'frames.json') -Raw | ConvertFrom-Json
+Check 'sampled frame count'   $m1.frames.Count 1
+Check 'folded delay (100+200)' $m1.frames[0].delay 300
+
+if ($failed) { Write-Host "`n$failed FAILED"; exit 1 }
+Write-Host "`nall passed"; exit 0
 ```
 
-Expected output (verified while writing this plan):
-`frames=2 delays=10,0,0,0,20,0,0,0`
-
-That property is a packed array of 4-byte little-endian ints, one per frame, in 1/100 s — so frame delays here are 100 ms and 200 ms.
-
-- [ ] **Step 2: Run the converter to verify it does not exist yet**
+- [ ] **Step 2: Run the test to verify it fails**
 
 ```powershell
-pwsh -File tools\gif2frames.ps1 -Gif build\fixture\two.gif -OutDir build\fixture\out
+pwsh -File tests\gif2frames_test.ps1
 ```
 
-Expected: FAIL — the script file does not exist.
+Expected: the two fixture checks pass (proving the fixture itself is sound), then failure — `tools/gif2frames.ps1` does not exist yet, so the run throws and no output files appear.
 
 - [ ] **Step 3: Write the converter**
 
@@ -354,29 +403,20 @@ try {
 
 Note on the redraw: `SelectActiveFrame` mutates the shared `Image`, so each frame is copied into its own `Bitmap` before saving — saving `$img` directly writes the same frame every time in some GDI+ versions.
 
-- [ ] **Step 4: Run the converter against the fixture and check its output**
+- [ ] **Step 4: Run the test to verify it passes**
 
 ```powershell
-pwsh -File tools\gif2frames.ps1 -Gif build\fixture\two.gif -OutDir build\fixture\out
-Get-ChildItem build\fixture\out | Select-Object -ExpandProperty Name
-Get-Content build\fixture\out\frames.json -Raw
+pwsh -File tests\gif2frames_test.ps1
 ```
 
-Expected: `000.png`, `001.png`, `frames.json`; the console line reports `2 frame(s), 1x1, 300 ms total`; and the manifest contains `"delay": 100` for `000.png` and `"delay": 200` for `001.png`, with `"loop": true` and `"default_delay": 66`.
+Expected: every line prefixed `ok`, final line `all passed`, exit code 0. In particular `frame 0 delay (ms) = 100`, `frame 1 delay (ms) = 200` (the GIF's hundredths converted to milliseconds) and `folded delay (100+200) = 300` (down-sampling preserves total duration).
 
-- [ ] **Step 5: Check the down-sampling path reports rather than truncates silently**
+If the run reports `sampled frame count` correct but `folded delay` wrong, the delay-folding loop is summing the wrong span — check that the last kept frame folds in every remaining frame up to `$count`, not just up to the next kept index.
 
-```powershell
-pwsh -File tools\gif2frames.ps1 -Gif build\fixture\two.gif -OutDir build\fixture\out1 -MaxFrames 1
-Get-Content build\fixture\out1\frames.json -Raw
-```
-
-Expected: a warning that the GIF has 2 frames and is sampled to 1, one `000.png`, and a single manifest entry with `"delay": 300` — the dropped frame's time folded in, total duration unchanged.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add tools/gif2frames.ps1
+git add tools/gif2frames.ps1 tests/gif2frames_test.ps1
 git commit -m "feat(tools): GIF to frame-directory converter via System.Drawing"
 ```
 
