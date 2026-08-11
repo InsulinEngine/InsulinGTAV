@@ -843,7 +843,7 @@ git commit -m "feat(ui): load animation frames from a directory + frames.json"
 - Consumes: `menu::animation::update`, `menu::animation::header_asset`, `menu::animation::load_banner` (Tasks 3-4).
 - Produces: nothing further.
 
-- [ ] **Step 1: Advance animations once per tick**
+- [x] **Step 1: Advance animations once per tick**
 
 In `src/menu/menu.cpp`, add the include next to the other menu utils:
 
@@ -859,7 +859,7 @@ and in `tick()`, immediately after `global::ui::g_delta = native::get_frame_time
         menu::animation::update(global::ui::g_delta);
 ```
 
-- [ ] **Step 2: Draw the animated header**
+- [x] **Step 2: Draw the animated header**
 
 In `src/menu/base/renderer.cpp`, add the include:
 
@@ -886,7 +886,7 @@ with:
         } else {
 ```
 
-- [ ] **Step 3: Keep the øZARK title suppressed when an animation is showing**
+- [x] **Step 3: Keep the øZARK title suppressed when an animation is showing**
 
 Further down the same file, the title text is drawn only when no banner is loaded. Change:
 
@@ -901,7 +901,7 @@ to:
             if (!rage::gfx::banner_ready() && !(title_anim && title_anim->ready())) {
 ```
 
-- [ ] **Step 4: Add the load button**
+- [x] **Step 4: Add the load button**
 
 In `src/menu/base/submenus/main.cpp`, add the include:
 
@@ -923,7 +923,7 @@ and add this option directly after the existing `"Load Custom Textures"` button:
 
 The signature is `stacked(stl::string title, stl::string text, color_rgba color = global::ui::g_notify_bar, uint32_t timeout = 6000)` (`src/menu/base/util/notify.h:44`), so the three-argument form above is correct.
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 ```bash
 ./build.bat
@@ -931,7 +931,7 @@ The signature is `stacked(stl::string title, stl::string text, color_rgba color 
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced.
 
-- [ ] **Step 6: Re-run the host tests (nothing in Tasks 3-5 should have changed the timing core)**
+- [x] **Step 6: Re-run the host tests (nothing in Tasks 3-5 should have changed the timing core)**
 
 ```bash
 clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.exe && ./build/frame_clock_test.exe
@@ -939,7 +939,7 @@ clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.e
 
 Expected: `all passed`, exit 0.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/menu/menu.cpp src/menu/base/renderer.cpp src/menu/base/submenus/main.cpp
