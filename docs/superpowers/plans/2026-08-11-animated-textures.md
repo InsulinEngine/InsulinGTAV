@@ -212,7 +212,7 @@ git commit -m "feat(ui): frame-selection maths for animated textures, host-teste
 - Produces: a directory of `000.png…NNN.png` plus `frames.json` in the shape Task 4 parses:
   `{ "loop": bool, "default_delay": int, "frames": [ { "file": string, "delay": int } ] }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 The fixture is built byte by byte rather than shipped as a binary: an 85-byte GIF89a with two 1×1 frames whose stored delays are 10 and 20 hundredths of a second. Those exact bytes were written and read back with `System.Drawing` while this plan was being written — a correct reader reports `frames=2` and property `0x5100` = `10,0,0,0,20,0,0,0` (a packed array of 4-byte little-endian ints, one per frame, in 1/100 s), i.e. 100 ms and 200 ms.
 
@@ -289,7 +289,7 @@ if ($failed) { Write-Host "`n$failed FAILED"; exit 1 }
 Write-Host "`nall passed"; exit 0
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```powershell
 pwsh -File tests\gif2frames_test.ps1
@@ -297,7 +297,7 @@ pwsh -File tests\gif2frames_test.ps1
 
 Expected: the two fixture checks pass (proving the fixture itself is sound), then failure — `tools/gif2frames.ps1` does not exist yet, so the run throws and no output files appear.
 
-- [ ] **Step 3: Write the converter**
+- [x] **Step 3: Write the converter**
 
 Create `tools/gif2frames.ps1`:
 
@@ -403,7 +403,7 @@ try {
 
 Note on the redraw: `SelectActiveFrame` mutates the shared `Image`, so each frame is copied into its own `Bitmap` before saving — saving `$img` directly writes the same frame every time in some GDI+ versions.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```powershell
 pwsh -File tests\gif2frames_test.ps1
@@ -413,7 +413,7 @@ Expected: every line prefixed `ok`, final line `all passed`, exit code 0. In par
 
 If the run reports `sampled frame count` correct but `folded delay` wrong, the delay-folding loop is summing the wrong span — check that the last kept frame folds in every remaining frame up to `$count`, not just up to the next kept index.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tools/gif2frames.ps1 tests/gif2frames_test.ps1
