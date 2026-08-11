@@ -7,6 +7,7 @@
 #include "menu/base/util/fonts.h"
 #include "menu/base/util/menu_input.h"
 #include "menu/base/submenus/main.h"
+#include "rage/gfx.h"
 #include <math.h>
 
 static localization t_tooltip_1("put me in coach", true, true);
@@ -41,9 +42,15 @@ namespace menu::renderer {
         int option_count = total_options > max_options ? max_options : total_options;
         int scroller_position = math::clamp(current_option - scroll_offset > max_options ? max_options : current_option - scroll_offset, 0, max_options);
 
-        // main header
+        // main header -- once the custom banner is loaded, rage::gfx has injected
+        // it into the txd store as "insulin"/"logo"; draw it at full colour.
+        // Otherwise fall back to the sentinel / game header texture.
         stl::pair<stl::string, stl::string> texture = get_texture(global::ui::m_header);
-        draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
+        if (rage::gfx::banner_ready()) {
+            draw_sprite_aligned({ "insulin", "logo" }, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
+        } else {
+            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
+        }
 
         // globe
         if (global::ui::g_render_globe) {
@@ -91,6 +98,18 @@ namespace menu::renderer {
 
         draw_sprite({ "commonmenu", "shop_arrows_upanddown" }, { global::ui::g_position.x + ((global::ui::g_scale.x) * 0.5f), global::ui::g_position.y + (render_count * global::ui::g_option_scale) + (global::ui::g_option_scale * 0.5f) }, { 0.015f, 0.027f }, 0.f, { 255, 255, 255, 255 });
 
+        // proportional scrollbar on the right edge when the list is longer than
+        // the visible window (thumb size = visible/total, thumb pos = offset/total).
+        if (total_options > max_options) {
+            const float track_x = global::ui::g_position.x + global::ui::g_scale.x - 0.0035f;
+            const float track_h = max_options * global::ui::g_option_scale;
+            const float thumb_h = track_h * ((float)max_options / (float)total_options);
+            const float denom = (float)(total_options - max_options);
+            const float thumb_y = global::ui::g_position.y + (denom > 0.f ? (track_h - thumb_h) * ((float)scroll_offset / denom) : 0.f);
+            draw_rect({ track_x, global::ui::g_position.y }, { 0.0022f, track_h }, global::ui::g_scroller.opacity(70));
+            draw_rect({ track_x, thumb_y }, { 0.0022f, thumb_h }, global::ui::g_scroller);
+        }
+
         // option counter
         char counter[50];
         snprintf(counter, sizeof(counter), "%i ~s~&#8226; %i", current_option + 1, count);
@@ -105,7 +124,11 @@ namespace menu::renderer {
         }
 
         if (menu::submenu::handler::get_current() == main_menu::get()) {
-            draw_text("~s~&#248;ZARK " VERSION_TYPE, { global::ui::g_position.x + 0.005f, global::ui::g_position.y - 0.061f }, 0.77f, global::ui::g_header_font, global::ui::g_title, JUSTIFY_LEFT);
+            // A loaded custom banner IS the branding -- drop the øZARK title text
+            // so it doesn't overlap the header image.
+            if (!rage::gfx::banner_ready()) {
+                draw_text("~s~&#248;ZARK " VERSION_TYPE, { global::ui::g_position.x + 0.005f, global::ui::g_position.y - 0.061f }, 0.77f, global::ui::g_header_font, global::ui::g_title, JUSTIFY_LEFT);
+            }
         } else {
             stl::string input_string = title;
             stl::string final_string = title;
@@ -157,7 +180,11 @@ namespace menu::renderer {
 
             int lines = native::end_text_command_get_line_count(global::ui::g_position.x + 0.004f, y + 0.005f);
             if (lines > 1) {
-                height = (lines * native::get_text_scale_height(scaled_body_height, global::ui::g_tooltip_font)) + (0.005f * lines) + 0.005f;
+                // One wrapped line ~= one option-row height. The old formula used
+                // get_text_scale_height(), whose PS4 fallback returns the text
+                // SCALE (~0.35) instead of a real ~0.02 line height, ballooning the
+                // box ~20x (see missing_natives.h GET_RENDERED_CHARACTER_HEIGHT).
+                height = lines * global::ui::g_option_scale;
             }
 
             stl::pair<stl::string, stl::string> texture = get_texture(global::ui::m_tooltip_background);
@@ -270,7 +297,7 @@ namespace menu::renderer {
         // the header/scroller/footer bars show as solid colour without any PNG.
         if (asset.first == "randomha") { draw_rect_unaligned(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures") {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 
@@ -283,7 +310,7 @@ namespace menu::renderer {
         // See draw_sprite: sentinel -> solid colour quad (aligned).
         if (asset.first == "randomha") { draw_rect(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures") {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 

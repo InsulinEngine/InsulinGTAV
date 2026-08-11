@@ -86,7 +86,7 @@ namespace menu::notify {
                 context->m_rendering_text = context->m_text[0];
 
                 if (context->m_lines > 1) {
-                    height = (context->m_lines * native::get_text_scale_height(scaled_body_height, global::ui::g_notify_body_font)) + 0.034f;
+                    height = (context->m_lines * global::ui::g_option_scale) + 0.034f;   // ~1 option-row per line (see renderer tooltip fix)
                 } else {
                     context->m_max_width = menu::renderer::calculate_string_width(context->m_text[0], global::ui::g_notify_body_font, scaled_body_height) + (x_offset * 2.f);
                 }
@@ -104,7 +104,7 @@ namespace menu::notify {
 
                 context->m_lines = (int)context->m_text.size();
                 context->m_rendering_text = full_line;
-                height = (context->m_lines * native::get_text_scale_height(scaled_body_height, global::ui::g_notify_body_font)) + 0.034f;
+                height = (context->m_lines * global::ui::g_option_scale) + 0.034f;   // ~1 option-row per line (see renderer tooltip fix)
             }
 
             if (context->m_text.size() == 4) height += 0.002f;
