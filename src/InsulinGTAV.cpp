@@ -8,8 +8,10 @@
 
 #include "rage/invoker/invoker.h"
 #include "rage/invoker/natives.h"
+#include "rage/heap_guard.h"
 #include "game/game_thread.h"
 #include "menu/menu.h"
+#include "platform/log.h"
 #include "stl_smoke.h"
 
 #define PLUGIN_NAME    "InsulinGTAV"
@@ -95,6 +97,21 @@ int module_start(size_t argc, const void *argp)
         notify("base resolve FAILED - invoker inert");
         return 0;
     }
+
+    // Loud startup marker in klog (nc <ip> 3232) AND /data: if you don't see
+    // this line, the console is still running an older .prx. base= lets us map a
+    // crash RIP to an eboot RVA (RVA = RIP - base).
+    platform::klogf("BUILD=klog-trace module_start base=0x%llx",
+                    (unsigned long long)rage::invoker::g_eboot_base);
+    platform::logf("Boot", "BUILD=klog-trace base=0x%llx",
+                   (unsigned long long)rage::invoker::g_eboot_base);
+
+    // Page-resolver guard for the PS-button suspend crash (detours sub_195F870;
+    // see rage/heap_guard.cpp). Installed early and independently of the menu so
+    // it protects the accounting pass even if the frame hook or menu fail.
+    bool guard_ok = rage::heap_guard::install();
+    notify(guard_ok ? "heap guard installed"
+                    : "heap guard FAILED (PS-button crash may persist)");
 
     bool hook_ok = game::install_frame_hook();
     notify(hook_ok ? "frame hook installed"

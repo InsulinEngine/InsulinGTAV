@@ -36,6 +36,22 @@ namespace platform {
         log_line(tag, buf);
     }
 
+    void klogf(const char* fmt, ...) {
+        char buf[256];
+        int n = 0;
+        buf[n++] = 'I'; buf[n++] = 'G'; buf[n++] = 'V'; buf[n++] = ' ';
+
+        va_list ap; va_start(ap, fmt);
+        vsnprintf(buf + n, sizeof(buf) - n - 1, fmt, ap);
+        va_end(ap);
+
+        size_t len = strlen(buf);
+        if (len == 0 || buf[len - 1] != '\n') {
+            if (len < sizeof(buf) - 1) { buf[len] = '\n'; buf[len + 1] = 0; }
+        }
+        sceKernelDebugOutText(0, buf);
+    }
+
     void notify(const char* msg) {
         log_line("Notify", msg);
 
