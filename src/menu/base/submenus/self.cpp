@@ -3,13 +3,24 @@
 #include "menu/base/options/button.h"
 #include "menu/base/options/toggle.h"
 #include "menu/base/options/break.h"
+#include "menu/base/base.h"
 #include "menu/base/util/notify.h"
+#include "menu/base/util/on_screen_ped.h"
 #include "rage/invoker/natives.h"
 
 // Feature state (POD globals; the savable toggles persist via config).
 static bool g_godmode = false;
 static bool g_never_wanted = false;
 static bool g_super_jump = false;
+static bool g_ped_preview = false;
+// Latches the previous frame's preview state so the shared scene preset gets
+// restored exactly once when the toggle (or a config load) turns it off.
+static bool g_ped_preview_active = false;
+
+// bgRect of the preview, normalised: x/y = top-left, then width/height. Sits to
+// the left of the menu column (ui_vars g_position.x 0.70, g_scale.x 0.22).
+static constexpr math::vector2<float> k_preview_pos   = { 0.350f, 0.250f };
+static constexpr math::vector2<float> k_preview_scale = { 0.220f, 0.550f };
 
 static Ped self_ped() { return native::get_player_ped(-1); }
 static Player self_player() { return native::player_id(); }
@@ -46,6 +57,11 @@ void self_menu::load() {
         .add_savable(get_submenu_name_stack())
         .add_tooltip("Hold to leap; applied each frame"));
 
+    add_option(toggle_option("Ped Preview")
+        .add_toggle(g_ped_preview)
+        .add_savable(get_submenu_name_stack())
+        .add_tooltip("Renders your ped beside the menu via the UI3D scene"));
+
     add_option(break_option("Actions").ref());
 
     add_option(button_option("Heal")
@@ -68,6 +84,18 @@ void self_menu::feature_update() {
         native::clear_player_wanted_level(self_player());
         native::set_player_wanted_level_now(self_player(), false);
     }
+
+    // feature_update runs whether or not the menu is open, but a preview beside
+    // a closed menu is just a ped floating in the HUD -- gate it. The UI3D scene
+    // clears its pushed preset every frame, so it has to be re-pushed each tick;
+    // when it stops showing, the shared preset is restored once.
+    const bool show_preview = g_ped_preview && menu::base::is_open();
+    if (show_preview) {
+        menu::screen::ped::draw_on_screen_ped(self_ped(), k_preview_pos, k_preview_scale);
+    } else if (g_ped_preview_active) {
+        menu::screen::ped::release();
+    }
+    g_ped_preview_active = show_preview;
 }
 
 self_menu* self_menu::get() {
