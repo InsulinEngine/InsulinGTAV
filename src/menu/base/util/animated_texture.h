@@ -61,6 +61,18 @@ namespace menu {
         // Register (or replace) an empty animation under `name` and return it.
         animated_texture* create(const char* name);
 
+        // Load frames from `dir` into the shared "insulin" dictionary and register
+        // them under `name`. Reads <dir>/frames.json when present; otherwise scans
+        // the directory for *.png / *.dds in name order at the default delay.
+        // Textures are added as "<name>_000", "<name>_001", ... -- explicit names,
+        // because two animations whose files both start at 000 would collide in the
+        // dictionary and commit() drops colliding codes.
+        // Returns nullptr if the directory is missing, empty, or nothing loaded.
+        animated_texture* load_from_dir(const char* name, const char* dir);
+
+        // load_from_dir("banner", "/data/insulin/anim/banner").
+        animated_texture* load_banner();
+
         // Advance every registered animation. Called once per tick.
         void update(float dt_seconds);
 
