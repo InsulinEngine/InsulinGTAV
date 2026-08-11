@@ -648,7 +648,7 @@ git commit -m "feat(ui): animated_texture playback + animation registry"
 - Consumes: `menu::animation::create` (Task 3); `rage::gfx::menu_textures()`, `texture_dictionary::add(name, path)`, `texture_dictionary::commit()` (existing, `src/rage/gfx.h`).
 - Produces: `menu::animation::load_from_dir(const char* name, const char* dir) -> animated_texture*` (nullptr when nothing loadable was found) and `menu::animation::load_banner() -> animated_texture*`. Task 5 calls `load_banner()`.
 
-- [ ] **Step 1: Declare the loader**
+- [x] **Step 1: Declare the loader**
 
 In `src/menu/base/util/animated_texture.h`, inside `namespace animation`, after `create(...)`:
 
@@ -666,7 +666,7 @@ In `src/menu/base/util/animated_texture.h`, inside `namespace animation`, after 
         animated_texture* load_banner();
 ```
 
-- [ ] **Step 2: Implement it**
+- [x] **Step 2: Implement it**
 
 In `src/menu/base/util/animated_texture.cpp`, extend the includes:
 
@@ -815,7 +815,7 @@ and add inside `namespace animation`, after `create(...)`:
 
 Note on `&(*(tj::json*)list)[i]`: `tj::json::operator[](size_t)` exists only as a non-const overload (it auto-vivifies), so indexing a `const json*` needs the cast. The element is known to exist because the loop is bounded by `list->size()`.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 ./build.bat
@@ -823,7 +823,7 @@ Note on `&(*(tj::json*)list)[i]`: `tj::json::operator[](size_t)` exists only as 
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/menu/base/util/animated_texture.h src/menu/base/util/animated_texture.cpp
