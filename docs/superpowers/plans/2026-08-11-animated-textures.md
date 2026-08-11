@@ -55,7 +55,7 @@ The loader lives with the type rather than in `rage::gfx` because it depends on 
 - Consumes: nothing.
 - Produces: `menu::frame_clock::total_ms(const uint16_t* delays, int count) -> int` and `menu::frame_clock::frame_at(const uint16_t* delays, int count, int elapsed_ms, bool loop) -> int`. Task 3 calls both.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/frame_clock_test.cpp`:
 
@@ -117,7 +117,7 @@ int main() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.exe
@@ -125,7 +125,7 @@ clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.e
 
 Expected: FAIL to compile — `'menu/base/util/frame_clock.h' file not found`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `src/menu/base/util/frame_clock.h`:
 
@@ -176,7 +176,7 @@ namespace menu::frame_clock {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.exe && ./build/frame_clock_test.exe
@@ -184,7 +184,7 @@ clang++ -std=c++17 -I src tests/frame_clock_test.cpp -o build/frame_clock_test.e
 
 Expected: every line prefixed `ok`, final line `all passed`, exit code 0.
 
-- [ ] **Step 5: Confirm the PS4 build still succeeds**
+- [x] **Step 5: Confirm the PS4 build still succeeds**
 
 ```bash
 ./build.bat
@@ -192,7 +192,7 @@ Expected: every line prefixed `ok`, final line `all passed`, exit code 0.
 
 Expected: exit 0, `build/InsulinGTAV.prx` produced. (The header is not referenced yet; this only proves it does not break the tree.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/menu/base/util/frame_clock.h tests/frame_clock_test.cpp
