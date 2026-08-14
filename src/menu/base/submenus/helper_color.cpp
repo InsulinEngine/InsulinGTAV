@@ -1,4 +1,5 @@
 #include "menu/base/submenus/helper_color.h"
+#include "menu/base/submenus/settings_themes.h"
 #include "menu/base/submenu_handler.h"
 #include "menu/base/options/number.h"
 #include "menu/base/options/scroll.h"
@@ -21,11 +22,15 @@ namespace {
 
     color_rgba* current() { return menu::theme::color_ptr(g_target); }
 
-    void preview() { menu::renderer::render_color_preview(*current()); }
+    void preview() {
+        if (!current()) return;
+        menu::renderer::render_color_preview(*current());
+    }
 
     // HSVA edits go through a scratch color_hsv, so push the result back after
     // every change.
     void from_hsv() {
+        if (!current()) return;
         *current() = menu::renderer::hsv_to_rgb(g_hsv.h, g_hsv.s / 100.f,
                                                 g_hsv.v / 100.f, current()->a);
     }
@@ -42,6 +47,11 @@ color_rgba* helper_color_menu::target_color()   { return current(); }
 
 void helper_color_menu::load() {
     set_name("Color");
+    // Themes is the only opener today. A shared editor opened from somewhere
+    // else later (e.g. a per-vehicle colour picker) needs the opener to
+    // re-point the parent via set_parent<T>() before showing this submenu,
+    // or "back" will return to Themes regardless of who opened it.
+    set_parent<settings_themes_menu>();
 
     g_formats[0].m_name.set("RGBA"); g_formats[0].m_result = 0;
     g_formats[1].m_name.set("HSVA"); g_formats[1].m_result = 1;
@@ -62,8 +72,10 @@ void helper_color_menu::update() {
 
 void helper_color_menu::update_once() {
     g_built_format = g_format;
-    set_name(menu::theme::color_name(g_target), false, false);
+    set_name(menu::theme::color_display_name(g_target), false, false);
     clear_options(2);
+
+    if (!current()) return;
 
     if (g_format == 0) {
         add_option(number_option<int>(SCROLL, "Red")

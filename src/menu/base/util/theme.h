@@ -25,4 +25,9 @@ namespace menu::theme {
     int         color_count();
     const char* color_name(int index);   // stable key, e.g. "option_selected"
     color_rgba* color_ptr(int index);    // nullptr for an invalid index
+
+    // Human-readable form of color_name(), for display only - color_name()
+    // itself is a config.json key and must not change. "option_selected" ->
+    // "Option Selected". Returns "" for an invalid index.
+    const char* color_display_name(int index);
 }

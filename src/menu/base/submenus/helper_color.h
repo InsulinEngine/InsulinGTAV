@@ -12,6 +12,10 @@ public:
 
     static void        target(int registry_index);
     static int         current_target();
+    // May return nullptr: current_target() only changes via target(), which
+    // range-checks against menu::theme::color_count(), but a caller that
+    // hasn't gone through target() yet (or a registry that shrinks under it)
+    // gets nullptr back from menu::theme::color_ptr() rather than a crash.
     static color_rgba* target_color();
 
     static helper_color_menu* get();

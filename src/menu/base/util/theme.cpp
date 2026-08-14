@@ -42,6 +42,32 @@ namespace menu::theme {
         return COLORS[index].p;
     }
 
+    // Returned buffer is a function-local static: the result is only valid
+    // until the next call, so build one display name at a time - never hold
+    // two calls' results in the same expression (e.g. two of these as
+    // printf args), the second call clobbers the first.
+    const char* color_display_name(int index) {
+        static char buf[64];
+        if (index < 0 || index >= color_count()) return "";
+
+        const char* src = COLORS[index].name;
+        size_t i = 0;
+        bool start_of_word = true;
+        for (; src[i] != '\0' && i < sizeof(buf) - 1; i++) {
+            char c = src[i];
+            if (c == '_') {
+                c = ' ';
+                start_of_word = true;
+            } else if (start_of_word) {
+                if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+                start_of_word = false;
+            }
+            buf[i] = c;
+        }
+        buf[i] = '\0';
+        return buf;
+    }
+
     static nf FONTS[] = {
         {"header",&g_header_font},{"sub_header",&g_sub_header_font},{"option",&g_option_font},{"open_tooltip",&g_open_tooltip_font},
         {"tooltip",&g_tooltip_font},{"stacked_display",&g_stacked_display_font},{"notify_title",&g_notify_title_font},
