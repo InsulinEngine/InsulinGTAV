@@ -83,6 +83,7 @@
 #include "menu/base/util/stacked_display.h"
 #include "menu/base/util/panels.h"
 #include "menu/base/util/animated_texture.h"
+#include "menu/base/util/rainbow.h"
 #include "util/config.h"
 #include "global/ui_vars.h"
 #include "platform/system_ui.h"
@@ -367,6 +368,11 @@ namespace menu {
             menu::submenu::handler::feature_update();
         TICK_TRACE("control");
         menu::control::update();
+
+        // No player_valid() gate: this reads and writes plain memory and calls
+        // no natives. It cannot run during build() either, because tick is only
+        // wired as the frame callback after build() returns.
+        menu::get_rainbow()->run();
 
         // Notifications + stacked display + side panels render every frame
         // (panels::update no-ops while the menu is closed).
