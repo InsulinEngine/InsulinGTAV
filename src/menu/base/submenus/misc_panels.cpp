@@ -62,32 +62,47 @@ void misc_panels_menu::load() {
     set_name("Panels");
     set_parent<misc_menu>();
 
-    // Restore each panel's saved placement, and record the id-keyed mirror the
-    // options below bind to instead of the live panel tree. Pure config and
-    // memory reads plus rearrange() (no natives), so this is safe during
-    // build().
+    // Pass 1: read only. Walk the live panel tree and record what each
+    // child's saved placement should be into the stable mirror. Nothing here
+    // touches the framework - no rearrange() - because rearrange() sorts the
+    // very vector this pass is walking; calling it mid-walk means the loop's
+    // iterator crosses a container being permuted underneath it. The size
+    // never changes, so nothing crashes, but a child can be visited twice
+    // while another is skipped - and skipped means that panel's saved layout
+    // silently never gets applied. Config and memory reads only, no natives,
+    // so this is safe during build().
     g_rows.clear();
     for (menu::panels::panel_parent* parent : menu::panels::get_panels()) {
         for (menu::panels::panel_child& child : parent->m_children_panels) {
-            int column = util::config::read_int(get_submenu_name_stack(), "Column",
-                                                child.m_column, { parent->m_name, child.m_name });
-            int index  = util::config::read_int(get_submenu_name_stack(), "Index",
-                                                child.m_index, { parent->m_name, child.m_name });
-            child.m_render = util::config::read_bool(get_submenu_name_stack(), "Render",
-                                                     child.m_render, { parent->m_name, child.m_name });
-            menu::panels::rearrange(parent, child.m_id, column, index);
-
             row r;
             r.m_parent_name = parent->m_name;
             r.m_id = child.m_id;
             r.m_name = child.m_name;
-            r.m_column = column;
-            r.m_index = index;
-            r.m_render = child.m_render;
-            r.m_applied_column = column;
-            r.m_applied_index = index;
+            r.m_column = util::config::read_int(get_submenu_name_stack(), "Column",
+                                                child.m_column, { parent->m_name, child.m_name });
+            r.m_index  = util::config::read_int(get_submenu_name_stack(), "Index",
+                                                child.m_index, { parent->m_name, child.m_name });
+            r.m_render = util::config::read_bool(get_submenu_name_stack(), "Render",
+                                                 child.m_render, { parent->m_name, child.m_name });
+            // Pass 2 fills these in once it actually applies the row.
+            r.m_applied_column = r.m_column;
+            r.m_applied_index = r.m_index;
             g_rows.push_back(r);
         }
+    }
+
+    // Pass 2: apply, from g_rows - which is never sorted, so this walk visits
+    // every row exactly once regardless of how many times rearrange() below
+    // reorders the live tree.
+    for (row& r : g_rows) {
+        menu::panels::panel_parent* parent = nullptr;
+        menu::panels::panel_child* child = find_child(r.m_parent_name, r.m_id, &parent);
+        if (!child) continue;   // config names a panel that no longer exists
+
+        child->m_render = r.m_render;
+        menu::panels::rearrange(parent, r.m_id, r.m_column, r.m_index);
+        r.m_applied_column = r.m_column;
+        r.m_applied_index = r.m_index;
     }
 }
 
