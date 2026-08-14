@@ -105,9 +105,9 @@ int module_start(size_t argc, const void *argp)
     // Loud startup marker in klog (nc <ip> 3232) AND /data: if you don't see
     // this line, the console is still running an older .prx. base= lets us map a
     // crash RIP to an eboot RVA (RVA = RIP - base).
-    platform::klogf("BUILD=stackprobe-1 module_start base=0x%llx",
+    platform::klogf("BUILD=hashlog-1 module_start base=0x%llx",
                     (unsigned long long)rage::invoker::g_eboot_base);
-    platform::logf("Boot", "BUILD=stackprobe-1 " __DATE__ " " __TIME__ " base=0x%llx",
+    platform::logf("Boot", "BUILD=hashlog-1 " __DATE__ " " __TIME__ " base=0x%llx",
                    (unsigned long long)rage::invoker::g_eboot_base);
 
     // How much stack does the thread GoldHEN loads us on actually have? build()
