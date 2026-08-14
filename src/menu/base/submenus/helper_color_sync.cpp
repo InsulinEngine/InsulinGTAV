@@ -7,6 +7,10 @@
 
 void helper_color_sync_menu::load() {
     set_name("Sync With...");
+    // Without a parent, m_parent stays null and set_submenu_previous() (called
+    // below on every click) treats this as top-level: it routes to main AND
+    // closes the whole menu instead of returning to the colour editor.
+    set_parent<helper_color_menu>();
 
     // One button per registry entry - this is the surface that could not exist
     // before the registry, because nothing else could enumerate the colours.

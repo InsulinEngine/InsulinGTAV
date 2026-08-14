@@ -17,6 +17,12 @@ namespace {
     int  g_format = 0;      // 0 = RGBA, 1 = HSVA
     int  g_built_format = -1;
     color_hsv g_hsv;
+    // Bound to the Rainbow toggle_option. toggle_option only invokes its click
+    // handler and renders on/off state when m_toggle is non-null (toggle.cpp),
+    // so this has to exist and be kept in step with the rainbow's real
+    // membership - refreshed from menu::get_rainbow()->contains() every time
+    // update_once() rebuilds for a (possibly new) target.
+    bool g_rainbow_on = false;
 
     // Filled in load(), not aggregate-initialised here: localization's
     // constructor is not constexpr, so a static initializer for "RGBA"/"HSVA"
@@ -66,11 +72,14 @@ void helper_color_menu::load() {
 
     add_option(toggle_option("Rainbow")
         .add_tooltip("Cycle this colour through the hue wheel")
+        .add_toggle(g_rainbow_on)
         .add_click([] {
+            // toggle_option flips g_rainbow_on before calling this handler, so
+            // act on its new value rather than re-deriving membership.
             color_rgba* t = current();
             menu::rainbow* rb = menu::get_rainbow();
-            if (rb->contains(t)) rb->remove(t);
-            else                 { rb->add(t); rb->m_enabled = true; }
+            if (g_rainbow_on) { rb->add(t); rb->m_enabled = true; }
+            else                rb->remove(t);
         }));
 
     add_option(scroll_option<int>(SCROLL, "Color Format")
@@ -90,6 +99,10 @@ void helper_color_menu::update() {
 void helper_color_menu::update_once() {
     g_built_format = g_format;
     set_name(menu::theme::color_display_name(g_target), false, false);
+    // Refresh from the rainbow's actual membership before the options rebuild:
+    // this runs on a target() switch too, and the toggle must reflect the new
+    // target's state, not the previous one's.
+    g_rainbow_on = menu::get_rainbow()->contains(current());
     clear_options(5);
 
     if (!current()) return;

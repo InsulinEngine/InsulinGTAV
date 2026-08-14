@@ -36,6 +36,10 @@ namespace {
 
 void helper_color_presets_menu::load() {
     set_name("Presets");
+    // Without a parent, m_parent stays null and set_submenu_previous() (called
+    // below on every click) treats this as top-level: it routes to main AND
+    // closes the whole menu instead of returning to the colour editor.
+    set_parent<helper_color_menu>();
 
     for (int i = 0; i < g_preset_count; i++) {
         add_option(button_option(g_presets[i].m_name)
