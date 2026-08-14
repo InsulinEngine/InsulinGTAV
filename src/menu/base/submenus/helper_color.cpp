@@ -1,11 +1,16 @@
 #include "menu/base/submenus/helper_color.h"
 #include "menu/base/submenus/settings_themes.h"
+#include "menu/base/submenus/helper_color_presets.h"
+#include "menu/base/submenus/helper_color_sync.h"
 #include "menu/base/submenu_handler.h"
 #include "menu/base/options/number.h"
 #include "menu/base/options/scroll.h"
 #include "menu/base/options/break.h"
+#include "menu/base/options/submenu_option.h"
+#include "menu/base/options/toggle.h"
 #include "menu/base/renderer.h"
 #include "menu/base/util/theme.h"
+#include "menu/base/util/rainbow.h"
 
 namespace {
     int  g_target = 0;      // index into the colour registry
@@ -56,6 +61,18 @@ void helper_color_menu::load() {
     g_formats[0].m_name.set("RGBA"); g_formats[0].m_result = 0;
     g_formats[1].m_name.set("HSVA"); g_formats[1].m_result = 1;
 
+    add_option(submenu_option("Presets").add_submenu<helper_color_presets_menu>());
+    add_option(submenu_option("Sync With...").add_submenu<helper_color_sync_menu>());
+
+    add_option(toggle_option("Rainbow")
+        .add_tooltip("Cycle this colour through the hue wheel")
+        .add_click([] {
+            color_rgba* t = current();
+            menu::rainbow* rb = menu::get_rainbow();
+            if (rb->contains(t)) rb->remove(t);
+            else                 { rb->add(t); rb->m_enabled = true; }
+        }));
+
     add_option(scroll_option<int>(SCROLL, "Color Format")
         .add_scroll(g_format, 0, 2, g_formats)
         .add_tooltip("Edit as red/green/blue or hue/saturation/value")
@@ -73,7 +90,7 @@ void helper_color_menu::update() {
 void helper_color_menu::update_once() {
     g_built_format = g_format;
     set_name(menu::theme::color_display_name(g_target), false, false);
-    clear_options(2);
+    clear_options(5);
 
     if (!current()) return;
 

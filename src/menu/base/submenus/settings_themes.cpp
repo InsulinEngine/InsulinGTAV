@@ -1,9 +1,13 @@
 #include "menu/base/submenus/settings_themes.h"
 #include "menu/base/submenus/settings.h"
+#include "menu/base/submenus/helper_color.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/break.h"
+#include "menu/base/options/submenu_option.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/util/theme.h"
+#include "menu/base/util/rainbow.h"
+#include "menu/base/renderer.h"
 #include <stdio.h>
 
 namespace {
@@ -30,9 +34,26 @@ void settings_themes_menu::load() {
     add_option(button_option("Reset to Default")
         .add_tooltip("Restore the built-in default theme")
         .add_click([] {
+            // Before restoring: the rainbow holds pre-rainbow snapshots of the
+            // colours it animates. Resetting underneath it would leave those
+            // snapshots stale, and stopping later would undo the reset.
+            menu::get_rainbow()->stop();
             menu::theme::reset_to_default();
             menu::notify::stacked("Theme", "Reset to default");
         }));
+
+    add_option(break_option("Colours").ref());
+
+    // Index only: stl::function caps captures at 64 bytes, and a color_entry
+    // would not fit.
+    for (int i = 0; i < menu::theme::color_count(); i++) {
+        add_option(submenu_option(menu::theme::color_display_name(i))
+            .add_submenu<helper_color_menu>()
+            .add_click([i] { helper_color_menu::target(i); })
+            .add_hover([i] (submenu_option*) {
+                menu::renderer::render_color_preview(*menu::theme::color_ptr(i));
+            }));
+    }
 
     add_option(break_option("Saved Themes").ref());
 }
@@ -45,7 +66,10 @@ void settings_themes_menu::update() {
 
 void settings_themes_menu::update_once() {
     stl::vector<stl::string> themes = menu::theme::list();
-    clear_options(3);
+    // Static options from load(): Save Theme, Reset to Default, break("Colours"),
+    // one submenu_option per registry colour, then break("Saved Themes"). Only
+    // what follows that is rebuilt here.
+    clear_options(4 + menu::theme::color_count());
 
     if (themes.size() == 0) {
         add_option(button_option("~m~(no themes saved)").ref());

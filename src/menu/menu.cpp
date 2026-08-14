@@ -35,6 +35,8 @@
 #include "menu/base/submenus/vehicle_plate.h"
 #include "menu/base/submenus/settings_themes.h"
 #include "menu/base/submenus/helper_color.h"
+#include "menu/base/submenus/helper_color_presets.h"
+#include "menu/base/submenus/helper_color_sync.h"
 #include "menu/base/submenus/weapon_give.h"
 #include "menu/base/submenus/weapon_aimbot.h"
 #include "menu/base/submenus/weapon_disables.h"
@@ -185,6 +187,10 @@ namespace menu {
         menu::submenu::handler::add_submenu(settings_themes_menu::get());
         helper_color_menu::get()->load();
         menu::submenu::handler::add_submenu(helper_color_menu::get());
+        helper_color_presets_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_presets_menu::get());
+        helper_color_sync_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_sync_menu::get());
         weapon_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_menu::get());
         weapon_give_menu::get()->load();
