@@ -76,7 +76,6 @@
 #include "menu/base/submenus/vehicle_spawner.h"
 #include "menu/base/submenus/handling_editor.h"
 #include "game/player_valid.h"
-#include "platform/stack_probe.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/control.h"
@@ -129,13 +128,6 @@ namespace menu {
     }
 
     void build() {
-        // Boot diagnostics for the loading-screen crash. This whole function runs
-        // on GoldHEN's loader thread (module_start calls it), and the load()s
-        // below have frames up to ~50 KB - so the first thing we want on the wire
-        // is how much stack is actually left here. See platform/stack_probe.h.
-        platform::stack_report("menu::build");
-        menu::submenu::g_boot_tracing = true;
-
         // Bind the string/pointer-bearing texture globals (skipped by the absent
         // .init_array), load the config file, then set up the submenu tree and
         // populate the demo. Config is loaded BEFORE the submenus so each
@@ -300,7 +292,9 @@ namespace menu {
 
         register_demo_panel();
 
-        menu::submenu::g_boot_tracing = false;
+        // Kept: one line, once, and it is the proof that the whole tree got
+        // built without taking the game down. Paired with the BUILD= line it
+        // says which .prx ran and how far it got.
         platform::klogf("boot: build done, %d submenus",
                         (int)menu::submenu::handler::get_submenus().size());
     }

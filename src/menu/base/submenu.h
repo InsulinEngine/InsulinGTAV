@@ -10,11 +10,6 @@
 // decouples the base cluster so it compiles without all option types present.
 
 namespace menu::submenu {
-    // Boot tracing. build() sets this around the submenu load() sweep so each
-    // set_name() emits a klog line; the last one printed names the load() that
-    // died. Diagnostics for the loading-screen crash - remove once closed.
-    extern bool g_boot_tracing;
-
     class submenu {
     public:
         void update_menu();
