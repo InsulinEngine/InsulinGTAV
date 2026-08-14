@@ -127,7 +127,7 @@ stack with additional stacks `{"Colors", <entry name>}` and keys `R`, `G`, `B`,
 reads back correctly only by accident. Four ints are also legible when someone
 edits `config.json` by hand.
 
-`apply_saved_colors()` reads the same keys in `build()`. It touches only memory,
+`apply_colors()` reads the same keys in `build()`. It touches only memory,
 so it is safe inside the boot window.
 
 ## 3. Colour helper
