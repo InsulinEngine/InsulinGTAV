@@ -7,6 +7,7 @@
 #include "util/config.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"   // play_sound_frontend
 #include <stdlib.h>
 
 template<typename Type>

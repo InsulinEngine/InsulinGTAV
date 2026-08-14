@@ -5,6 +5,7 @@
 #include "platform/compat.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"   // play_sound_frontend
 
 namespace menu::overlay {
     enum kind { NONE, DROPDOWN, MODAL };

@@ -19,9 +19,14 @@
 // NOT YET VERIFIED (not renamed in the IDB; safe fallbacks below, revisit in the
 // same IDB when needed):
 //   GET_RENDERED_CHARACTER_HEIGHT (get_text_scale_height) -> identity fallback
-//   PLAY_SOUND_FRONTEND                                   -> no-op (cosmetic)
 //   IS_INPUT_DISABLED                                     -> false (menu uses its
 //                                                            own base input gate)
+//
+// Note for anything added here: gen_hash_natives.py reads THIS header as one of
+// its EXISTING sets and skips any name it already finds. A stub written here
+// therefore blocks the hash-based wrapper for the same native from ever being
+// generated. PLAY_SOUND_FRONTEND sat here as a no-op for exactly that reason and
+// is now served by natives_hash.h. Prefer deleting a stub over keeping it.
 namespace native {
 
     // --- verified ---------------------------------------------------------
@@ -49,13 +54,7 @@ namespace native {
     static float get_text_scale_height(float size, int /*font*/) {
         return size;
     }
-    // Menu navigation sound. Cosmetic; no-op until PLAY_SOUND_FRONTEND's RVA is
-    // verified. TODO.
-    static Void play_sound_frontend(int /*soundId*/, const char* /*audioName*/,
-                                    const char* /*audioRef*/, bool /*p3*/) {
-        return Void();
-    }
-    // The menu already gates input through menu::base's own disabled flag, so a
+// The menu already gates input through menu::base's own disabled flag, so a
     // false here is correct behaviour, not just a stub. TODO: verify RVA if the
     // engine-level query is ever actually needed.
     static bool is_input_disabled(int /*inputGroup*/) {
