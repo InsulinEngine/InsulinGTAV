@@ -120,12 +120,22 @@ Above them, the two buttons that currently lie:
 - **Save Theme** — writes all 31 entries, then `util::config::save()`.
 - **Reset to Default** — copies `color_default(i)` back into every entry and writes.
 
-**Persistence format.** Four ints per colour, under the theme submenu's name
-stack with additional stacks `{"Colors", <entry name>}` and keys `R`, `G`, `B`,
-`A`. Not a packed `0xRRGGBBAA` int: `util::config::write_int` takes a signed
-`int`, and any colour with red above 0x7F would pack to a negative number that
-reads back correctly only by accident. Four ints are also legible when someone
-edits `config.json` by hand.
+**Persistence format.** `util::config::write_color` / `read_color`, which already
+exist and already store a colour as four JSON numbers (`r`, `g`, `b`, `a`) under
+one key. Key = entry name, additional stack `{"Colors"}`. No packed
+`0xRRGGBBAA` int anywhere: `write_int` takes a signed `int`, so any colour with
+red above 0x7F would pack to a negative number that reads back correctly only by
+accident.
+
+**One cost to fix first.** `config::write_color` calls the file-static `save()`,
+which re-serialises the entire config document and rewrites `config.json` — on
+every single write. Saving a theme is 31 colours, so 31 full serialisations and
+31 writes to `/data` inside one button press. On console that reads as a freeze,
+and a freeze in this project has historically been chased as a crash. Config
+therefore gains a batch mode — `begin_batch()` / `end_batch()`, a depth counter
+that suppresses `save()` until the outermost `end_batch()` — and the theme save
+and reset wrap their loops in it. Every existing single-write callsite is
+unaffected.
 
 `apply_colors()` reads the same keys in `build()`. It touches only memory,
 so it is safe inside the boot window.
@@ -240,7 +250,7 @@ per-panel state; the debug panel uses it for the FPS accumulator.
 | Panel | Contents |
 |---|---|
 | Player | position X/Y/Z/heading, health, armour, wanted level, zone name |
-| Vehicle | model name, speed, gear, engine and body health, handle |
+| Vehicle | model name, speed, engine and body health, handle |
 | World | game time, weather, nearby ped and vehicle counts |
 | Debug | build tag, eboot base, hash-table status and count, FPS |
 
@@ -262,6 +272,15 @@ disappear during loading, which is correct.
 the literal moves out of `InsulinGTAV.cpp` into `src/platform/build_tag.h` as
 `INSULIN_BUILD_TAG`. The tag is the project's only reliable proof of which `.prx`
 is running; a panel that disagrees with the klog would poison that.
+
+Two things the panels deliberately do not show, because both would need a
+reverse-engineering anchor and this sub-project promises none:
+
+- **Current gear.** Neither `natives.h` nor `natives_hash.h` carries
+  `GET_VEHICLE_CURRENT_GEAR`; the value lives in a `CVehicle` field. Deferred.
+- **A friendly vehicle name.** `get_display_name_from_vehicle_model` returns a
+  text label such as `ADDER`, and `GET_LABEL_TEXT` is in no header, so the panel
+  shows the label as-is. Readable, just shouty.
 
 **Panels submenu.** Ozark's `misc_panels` under Miscellaneous: per panel, column,
 index and visibility, persisted, applied through `menu::panels::rearrange`. Built
