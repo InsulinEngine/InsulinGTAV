@@ -5,3 +5,4 @@ CMakeUserPresets.json
 # Editor / IDE clutter
 .vs/
 *.user
+build-wsl/
