@@ -7,8 +7,10 @@
 #include <stdio.h>
 
 namespace {
-    bool g_themes_dirty = false;
-    int  g_built_count  = -1;
+    // Starts true so the picker builds once on first show; the directory scan in
+    // menu::theme::list() must not run unconditionally every frame (sceKernelOpen +
+    // sceKernelGetdents), so update() only rebuilds when this flag is set.
+    bool g_themes_dirty = true;
 }
 
 void settings_themes_menu::load() {
@@ -36,19 +38,21 @@ void settings_themes_menu::load() {
 }
 
 void settings_themes_menu::update() {
-    stl::vector<stl::string> themes = menu::theme::list();
-    if (g_themes_dirty || g_built_count != (int)themes.size()) {
-        g_themes_dirty = false;
-        update_once();
-    }
+    if (!g_themes_dirty) return;
+    g_themes_dirty = false;
+    update_once();
 }
 
 void settings_themes_menu::update_once() {
     stl::vector<stl::string> themes = menu::theme::list();
-    g_built_count = (int)themes.size();
     clear_options(3);
 
-    for (int i = 0; i < g_built_count; i++) {
+    if (themes.size() == 0) {
+        add_option(button_option("~m~(no themes saved)").ref());
+        return;
+    }
+
+    for (int i = 0; i < (int)themes.size(); i++) {
         add_option(button_option(themes[i])
             .add_tooltip("Apply this theme")
             .add_click([i] {
