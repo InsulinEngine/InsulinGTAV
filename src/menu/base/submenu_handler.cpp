@@ -4,6 +4,7 @@
 #include "rage/invoker/natives.h"
 #include "global/ui_vars.h"
 #include "submenus/main.h"
+#include "platform/log.h"
 
 namespace menu::submenu::handler {
     void submenu_handler::load() {
@@ -26,10 +27,29 @@ namespace menu::submenu::handler {
     }
 
     void submenu_handler::feature_update() {
+        // Boot diagnostics: the first few fan-out passes are the dangerous ones.
+        // menu::tick gates this on game::player_valid(), which only means the
+        // local player ped exists - Ozark's gate (GameStatePlaying) is stricter,
+        // so these passes can land while the game is still on its loading screen.
+        // Trace the first few passes by name and then go quiet; if the game dies
+        // in there, the last name on the wire is the submenu that did it.
+        static int s_boot_passes = 0;
+        const bool trace = s_boot_passes < 5;
+        if (trace)
+            platform::klogf("fu: pass %d start (%d submenus)",
+                            s_boot_passes, (int)m_submenus.size());
+
         // Single-player base: no network gate. Feature submenus are out of scope,
         // so this just fans out update to whatever submenus are registered.
         for (submenu* submenu : m_submenus) {
+            if (trace)
+                platform::klogf("fu: %s", submenu->get_name().get_original().c_str());
             submenu->feature_update();
+        }
+
+        if (trace) {
+            platform::klogf("fu: pass %d done", s_boot_passes);
+            s_boot_passes++;
         }
     }
 

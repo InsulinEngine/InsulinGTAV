@@ -7,5 +7,6 @@ class vehicle_menu : public menu::submenu::submenu {
 public:
     static vehicle_menu* get();
     void load() override;
+    void feature_update() override;
     vehicle_menu() : menu::submenu::submenu() {}
 };

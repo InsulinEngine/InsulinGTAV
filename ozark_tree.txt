@@ -1,0 +1,262 @@
+main/helper/color/helper_color_preset.cpp    Presets                  parent=helper_color_menu            opts=0
+main/helper/esp/helper_esp_settings.cpp      Settings                 parent=helper_esp_menu              opts=9
+main/helper/helper_color.cpp                 Color                    parent=main_menu                    opts=3
+main/helper/helper_esp.cpp                   ESP                      parent=-                            opts=1
+main/helper/helper_rainbow.cpp               Rainbow Config           parent=-                            opts=1
+main/helper/rainbow/helper_rainbow_load.cpp  Rainbow Config           parent=helper_rainbow_menu          opts=1
+main.cpp                                     Ozark                    parent=-                            opts=10
+main/misc/camera/aerial_camera.cpp           Aerial Camera            parent=camera_menu                  opts=1
+main/misc/dispatch.cpp                       Dispatch                 parent=misc_menu                    opts=13
+main/misc/display.cpp                        Stacked Display          parent=misc_menu                    opts=6
+main/misc/hud.cpp                            HUD                      parent=misc_menu                    opts=1
+main/misc/misc_camera.cpp                    Camera                   parent=misc_menu                    opts=2
+main/misc/misc_disables.cpp                  Disables                 parent=misc_menu                    opts=17
+main/misc/misc_panels.cpp                    Panels                   parent=misc_menu                    opts=0
+main/misc/misc_radio.cpp                     Radio                    parent=misc_menu                    opts=2
+main/misc/misc_swaps.cpp                     Swaps                    parent=misc_menu                    opts=2
+main/misc/panels/panels_edit.cpp             Edit                     parent=panels_parent_menu           opts=0
+main/misc/panels/panels_parent.cpp           Parent                   parent=panels_menu                  opts=0
+main/misc/scripthook.cpp                     ScriptHook               parent=misc_menu                    opts=1
+main/misc/swaps/model_swaps.cpp              Model Swaps              parent=misc_swaps_menu              opts=2
+main/misc/swaps/model_swaps_add.cpp          Add Swap                 parent=model_swaps_menu             opts=3
+main/misc/swaps/model_swaps_presets.cpp      Presets                  parent=model_swaps_menu             opts=2
+main/misc/swaps/texture_swaps.cpp            Texture Swaps            parent=misc_swaps_menu              opts=1
+main/misc/swaps/texture_swaps_add.cpp        Add Swap                 parent=texture_swaps_menu           opts=3
+main/misc/visions.cpp                        Visions                  parent=misc_menu                    opts=1
+main/misc.cpp                                Miscellaneous            parent=main_menu                    opts=13
+main/network/account/network_account_kd.cpp  K/D                      parent=network_account_menu         opts=0
+main/network/account/network_account_level.cpp Level                    parent=network_account_menu         opts=2
+main/network/account/network_account_outfits.cpp Outfits                  parent=network_account_menu         opts=0
+main/network/account/network_account_times.cpp Times                    parent=network_account_menu         opts=0
+main/network/account/network_account_unlocks.cpp Unlocks                  parent=network_account_menu         opts=15
+main/network/account/network_account_wins_losses.cpp Wins and Losses          parent=network_account_menu         opts=8
+main/network/account/outfits/network_account_outfits_edit_name.cpp Name                     parent=network_account_outfits_edit_menu opts=1
+main/network/account/wins/network_account_wins_losses_edit.cpp Wins and Losses          parent=network_account_wins_losses_menu opts=0
+main/network/chat/network_global_chat_ozark.cpp Ozark Chat               parent=network_global_chat_menu     opts=2
+main/network/chat/network_global_chat_presets.cpp Presets                  parent=network_global_chat_menu     opts=2
+main/network/chat/network_global_chat_targets.cpp Modify Targets           parent=network_global_chat_menu     opts=1
+main/network/finder/network_session_finder_edit.cpp Session Finder           parent=network_session_finder_menu  opts=4
+main/network/friends/network_friends_selected.cpp Friend                   parent=network_friends_menu         opts=4
+main/network/network_account.cpp             Account                  parent=network_menu                 opts=9
+main/network/network_friends.cpp             Friends                  parent=network_menu                 opts=1
+main/network/network_global_chat.cpp         Global Chat              parent=network_menu                 opts=4
+main/network/network_host_toolkit.cpp        Host Toolkit             parent=network_menu                 opts=10
+main/network/network_join_bypass.cpp         Join Bypass              parent=network_menu                 opts=3
+main/network/network_player_search_join.cpp  Player Search            parent=network_menu                 opts=4
+main/network/network_players.cpp             Players                  parent=network_menu                 opts=0
+main/network/network_recent_players.cpp      Recent Players           parent=network_menu                 opts=3
+main/network/network_session.cpp             Session                  parent=network_menu                 opts=13
+main/network/network_session_finder.cpp      Session Finder           parent=network_menu                 opts=2
+main/network/network_spoofing.cpp            Spoofing                 parent=network_menu                 opts=12
+main/network/players/abusive/network_players_abusive_attackers.cpp Attackers                parent=network_players_abusive_menu opts=3
+main/network/players/abusive/network_players_abusive_explosions.cpp Custom Explosions        parent=network_players_abusive_menu opts=3
+main/network/players/friendly/network_players_friendly_drops.cpp Drops                    parent=network_players_friendly_menu opts=3
+main/network/players/network_players_abusive.cpp Abusive                  parent=network_players_selected_menu opts=17
+main/network/players/network_players_commands.cpp Chat commands            parent=network_players_selected_menu opts=2
+main/network/players/network_players_friendly.cpp Friendly                 parent=network_players_selected_menu opts=12
+main/network/players/network_players_removals.cpp Removals                 parent=network_players_selected_menu opts=4
+main/network/players/network_players_spawn_blocking.cpp Spawn Blocking           parent=network_players_selected_menu opts=15
+main/network/players/network_players_teleport.cpp Teleport                 parent=network_players_selected_menu opts=5
+main/network/players/network_players_text.cpp Text Message             parent=network_players_selected_menu opts=5
+main/network/players/network_players_trolling.cpp Trolling                 parent=network_players_selected_menu opts=21
+main/network/players/network_players_vehicle.cpp Vehicle                  parent=network_players_selected_menu opts=21
+main/network/players/teleport/network_players_teleport_apartments.cpp Apartments               parent=network_players_teleport_menu opts=0
+main/network/players/text/network_players_text_presets.cpp Presets                  parent=network_players_text_menu    opts=3
+main/network/players/text/network_players_text_save.cpp save and Load            parent=network_players_text_menu    opts=1
+main/network/players/trolling/attachments/network_players_trolling_attachments_presets.cpp Presets                  parent=network_players_trolling_attachments_menu opts=2
+main/network/players/trolling/network_players_trolling_attachments.cpp Attachments              parent=network_players_trolling_menu opts=10
+main/network/players/trolling/network_players_trolling_sounds.cpp Sounds                   parent=network_players_trolling_menu opts=1
+main/network/recent/network_recent_players_permanent.cpp Permanent                parent=network_recent_players_menu  opts=1
+main/network/recent/network_recent_players_selected.cpp Recent Player            parent=network_recent_players_menu  opts=7
+main/network/session/network_session_excludes.cpp Excludes                 parent=network_session_menu         opts=6
+main/network/session/network_session_overseer.cpp Overseer                 parent=network_session_menu         opts=2
+main/network/session/overseer/network_session_overseer_selected.cpp Overseer                 parent=network_session_overseer_menu opts=17
+main/network/spoofing/crew/network_spoofing_crew_icon.cpp Crew Icon                parent=network_spoofing_crew_menu   opts=4
+main/network/spoofing/crew/network_spoofing_crew_motto.cpp Crew Motto               parent=network_spoofing_crew_menu   opts=4
+main/network/spoofing/crew/network_spoofing_crew_name.cpp Crew Name                parent=network_spoofing_crew_menu   opts=4
+main/network/spoofing/crew/network_spoofing_crew_presets.cpp Presets                  parent=-                            opts=0
+main/network/spoofing/crew/network_spoofing_crew_rank.cpp Crew Rank                parent=network_spoofing_crew_menu   opts=4
+main/network/spoofing/crew/network_spoofing_crew_tag.cpp Crew Tag                 parent=network_spoofing_crew_menu   opts=4
+main/network/spoofing/network_spoofing_crew.cpp Crew                     parent=network_spoofing_menu        opts=5
+main/network/spoofing/network_spoofing_intervals.cpp Sync Intervals           parent=network_spoofing_menu        opts=0
+main/network/spoofing/network_spoofing_ip.cpp IP Address               parent=network_spoofing_menu        opts=3
+main/network/spoofing/network_spoofing_name.cpp Name                     parent=network_spoofing_menu        opts=3
+main/network/spoofing/network_spoofing_player_rotation.cpp Player Rotation          parent=network_spoofing_menu        opts=2
+main/network/spoofing/network_spoofing_profiles.cpp Profiles                 parent=network_spoofing_menu        opts=1
+main/network/spoofing/network_spoofing_rid.cpp Rockstar ID              parent=network_spoofing_menu        opts=3
+main/network/spoofing/network_spoofing_vehicle_rotation.cpp Vehicle Rotation         parent=network_spoofing_menu        opts=3
+main/network/toolkit/blocking/network_join_blocking_add.cpp Add User Block           parent=network_join_blocking_manual_menu opts=0
+main/network/toolkit/blocking/network_join_blocking_manual.cpp Manual User Block        parent=network_join_blocking_menu   opts=2
+main/network/toolkit/blocking/network_join_blocking_manual_edit.cpp Manual User Block        parent=network_join_blocking_manual_menu opts=0
+main/network/toolkit/blocking/network_join_blocking_manual_load.cpp Save and Load            parent=network_join_blocking_manual_menu opts=1
+main/network/toolkit/blocking/network_join_blocking_manual_save.cpp Save User Blocks         parent=network_join_blocking_manual_load_menu opts=1
+main/network/toolkit/network_blacklisted_players.cpp Blacklisted players      parent=network_host_toolkit_menu    opts=1
+main/network/toolkit/network_desync_kick.cpp Desync Kicks             parent=network_host_toolkit_menu    opts=3
+main/network/toolkit/network_join_blocking.cpp Join Blocking            parent=network_host_toolkit_menu    opts=6
+main/network.cpp                             Network                  parent=main_menu                    opts=13
+main/player/animation.cpp                    Animation                parent=player_menu                  opts=3
+main/player/animation/animations.cpp         Animations               parent=animation_menu               opts=8
+main/player/animation/clipsets.cpp           Clipset                  parent=animation_menu               opts=4
+main/player/animation/scenario.cpp           Scenarios                parent=animation_menu               opts=6
+main/player/appearance.cpp                   Appearance               parent=player_menu                  opts=2
+main/player/model.cpp                        Model                    parent=appearance_menu              opts=10
+main/player/movement.cpp                     Movement                 parent=player_menu                  opts=2
+main/player/particles.cpp                    Particle FX              parent=player_menu                  opts=2
+main/player/ptfx/hand_trails.cpp             Hand Trails              parent=particle_menu                opts=2
+main/player/ptfx/particle_manager.cpp        Particle Manager         parent=particle_menu                opts=2
+main/player/wardrobe.cpp                     Wardrobe                 parent=appearance_menu              opts=3
+main/player/wardrobe_save_load.cpp           Save and Load            parent=wardrobe_menu                opts=1
+main/player.cpp                              Player                   parent=main_menu                    opts=23
+main/protection/entity/protection_entity_blocking.cpp Spawn Blocking           parent=protection_entity_events_menu opts=14
+main/protection/entity/protection_entity_ghosting.cpp Spawn Ghosting           parent=protection_entity_events_menu opts=12
+main/protection/entity/protection_entity_ghosting_edit.cpp Spawn Ghosting           parent=protection_entity_ghosting_menu opts=0
+main/protection/limits/entity/protection_spawn_rate_limit_add.cpp Add Rate Limit           parent=protection_spawn_rate_limit_menu opts=3
+main/protection/limits/entity/protection_spawn_rate_limit_edit.cpp Spawn Rate               parent=protection_spawn_rate_limit_menu opts=0
+main/protection/limits/protection_spawn_rate_limit.cpp Spawn Rate               parent=protection_limits_menu       opts=1
+main/protection/protection_anti_detection.cpp Anti Detection           parent=protection_menu              opts=5
+main/protection/protection_entity_events.cpp Entity                   parent=protection_menu              opts=4
+main/protection/protection_events.cpp        Generic Events           parent=protection_menu              opts=0
+main/protection/protection_join_blocking.cpp Join Blocking            parent=protection_menu              opts=4
+main/protection/protection_limits.cpp        Limits                   parent=protection_menu              opts=3
+main/protection/protection_net_events.cpp    Network Events           parent=protection_menu              opts=0
+main/protection/protection_presence_events.cpp Presence Events          parent=protection_menu              opts=0
+main/protection/protection_reactions.cpp     Reactions                parent=protection_menu              opts=0
+main/protection/reactions/protection_reactions_selected.cpp Reactions                parent=protection_reactions_menu    opts=15
+main/protections.cpp                         Protections              parent=main_menu                    opts=13
+main/settings/color/color_sync.cpp           Sync With...             parent=helper_color_menu            opts=0
+main/settings/hide_info.cpp                  Streamer Mode            parent=settings_menu                opts=3
+main/settings/hk/hotkey_selected.cpp         Hotkey                   parent=hotkey_menu                  opts=0
+main/settings/pos/position_scale_selected.cpp Position and Scale       parent=position_scale_menu          opts=0
+main/settings/position_scale.cpp             Position and Scale       parent=settings_menu                opts=0
+main/settings/settings_color.cpp             Colors                   parent=settings_menu                opts=0
+main/settings/settings_fonts.cpp             Fonts                    parent=settings_menu                opts=0
+main/settings/settings_hotkey.cpp            Hotkeys                  parent=settings_menu                opts=0
+main/settings/settings_texture.cpp           Header                   parent=textures_menu                opts=1
+main/settings/settings_textures.cpp          Textures                 parent=settings_menu                opts=13
+main/settings/themes.cpp                     Themes                   parent=settings_menu                opts=2
+main/settings/themes/themes_selected.cpp     Theme                    parent=themes_menu                  opts=3
+main/settings/translation.cpp                Translation              parent=settings_menu                opts=3
+main/settings/translation/translation_selected.cpp Translation              parent=translation_menu             opts=3
+main/settings.cpp                            Settings                 parent=main_menu                    opts=13
+main/spawner/object/edit/spawner_object_manage_edit.cpp Manage                   parent=spawner_object_manage_menu   opts=4
+main/spawner/object/spawner_object_building.cpp Buildings                parent=spawner_menu                 opts=1
+main/spawner/object/spawner_object_manage.cpp Manage Spawned Objects   parent=spawner_menu                 opts=2
+main/spawner/object/spawner_object_select.cpp Object Spawner           parent=spawner_menu                 opts=0
+main/spawner/object/spawner_object_settings.cpp Spawn Settings           parent=spawner_menu                 opts=4
+main/spawner/ped/edit/spawner_ped_manage_edit.cpp Manage                   parent=spawner_ped_manage_menu      opts=7
+main/spawner/ped/spawner_ped_manage.cpp      Manage Spawned Peds      parent=spawner_menu                 opts=2
+main/spawner/ped/spawner_ped_settings.cpp    Spawn Settings           parent=spawner_menu                 opts=4
+main/spawner/vehicle/edit/spawner_vehicle_manage_edit.cpp Manage                   parent=spawner_vehicle_manage_menu  opts=13
+main/spawner/vehicle/garage/spawner_vehicle_garage_selected.cpp Garage Vehicles          parent=spawner_vehicle_garage_menu  opts=0
+main/spawner/vehicle/spawner_vehicle_garage.cpp Garage Vehicles          parent=spawner_menu                 opts=0
+main/spawner/vehicle/spawner_vehicle_manage.cpp Manage Spawned Vehicles  parent=spawner_menu                 opts=2
+main/spawner/vehicle/spawner_vehicle_modded.cpp Modded Vehicles          parent=spawner_menu                 opts=2
+main/spawner/vehicle/spawner_vehicle_save.cpp Save and Load            parent=spawner_menu                 opts=1
+main/spawner/vehicle/spawner_vehicle_selected.cpp Spawner                  parent=spawner_menu                 opts=0
+main/spawner/vehicle/spawner_vehicle_settings.cpp Spawn Settings           parent=spawner_menu                 opts=9
+main/spawner.cpp                             Spawner                  parent=main_menu                    opts=7
+main/teleport/stores/teleport_stores_selected.cpp Stores                   parent=teleport_stores_menu         opts=0
+main/teleport/teleport_directional.cpp       Directional              parent=teleport_menu                opts=6
+main/teleport/teleport_ipl.cpp               IPL                      parent=teleport_menu                opts=17
+main/teleport/teleport_save_load.cpp         Save and Load            parent=teleport_menu                opts=1
+main/teleport/teleport_selected.cpp          Placeholder              parent=teleport_menu                opts=0
+main/teleport/teleport_settings.cpp          Settings                 parent=teleport_menu                opts=3
+main/teleport/teleport_stores.cpp            Stores                   parent=teleport_menu                opts=0
+main/teleport.cpp                            Teleport                 parent=main_menu                    opts=16
+main/vehicle/customs/lights/neon/vehicle_customs_neon_color.cpp Neon Color               parent=vehicle_customs_neon_menu    opts=0
+main/vehicle/customs/lights/vehicle_customs_neon.cpp Neon Kits                parent=vehicle_customs_lights_menu  opts=2
+main/vehicle/customs/respray/vehicle_customs_respray_edit.cpp Respray                  parent=vehicle_customs_respray_type_menu opts=0
+main/vehicle/customs/respray/vehicle_customs_respray_type.cpp Respray                  parent=vehicle_customs_respray_menu opts=0
+main/vehicle/customs/vehicle_customs_bumpers.cpp Bumpers                  parent=vehicle_customs_menu         opts=0
+main/vehicle/customs/vehicle_customs_fender.cpp Fenders                  parent=vehicle_customs_menu         opts=0
+main/vehicle/customs/vehicle_customs_horn.cpp Horn                     parent=vehicle_customs_menu         opts=3
+main/vehicle/customs/vehicle_customs_interior.cpp Benny's                  parent=vehicle_customs_menu         opts=0
+main/vehicle/customs/vehicle_customs_lights.cpp Lights                   parent=vehicle_customs_menu         opts=2
+main/vehicle/customs/vehicle_customs_lsc.cpp Los Santos Customs       parent=vehicle_customs_menu         opts=2
+main/vehicle/customs/vehicle_customs_respray.cpp Respray                  parent=vehicle_customs_menu         opts=3
+main/vehicle/customs/vehicle_customs_wheels.cpp Wheels                   parent=vehicle_customs_menu         opts=3
+main/vehicle/customs/wheels/vehicle_customs_wheels_color.cpp Wheel Color              parent=vehicle_customs_wheels_menu  opts=0
+main/vehicle/customs/wheels/vehicle_customs_wheels_tires.cpp Tires                    parent=vehicle_customs_wheels_menu  opts=3
+main/vehicle/customs/wheels/vehicle_customs_wheels_tires_edit.cpp Tires                    parent=vehicle_customs_wheels_tires_menu opts=0
+main/vehicle/customs/wheels/vehicle_customs_wheels_type.cpp Wheel Type               parent=vehicle_customs_wheels_menu  opts=0
+main/vehicle/customs/wheels/vehicle_customs_wheels_type_edit.cpp Wheel Type               parent=vehicle_customs_wheels_type_menu opts=0
+main/vehicle/modifiers/handling/vehicle_modifiers_handling_attr.cpp Handling Attributes      parent=vehicle_modifiers_handling_main_menu opts=1
+main/vehicle/modifiers/handling/vehicle_modifiers_handling_bike.cpp Bike Handling            parent=vehicle_modifiers_handling_main_menu opts=1
+main/vehicle/modifiers/handling/vehicle_modifiers_handling_boat.cpp Boat Handling            parent=vehicle_modifiers_handling_main_menu opts=1
+main/vehicle/modifiers/handling/vehicle_modifiers_handling_flying.cpp Flying Handling          parent=vehicle_modifiers_handling_main_menu opts=1
+main/vehicle/modifiers/handling/vehicle_modifiers_handling_load.cpp Save and Load            parent=vehicle_modifiers_handling_menu opts=1
+main/vehicle/modifiers/handling/vehicle_modifiers_handling_main.cpp Handling                 parent=vehicle_modifiers_handling_menu opts=0
+main/vehicle/modifiers/vehicle_modifiers_handling.cpp Handling                 parent=vehicle_modifiers_menu       opts=3
+main/vehicle/movement/vehicle_movement_acrobatics.cpp Acrobatics               parent=vehicle_movement_menu        opts=0
+main/vehicle/movement/vehicle_movement_parachute.cpp Parachute                parent=vehicle_movement_menu        opts=2
+main/vehicle/seats/vehicle_seats_edit.cpp    Seats                    parent=vehicle_seats_menu           opts=1
+main/vehicle/vehicle_autopilot.cpp           Autopilot                parent=vehicle_menu                 opts=2
+main/vehicle/vehicle_boost.cpp               Boost                    parent=vehicle_menu                 opts=6
+main/vehicle/vehicle_collision.cpp           Collision                parent=vehicle_menu                 opts=2
+main/vehicle/vehicle_customs.cpp             Customs                  parent=vehicle_menu                 opts=0
+main/vehicle/vehicle_doors.cpp               Doors                    parent=vehicle_menu                 opts=5
+main/vehicle/vehicle_gravity.cpp             Gravity                  parent=vehicle_menu                 opts=6
+main/vehicle/vehicle_health.cpp              Health                   parent=vehicle_menu                 opts=5
+main/vehicle/vehicle_modifiers.cpp           Modifiers                parent=vehicle_menu                 opts=3
+main/vehicle/vehicle_movement.cpp            Movement                 parent=vehicle_menu                 opts=4
+main/vehicle/vehicle_multipliers.cpp         Multipliers              parent=vehicle_menu                 opts=0
+main/vehicle/vehicle_particles.cpp           Particle FX              parent=vehicle_menu                 opts=1
+main/vehicle/vehicle_ramps.cpp               Ramps                    parent=vehicle_menu                 opts=7
+main/vehicle/vehicle_randomization.cpp       Randomization            parent=vehicle_menu                 opts=6
+main/vehicle/vehicle_seats.cpp               Seats                    parent=vehicle_menu                 opts=3
+main/vehicle/vehicle_speedometer.cpp         Speedometer              parent=vehicle_menu                 opts=2
+main/vehicle/vehicle_tyre_tracks.cpp         Tire Tracks              parent=vehicle_menu                 opts=5
+main/vehicle/vehicle_weapons.cpp             Weapons                  parent=vehicle_menu                 opts=1
+main/vehicle.cpp                             Vehicle                  parent=main_menu                    opts=25
+main/weapon/aimbot.cpp                       Aim Assist               parent=weapon_mods_menu             opts=4
+main/weapon/entity_gun.cpp                   Entity Gun               parent=weapon_mods_menu             opts=2
+main/weapon/explosions/explosion_editor.cpp  Explosion Editor         parent=weapon_mods_menu             opts=16
+main/weapon/explosions/explosion_gun.cpp     Explosion Gun            parent=weapon_mods_menu             opts=3
+main/weapon/give/give_attachment.cpp         Give Attachment          parent=give_weapons_menu            opts=3
+main/weapon/give/give_attachment_selected.cpp Give Attachment          parent=give_attachment_menu         opts=0
+main/weapon/give/give_tint.cpp               Give Tint                parent=give_weapons_menu            opts=1
+main/weapon/give/give_tint_selected.cpp      Give Tint                parent=give_tint_menu               opts=0
+main/weapon/give/give_weapon.cpp             Give Weapon              parent=give_weapons_menu            opts=1
+main/weapon/give/give_weapons.cpp            Give Weapons             parent=give_weapons_ammo_menu       opts=3
+main/weapon/give_weapons_ammo.cpp            Give Weapons and Ammo    parent=weapon_mods_menu             opts=4
+main/weapon/gravity_gun.cpp                  Gravity Gun              parent=weapon_mods_menu             opts=1
+main/weapon/modifiers/ammo/ammo_modifier.cpp Ammo Modifier            parent=weapon_modifiers_menu        opts=3
+main/weapon/modifiers/ammo/ammo_modifier_edit.cpp Ammo Modifier            parent=ammo_modifier_menu           opts=3
+main/weapon/modifiers/ammo/ammo_modifier_load.cpp Load modifier            parent=ammo_modifier_menu           opts=0
+main/weapon/modifiers/ammo/ammo_modifier_swap.cpp Swap With...             parent=ammo_modifier_edit_menu      opts=0
+main/weapon/modifiers/weapon_matrix.cpp      Matrix                   parent=weapon_modifiers_menu        opts=0
+main/weapon/modifiers/weapon_multipliers.cpp Multipliers              parent=weapon_modifiers_menu        opts=0
+main/weapon/particle_gun.cpp                 Particle Gun             parent=weapon_mods_menu             opts=1
+main/weapon/purchase/purchase_attachment.cpp Purchase Attachment      parent=purchase_weapons_menu        opts=1
+main/weapon/purchase/purchase_weapon.cpp     Purchase weapon          parent=purchase_weapons_menu        opts=1
+main/weapon/purchase/purchase_weapons.cpp    Purchase Weapons         parent=give_weapons_ammo_menu       opts=2
+main/weapon/triggerbot.cpp                   Triggerbot               parent=aimbot_menu                  opts=1
+main/weapon/weapon_disables.cpp              Disables                 parent=weapon_mods_menu             opts=9
+main/weapon/weapon_modifiers.cpp             Modifiers                parent=weapon_mods_menu             opts=3
+main/weapon/weapon_mods.cpp                  Weapon                   parent=main_menu                    opts=29
+main/world/bullet_tracers.cpp                Bullet Tracers           parent=world_menu                   opts=1
+main/world/clear_area.cpp                    Clear Area               parent=world_menu                   opts=6
+main/world/fx/fx_color.cpp                   Color                    parent=fx_color_menu                opts=0
+main/world/fx/fx_cross_multiplier.cpp        Cross Multiplier         parent=game_fx_menu                 opts=0
+main/world/fx/fx_liquid.cpp                  Liquid                   parent=game_fx_menu                 opts=0
+main/world/fx/fx_load.cpp                    Save and Load            parent=game_fx_menu                 opts=1
+main/world/fx/fx_puddles.cpp                 Puddles                  parent=game_fx_menu                 opts=0
+main/world/fx/fx_sky.cpp                     Sky                      parent=game_fx_menu                 opts=4
+main/world/fx/fx_traffic.cpp                 Traffic Lights           parent=game_fx_menu                 opts=6
+main/world/fx/fx_ui_color.cpp                Color                    parent=fx_ui_color_menu             opts=0
+main/world/fx/fx_vehicle.cpp                 Vehicle                  parent=game_fx_menu                 opts=4
+main/world/fx/fx_vehicle_neons.cpp           Vehicle Neons            parent=game_fx_menu                 opts=0
+main/world/game_fx.cpp                       Game FX                  parent=world_menu                   opts=10
+main/world/local_entities.cpp                Local Entities           parent=world_menu                   opts=0
+main/world/ocean.cpp                         Ocean                    parent=world_menu                   opts=6
+main/world/ocean/ocean_quads.cpp             Ocean Quads              parent=ocean_menu                   opts=1
+main/world/ocean/ocean_quads_edit.cpp        Ocean Quads              parent=ocean_quads_menu             opts=0
+main/world/ocean/ocean_tuning.cpp            Ocean Tuning             parent=ocean_menu                   opts=0
+main/world/time/time_preset.cpp              Presets                  parent=time_menu                    opts=4
+main/world/trains.cpp                        Train                    parent=world_menu                   opts=8
+main/world/weather/fx/weather_fx.cpp         Weather FX               parent=weather_menu                 opts=2
+main/world/weather/weather_select.cpp        Weather                  parent=weather_menu                 opts=1
+main/world/world_time.cpp                    Time                     parent=world_menu                   opts=7
+main/world/world_waypoint.cpp                World Waypoint           parent=world_menu                   opts=2
+main/world/world_weather.cpp                 Weather                  parent=world_menu                   opts=4
+main/world.cpp                               World                    parent=main_menu                    opts=10

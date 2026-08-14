@@ -1,4 +1,6 @@
 #include "menu/base/submenus/settings.h"
+#include "menu/base/submenus/settings_streamer.h"
+#include "menu/base/submenus/settings_themes.h"
 #include "menu/base/submenus/main.h"
 #include "menu/base/submenu_handler.h"
 #include "menu/base/options/button.h"
@@ -17,6 +19,9 @@ static bool g_themes_dirty = false;
 void settings_menu::load() {
     set_name("Settings");
     set_parent<main_menu>();
+
+    add_option(submenu_option("Themes").add_submenu<settings_themes_menu>());
+    add_option(submenu_option("Streamer Mode").add_submenu<settings_streamer_menu>());
 
     add_option(button_option("Save Theme")
         .add_tooltip("Save current colours / fonts / positions as theme_N.json (rename the file to taste)")

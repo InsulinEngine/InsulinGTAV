@@ -4,6 +4,7 @@
 #include "menu/base/base.h"
 #include "menu/base/util/instructionals.h"
 #include "menu/base/util/hotkeys.h"
+#include "platform/log.h"
 
 namespace menu::submenu {
     void submenu::update_menu() {
@@ -91,7 +92,15 @@ namespace menu::submenu {
         return str;
     }
 
+    // Boot tracing: build() turns this on around the submenu load() sweep. Every
+    // load() opens with set_name(), so this prints the load order for free and
+    // the last line in the klog names the submenu that died. Diagnostics only.
+    bool g_boot_tracing = false;
+
     void submenu::set_name(stl::string str, bool translation, bool searchable) {
+        if (g_boot_tracing)
+            platform::klogf("boot: load %s", str.c_str());
+
         if (!str.empty() && str.length() > 0) {
             m_name.set(str);
             m_name.set_translate(true);
