@@ -101,206 +101,104 @@ existing single-write callsite is unaffected."
 
 ---
 
-### Task 2: Colour registry
+### Task 2: Expose the existing colour registry
+
+`src/menu/base/util/theme.cpp:21` already holds `COLORS[]`, a name-to-pointer table of all 31 theme colours, plus `reset_to_default()` restoring the built-in palette. It is file-static, so nothing outside that file can iterate it. This task makes it reachable. It does NOT build a second table — a duplicate registry drifts against this one the first time a colour is added to `ui_vars`, and the drift is silent.
 
 **Files:**
-- Create: `src/global/color_registry.h`
-- Create: `src/global/color_registry.cpp`
-- Modify: `src/menu/menu.cpp` (`build()`, after `global::ui::init()`)
+- Modify: `src/menu/base/util/theme.h` (add three accessors to `namespace menu::theme`)
+- Modify: `src/menu/base/util/theme.cpp` (implement them next to `COLORS[]`)
 
 **Interfaces:**
-- Consumes: `global::ui::g_*` colours from `src/global/ui_vars.h`
-- Produces:
-  - `struct global::ui::color_entry { const char* m_name; color_rgba* m_color; }`
-  - `extern const color_entry global::ui::g_color_registry[]`
-  - `extern const int global::ui::g_color_registry_count` (31)
-  - `void global::ui::capture_color_defaults()`
-  - `const color_rgba& global::ui::color_default(int index)`
+- Consumes: the existing `COLORS[]` table and `struct nc { const char* name; color_rgba* p; }` in `theme.cpp`
+- Produces, in `namespace menu::theme`: `int color_count()`, `const char* color_name(int index)`, `color_rgba* color_ptr(int index)`
 
-- [ ] **Step 1: Write the header**
+- [ ] **Step 1: Declare the accessors**
 
-Create `src/global/color_registry.h`:
+In `src/menu/base/util/theme.h`, inside `namespace menu::theme`, after `stl::vector<stl::string> list();`:
 
 ```cpp
-#pragma once
-#include "global/ui_vars.h"
-
-// Every theme colour, addressable by name. This is the spine of the colour
-// surfaces: the theme submenu lists it, the colour helper edits one entry,
-// "Sync With..." copies between entries, and the rainbow animates a subset.
-// Without it each of those would carry its own copy of the same 31 names.
-namespace global::ui {
-    struct color_entry {
-        const char* m_name;    // display name AND config key
-        color_rgba* m_color;
-    };
-
-    extern const color_entry g_color_registry[];
-    extern const int         g_color_registry_count;
-
-    // Snapshot the compiled-in values so "Reset to Default" has something true
-    // to restore. MUST run after init() and BEFORE the config is applied - see
-    // the callsite comment in menu::build().
-    void capture_color_defaults();
-    const color_rgba& color_default(int index);
-}
+    // The colour registry, exposed for editing surfaces. theme.cpp already owns
+    // this table for save/load; a second copy elsewhere would drift against it
+    // the first time a colour is added to ui_vars.
+    int         color_count();
+    const char* color_name(int index);   // stable key, e.g. "option_selected"
+    color_rgba* color_ptr(int index);    // nullptr for an invalid index
 ```
 
-- [ ] **Step 2: Write the table**
+- [ ] **Step 2: Implement them**
 
-Create `src/global/color_registry.cpp`. Every element is a string literal plus the address of a namespace-scope object — both address constants, so the array is constant-initialised and needs no global constructor.
+In `src/menu/base/util/theme.cpp`, directly below the `COLORS[]` definition:
 
 ```cpp
-#include "global/color_registry.h"
+    int color_count() { return (int)(sizeof(COLORS) / sizeof(COLORS[0])); }
 
-namespace global::ui {
-    const color_entry g_color_registry[] = {
-        { "Success",                  &g_success },
-        { "Error",                    &g_error },
-        { "Main Header",              &g_main_header },
-        { "Sub Header",               &g_sub_header },
-        { "Sub Header Text",          &g_sub_header_text },
-        { "Background",               &g_background },
-        { "Scroller",                 &g_scroller },
-        { "Footer",                   &g_footer },
-        { "Title",                    &g_title },
-        { "Open Tooltip",             &g_open_tooltip },
-        { "Tooltip",                  &g_tooltip },
-        { "Option",                   &g_option },
-        { "Option Selected",          &g_option_selected },
-        { "Toggle On",                &g_toggle_on },
-        { "Toggle Off",               &g_toggle_off },
-        { "Break",                    &g_break },
-        { "Submenu Bar",              &g_submenu_bar },
-        { "Clear Area Range",         &g_clear_area_range },
-        { "Hotkey Bar",               &g_hotkey_bar },
-        { "Notify Bar",               &g_notify_bar },
-        { "Notify Background",        &g_notify_background },
-        { "Panel Bar",                &g_panel_bar },
-        { "Stacked Display Bar",      &g_stacked_display_bar },
-        { "Stacked Display Bg",       &g_stacked_display_background },
-        { "Panel Background",         &g_panel_background },
-        { "Hotkey Background",        &g_hotkey_background },
-        { "Hotkey Input",             &g_hotkey_input },
-        { "Instructional Bg",         &g_instructional_background },
-        { "Globe",                    &g_globe },
-        { "Color Grid Background",    &g_color_grid_background },
-        { "Color Grid Bar",           &g_color_grid_bar },
-    };
-
-    const int g_color_registry_count =
-        (int)(sizeof(g_color_registry) / sizeof(g_color_registry[0]));
-
-    // Plain storage, filled once by capture_color_defaults(). Not a constructor:
-    // nothing at namespace scope may need one.
-    static color_rgba g_defaults[sizeof(g_color_registry) / sizeof(g_color_registry[0])];
-    static bool       g_defaults_captured = false;
-
-    void capture_color_defaults() {
-        if (g_defaults_captured) return;
-        for (int i = 0; i < g_color_registry_count; i++)
-            g_defaults[i] = *g_color_registry[i].m_color;
-        g_defaults_captured = true;
+    const char* color_name(int index) {
+        if (index < 0 || index >= color_count()) return "";
+        return COLORS[index].name;
     }
 
-    const color_rgba& color_default(int index) {
-        if (index < 0 || index >= g_color_registry_count) return g_defaults[0];
-        return g_defaults[index];
+    color_rgba* color_ptr(int index) {
+        if (index < 0 || index >= color_count()) return nullptr;
+        return COLORS[index].p;
     }
-}
 ```
 
-- [ ] **Step 3: Call it from build() in the one correct place**
+- [ ] **Step 3: Build**
 
-In `src/menu/menu.cpp`, add `#include "global/color_registry.h"` with the other includes, then in `build()` immediately after `global::ui::init();` and **before** `util::config::load();`:
+Run the WSL build command from Global Constraints.
+Expected: compiles, no new warnings.
 
-```cpp
-        // Order matters and is not obvious: the defaults must be snapshotted
-        // while the colours still hold their compiled-in values. Move this below
-        // the config load and "Reset to Default" starts restoring the user's own
-        // colours as the factory ones - silently, and looking like it worked.
-        global::ui::capture_color_defaults();
-```
-
-- [ ] **Step 4: Build**
-
-Run the WSL build command.
-Expected: compiles. If a name in the table does not resolve, it was mistyped — the 31 names are exactly the `color_rgba g_*` declarations in `src/global/ui_vars.h`.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/global/color_registry.h src/global/color_registry.cpp src/menu/menu.cpp
-git commit -m "feat(ui): colour registry - the 31 theme colours, addressable by name
+git add src/menu/base/util/theme.h src/menu/base/util/theme.cpp
+git commit -m "feat(ui): expose the theme colour registry for editing surfaces
 
-None of the theme colours was reachable from the menu, and every surface that
-wants them (theme editor, sync, rainbow) would otherwise carry its own copy of
-the same list. One table, name doubling as the config key.
+theme.cpp has held a name-to-pointer table of all 31 colours since the theme
+system landed, but it is file-static, so the menu could save and load colours
+without being able to enumerate or edit one.
 
-Defaults are snapshotted at runtime rather than repeated in the table, which
-would duplicate every value in ui_vars.cpp and drift on the first tweak. The
-snapshot runs between init() and the config load; the callsite says why."
+Three accessors rather than a second table: a duplicate registry drifts against
+this one the first time a colour is added to ui_vars, and the drift is silent -
+the new colour simply never appears in whichever list was forgotten."
 ```
 
 ---
 
-### Task 3: Theme submenu — real save, load and reset
+### Task 3: Move the theme controls into the Themes submenu
 
-`settings_themes.cpp` today is a scaffold: its "Save Theme" button emits a `Theme saved` notification and writes nothing.
+There are currently two Save Theme buttons. The pair in `settings.cpp:26-38` works, calling `menu::theme::save` and `reset_to_default`. The pair in `settings_themes.cpp` is a scaffold that emits a `Theme saved` notification and writes nothing — and it sits one level deeper, under Settings → Themes, where a user would reasonably look first. This task makes the Themes submenu the real home and deletes the duplicates.
 
 **Files:**
-- Modify: `src/menu/base/submenus/settings_themes.cpp` (replace the body wholesale)
-- Modify: `src/menu/base/submenus/settings_themes.h` (add the static)
-- Modify: `src/menu/menu.cpp` (`build()`, after `util::config::load()`)
+- Modify: `src/menu/base/submenus/settings_themes.cpp` (replace the stub body)
+- Modify: `src/menu/base/submenus/settings_themes.h` (add the update overrides)
+- Modify: `src/menu/base/submenus/settings.cpp` (remove the moved options)
 
 **Interfaces:**
-- Consumes: Task 1 `begin_batch`/`end_batch`; Task 2 registry
-- Produces: `static void settings_themes_menu::apply_colors()` — reads every saved colour into its global. Task 6 consumes `settings_themes_menu`'s option list indirectly by opening the helper.
+- Consumes: `menu::theme::save`, `reset_to_default`, `list`, `load_by_name`
+- Produces: nothing new. Task 7 appends the per-colour editor list to this same `load()`.
 
-- [ ] **Step 1: Declare the static**
+- [ ] **Step 1: Read what you are moving**
 
-In `src/menu/base/submenus/settings_themes.h`, inside the class:
+Read `src/menu/base/submenus/settings.cpp` in full first. It carries the Save Theme button, the Reset to Default button, a `g_themes_dirty` flag, a `break_option("Themes")` and a theme-picker list rebuilt in `update()`. All of that moves. The Language option and the Streamer Mode option stay.
 
-```cpp
-    // Reads saved colours into the ui_vars globals. Called from menu::build()
-    // after the config is loaded. Touches only memory - safe in the boot window.
-    static void apply_colors();
-```
+- [ ] **Step 2: Write the Themes submenu**
 
-- [ ] **Step 2: Write the submenu**
-
-Replace the body of `src/menu/base/submenus/settings_themes.cpp`:
+Replace the body of `src/menu/base/submenus/settings_themes.cpp`. Reproduce the save, reset and picker logic as `settings.cpp` had it, including the `g_themes_dirty` deferral — the list must be refreshed from `update()`, never re-entrantly inside a click handler, which is why that flag exists:
 
 ```cpp
 #include "menu/base/submenus/settings_themes.h"
 #include "menu/base/submenus/settings.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/break.h"
-#include "menu/base/options/submenu_option.h"
-#include "menu/base/renderer.h"
 #include "menu/base/util/notify.h"
-#include "global/color_registry.h"
-#include "util/config.h"
+#include "menu/base/util/theme.h"
+#include <stdio.h>
 
 namespace {
-    // The config path every colour is stored under. One place owns the layout so
-    // apply_colors() and the save button cannot drift apart.
-    stl::vector<stl::string> color_stack() { return { "Colors" }; }
-}
-
-void settings_themes_menu::apply_colors() {
-    for (int i = 0; i < global::ui::g_color_registry_count; i++) {
-        const global::ui::color_entry& e = global::ui::g_color_registry[i];
-        color_rgba stored = *e.m_color;
-        if (util::config::read_color(settings_themes_menu::get()->get_submenu_name_stack(),
-                                     e.m_name, &stored, color_stack())) {
-            if (stored.r < 0) stored.r = 0;  if (stored.r > 255) stored.r = 255;
-            if (stored.g < 0) stored.g = 0;  if (stored.g > 255) stored.g = 255;
-            if (stored.b < 0) stored.b = 0;  if (stored.b > 255) stored.b = 255;
-            if (stored.a < 0) stored.a = 0;  if (stored.a > 255) stored.a = 255;
-            *e.m_color = stored;
-        }
-    }
+    bool g_themes_dirty = false;
+    int  g_built_count  = -1;
 }
 
 void settings_themes_menu::load() {
@@ -308,35 +206,49 @@ void settings_themes_menu::load() {
     set_parent<settings_menu>();
 
     add_option(button_option("Save Theme")
-        .add_tooltip("Writes every colour to config.json")
+        .add_tooltip("Save current colours / fonts / positions as theme_N.json (rename the file to taste)")
         .add_click([] {
-            util::config::begin_batch();
-            for (int i = 0; i < global::ui::g_color_registry_count; i++) {
-                const global::ui::color_entry& e = global::ui::g_color_registry[i];
-                util::config::write_color(settings_themes_menu::get()->get_submenu_name_stack(),
-                                          e.m_name, *e.m_color, color_stack());
-            }
-            util::config::end_batch();
-            menu::notify::stacked("Settings", "Theme saved");
+            char name[32];
+            snprintf(name, sizeof(name), "theme_%d", (int)menu::theme::list().size() + 1);
+            menu::theme::save(name);
+            menu::notify::stacked("Theme", "Saved");
+            g_themes_dirty = true;   // list refreshed in update(), not re-entrantly here
         }));
 
     add_option(button_option("Reset to Default")
-        .add_tooltip("Restores the colours the plugin shipped with")
+        .add_tooltip("Restore the built-in default theme")
         .add_click([] {
-            util::config::begin_batch();
-            for (int i = 0; i < global::ui::g_color_registry_count; i++) {
-                const global::ui::color_entry& e = global::ui::g_color_registry[i];
-                *e.m_color = global::ui::color_default(i);
-                util::config::write_color(settings_themes_menu::get()->get_submenu_name_stack(),
-                                          e.m_name, *e.m_color, color_stack());
-            }
-            util::config::end_batch();
-            menu::notify::stacked("Settings", "Reset to default");
+            menu::theme::reset_to_default();
+            menu::notify::stacked("Theme", "Reset to default");
         }));
 
-    add_option(break_option("Colours").ref());
+    add_option(break_option("Saved Themes").ref());
+}
 
-    // The per-colour list lands in Task 7, once the editor it opens exists.
+void settings_themes_menu::update() {
+    stl::vector<stl::string> themes = menu::theme::list();
+    if (g_themes_dirty || g_built_count != (int)themes.size()) {
+        g_themes_dirty = false;
+        update_once();
+    }
+}
+
+void settings_themes_menu::update_once() {
+    stl::vector<stl::string> themes = menu::theme::list();
+    g_built_count = (int)themes.size();
+    clear_options(3);
+
+    for (int i = 0; i < g_built_count; i++) {
+        add_option(button_option(themes[i])
+            .add_tooltip("Apply this theme")
+            .add_click([i] {
+                stl::vector<stl::string> list = menu::theme::list();
+                if (i < (int)list.size()) {
+                    menu::theme::load_by_name(list[i].c_str());
+                    menu::notify::stacked("Theme", "Applied");
+                }
+            }));
+    }
 }
 
 settings_themes_menu* settings_themes_menu::get() {
@@ -345,36 +257,38 @@ settings_themes_menu* settings_themes_menu::get() {
 }
 ```
 
-- [ ] **Step 3: Apply saved colours during build()**
+The click handler re-reads `menu::theme::list()` instead of capturing the name: the capture has to stay under the 64-byte cap, and the list can change between the option being built and the button being pressed.
 
-In `src/menu/menu.cpp` `build()`, immediately after `util::config::load();`:
+In `settings_themes.h`, add to the class if not already present:
 
 ```cpp
-        // Saved colours overwrite the compiled-in ones before any submenu is
-        // built, so the first frame already renders in the user's theme.
-        settings_themes_menu::apply_colors();
+    void update() override;
+    void update_once() override;
 ```
 
-Add `#include "menu/base/submenus/settings_themes.h"` if it is not already among the includes.
+- [ ] **Step 3: Remove the duplicates from settings.cpp**
+
+Delete from `src/menu/base/submenus/settings.cpp`: the `Save Theme` button, the `Reset to Default` button, the `break_option("Themes")`, the theme-picker list, and the `g_themes_dirty` flag with its rebuild logic. Keep the `Themes` and `Streamer Mode` submenu options and the `Language` option. If removing the picker empties `update()` / `update_once()`, leave them as empty overrides rather than deleting the declarations.
 
 - [ ] **Step 4: Build**
 
 Run the WSL build command.
-Expected: compiles. This task deliberately does not reference `helper_color_menu` — the submenu that opens the editor arrives in Task 7, so nothing here depends on a file that does not exist yet.
+Expected: compiles, no new warnings, and `grep -n g_themes_dirty src/menu/base/submenus/settings.cpp` returns nothing.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/menu/base/submenus/settings_themes.cpp src/menu/base/submenus/settings_themes.h src/menu/menu.cpp
-git commit -m "feat(settings): the Themes submenu actually saves, loads and resets
+git add src/menu/base/submenus/settings_themes.cpp src/menu/base/submenus/settings_themes.h src/menu/base/submenus/settings.cpp
+git commit -m "fix(settings): one Save Theme button instead of two, and it works
 
-It was a scaffold: Save Theme emitted a 'Theme saved' notification and wrote
-nothing, Reset reset nothing - and neither was distinguishable from working.
+Settings carried working Save Theme and Reset buttons; Settings -> Themes
+carried a scaffold pair with the same names that reported success and wrote
+nothing. The stub sat one level deeper, where a user looks first.
 
-Colours persist through config::write_color, which already stores r/g/b/a as
-four JSON numbers, so no packed 0xRRGGBBAA int has to survive a signed int.
-Values are clamped on read, since config.json is hand-editable. Both loops run
-inside a config batch: 31 colours would otherwise be 31 full rewrites."
+The working controls move down into Themes, where they belong now that the
+submenu is about to grow a per-colour editor, and the duplicates come out of
+Settings. The picker keeps its g_themes_dirty deferral: rebuilding the option
+list inside a click handler re-enters the list being iterated."
 ```
 
 ---
@@ -697,7 +611,7 @@ header first so it can be tested, and the renderer delegates to it.
 - Modify: `src/menu/menu.cpp` (register the submenu)
 
 **Interfaces:**
-- Consumes: Task 2 registry; `menu::renderer::render_color_preview`
+- Consumes: Task 2 accessors (`menu::theme::color_count/color_name/color_ptr`); `menu::renderer::render_color_preview`
 - Produces:
   - `struct menu::color_math::hsv { float h, s, v; }`
   - `hsv menu::color_math::rgb_to_hsv(int r, int g, int b)`
@@ -901,7 +815,7 @@ Create `src/menu/base/submenus/helper_color.cpp`:
 #include "menu/base/options/scroll.h"
 #include "menu/base/options/break.h"
 #include "menu/base/renderer.h"
-#include "global/color_registry.h"
+#include "menu/base/util/theme.h"
 
 namespace {
     int  g_target = 0;      // index into the colour registry
@@ -914,7 +828,7 @@ namespace {
         { localization("HSVA"), 0 },
     };
 
-    color_rgba* current() { return global::ui::g_color_registry[g_target].m_color; }
+    color_rgba* current() { return menu::theme::color_ptr(g_target); }
 
     void preview() { menu::renderer::render_color_preview(*current()); }
 
@@ -927,7 +841,7 @@ namespace {
 }
 
 void helper_color_menu::target(int registry_index) {
-    if (registry_index < 0 || registry_index >= global::ui::g_color_registry_count) return;
+    if (registry_index < 0 || registry_index >= menu::theme::color_count()) return;
     g_target = registry_index;
     g_built_format = -1;   // force a rebuild: the title and bindings changed
 }
@@ -954,7 +868,7 @@ void helper_color_menu::update() {
 
 void helper_color_menu::update_once() {
     g_built_format = g_format;
-    set_name(global::ui::g_color_registry[g_target].m_name, false, false);
+    set_name(menu::theme::color_name(g_target), false, false);
     clear_options(2);
 
     if (g_format == 0) {
@@ -1041,7 +955,7 @@ Format switching rebuilds through the dirty-flag pattern, never per frame."
 - Modify: `src/menu/menu.cpp` (register both children)
 
 **Interfaces:**
-- Consumes: Task 2 registry; Task 5 `menu::get_rainbow()`; Task 6 `helper_color_menu::target_color()`
+- Consumes: Task 2 accessors; Task 5 `menu::get_rainbow()`; Task 6 `helper_color_menu::target_color()`
 - Produces: `helper_color_presets_menu`, `helper_color_sync_menu`, each with `static <T>* get()`
 
 - [ ] **Step 1: Write the presets submenu**
@@ -1143,23 +1057,23 @@ public:
 #include "menu/base/submenu_handler.h"
 #include "menu/base/options/button.h"
 #include "menu/base/renderer.h"
-#include "global/color_registry.h"
+#include "menu/base/util/theme.h"
 
 void helper_color_sync_menu::load() {
     set_name("Sync With...");
 
     // One button per registry entry - this is the surface that could not exist
     // before the registry, because nothing else could enumerate the colours.
-    for (int i = 0; i < global::ui::g_color_registry_count; i++) {
-        add_option(button_option(global::ui::g_color_registry[i].m_name)
+    for (int i = 0; i < menu::theme::color_count(); i++) {
+        add_option(button_option(menu::theme::color_name(i))
             .add_click([i] {
                 color_rgba* t = helper_color_menu::target_color();
-                color_rgba* s = global::ui::g_color_registry[i].m_color;
+                color_rgba* s = menu::theme::color_ptr(i);
                 if (t && s && t != s) *t = *s;
                 menu::submenu::handler::set_submenu_previous(false);
             })
             .add_hover([i] {
-                menu::renderer::render_color_preview(*global::ui::g_color_registry[i].m_color);
+                menu::renderer::render_color_preview(*menu::theme::color_ptr(i));
             }));
     }
 }
@@ -1210,12 +1124,12 @@ with `#include "menu/base/submenus/helper_color.h"`:
 ```cpp
     // Index only: stl::function caps captures at 64 bytes, and a color_entry
     // would not fit.
-    for (int i = 0; i < global::ui::g_color_registry_count; i++) {
-        add_option(submenu_option(global::ui::g_color_registry[i].m_name)
+    for (int i = 0; i < menu::theme::color_count(); i++) {
+        add_option(submenu_option(menu::theme::color_name(i))
             .add_submenu<helper_color_menu>()
             .add_click([i] { helper_color_menu::target(i); })
             .add_hover([i] {
-                menu::renderer::render_color_preview(*global::ui::g_color_registry[i].m_color);
+                menu::renderer::render_color_preview(*menu::theme::color_ptr(i));
             }));
     }
 ```
