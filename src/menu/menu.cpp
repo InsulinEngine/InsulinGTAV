@@ -2,9 +2,80 @@
 #include "menu/base/base.h"
 #include "menu/base/submenu_handler.h"
 #include "menu/base/submenus/main.h"
-#include "menu/base/submenus/self.h"
+#include "rage/invoker/hash_natives.h"
+#include "menu/base/submenus/player.h"
+#include "menu/base/submenus/player_animation.h"
+#include "menu/base/submenus/player_animations.h"
+#include "menu/base/submenus/player_scenarios.h"
+#include "menu/base/submenus/player_clipsets.h"
+#include "menu/base/submenus/player_wardrobe_saveload.h"
+#include "menu/base/submenus/player_particles.h"
+#include "menu/base/submenus/player_particle_manager.h"
+#include "menu/base/submenus/player_hand_trails.h"
+#include "menu/base/submenus/player_model.h"
+#include "menu/base/submenus/player_wardrobe.h"
+#include "menu/base/submenus/network.h"
+#include "menu/base/submenus/network_players.h"
+#include "menu/base/submenus/protections.h"
+#include "menu/base/submenus/teleport.h"
+#include "menu/base/submenus/teleport_directional.h"
+#include "menu/base/submenus/teleport_ipl.h"
+#include "menu/base/submenus/teleport_save_load.h"
+#include "menu/base/submenus/misc_camera.h"
+#include "menu/base/submenus/misc_radio.h"
+#include "menu/base/submenus/misc_visions.h"
+#include "menu/base/submenus/misc_disables.h"
+#include "menu/base/submenus/misc_dispatch.h"
+#include "menu/base/submenus/weapon.h"
+#include "menu/base/submenus/weapon_explosion_gun.h"
+#include "menu/base/submenus/weapon_gravity_gun.h"
+#include "menu/base/submenus/weapon_entity_gun.h"
+#include "menu/base/submenus/vehicle_colours.h"
+#include "menu/base/submenus/vehicle_neon.h"
+#include "menu/base/submenus/vehicle_plate.h"
+#include "menu/base/submenus/settings_themes.h"
+#include "menu/base/submenus/weapon_give.h"
+#include "menu/base/submenus/weapon_aimbot.h"
+#include "menu/base/submenus/weapon_disables.h"
+#include "menu/base/submenus/spawner.h"
+#include "menu/base/submenus/world.h"
+#include "menu/base/submenus/world_local_entities.h"
+#include "menu/base/submenus/world_game_fx.h"
+#include "menu/base/submenus/world_weather.h"
+#include "menu/base/submenus/world_time.h"
+#include "menu/base/submenus/world_clear_area.h"
+#include "menu/base/submenus/world_ocean.h"
+#include "menu/base/submenus/spawner_peds.h"
+#include "menu/base/submenus/misc.h"
+#include "menu/base/submenus/player_movement.h"
+#include "menu/base/submenus/player_appearance.h"
 #include "menu/base/submenus/vehicle.h"
+#include "menu/base/submenus/vehicle_customs.h"
+#include "menu/base/submenus/vehicle_health.h"
+#include "menu/base/submenus/vehicle_weapons.h"
+#include "menu/base/submenus/vehicle_particles.h"
+#include "menu/base/submenus/vehicle_movement.h"
+#include "menu/base/submenus/vehicle_boost.h"
+#include "menu/base/submenus/vehicle_collision.h"
+#include "menu/base/submenus/vehicle_gravity.h"
+#include "menu/base/submenus/vehicle_multipliers.h"
+#include "menu/base/submenus/vehicle_modifiers.h"
+#include "menu/base/submenus/vehicle_autopilot.h"
+#include "menu/base/submenus/vehicle_ramps.h"
+#include "menu/base/submenus/vehicle_randomization.h"
+#include "menu/base/submenus/vehicle_seats.h"
+#include "menu/base/submenus/vehicle_speedometer.h"
+#include "menu/base/submenus/vehicle_doors.h"
+#include "menu/base/submenus/vehicle_tyre_tracks.h"
 #include "menu/base/submenus/settings.h"
+#include "menu/base/submenus/vehicle_acrobatics.h"
+#include "menu/base/submenus/vehicle_parachute.h"
+#include "menu/base/submenus/world_bullet_tracers.h"
+#include "menu/base/submenus/world_trains.h"
+#include "menu/base/submenus/settings_streamer.h"
+#include "menu/base/submenus/vehicle_spawner.h"
+#include "menu/base/submenus/handling_editor.h"
+#include "game/player_valid.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/control.h"
@@ -68,17 +139,167 @@ namespace menu {
         demo_child::get()->load();
 
         // Feature submenus: load + register so their feature_update runs each frame.
-        self_menu::get()->load();
-        menu::submenu::handler::add_submenu(self_menu::get());
+        player_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_menu::get());
+        network_menu::get()->load();
+        menu::submenu::handler::add_submenu(network_menu::get());
+        network_players_menu::get()->load();
+        menu::submenu::handler::add_submenu(network_players_menu::get());
+        network_player_menu::get()->load();
+        menu::submenu::handler::add_submenu(network_player_menu::get());
+        protections_menu::get()->load();
+        menu::submenu::handler::add_submenu(protections_menu::get());
+        teleport_menu::get()->load();
+        menu::submenu::handler::add_submenu(teleport_menu::get());
+        teleport_directional_menu::get()->load();
+        menu::submenu::handler::add_submenu(teleport_directional_menu::get());
+        teleport_ipl_menu::get()->load();
+        menu::submenu::handler::add_submenu(teleport_ipl_menu::get());
+        teleport_save_load_menu::get()->load();
+        menu::submenu::handler::add_submenu(teleport_save_load_menu::get());
+        misc_camera_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_camera_menu::get());
+        misc_radio_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_radio_menu::get());
+        misc_visions_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_visions_menu::get());
+        misc_disables_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_disables_menu::get());
+        misc_dispatch_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_dispatch_menu::get());
+        weapon_explosion_gun_menu::get()->load();
+        menu::submenu::handler::add_submenu(weapon_explosion_gun_menu::get());
+        weapon_gravity_gun_menu::get()->load();
+        menu::submenu::handler::add_submenu(weapon_gravity_gun_menu::get());
+        weapon_entity_gun_menu::get()->load();
+        menu::submenu::handler::add_submenu(weapon_entity_gun_menu::get());
+        vehicle_colours_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_colours_menu::get());
+        vehicle_neon_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_neon_menu::get());
+        vehicle_plate_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_plate_menu::get());
+        settings_themes_menu::get()->load();
+        menu::submenu::handler::add_submenu(settings_themes_menu::get());
+        weapon_menu::get()->load();
+        menu::submenu::handler::add_submenu(weapon_menu::get());
+        weapon_give_menu::get()->load();
+        menu::submenu::handler::add_submenu(weapon_give_menu::get());
+        weapon_aimbot_menu::get()->load();
+        menu::submenu::handler::add_submenu(weapon_aimbot_menu::get());
+        weapon_disables_menu::get()->load();
+        menu::submenu::handler::add_submenu(weapon_disables_menu::get());
+        spawner_menu::get()->load();
+        menu::submenu::handler::add_submenu(spawner_menu::get());
+        world_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_menu::get());
+        world_local_entities_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_local_entities_menu::get());
+        world_game_fx_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_game_fx_menu::get());
+        world_weather_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_weather_menu::get());
+        world_time_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_time_menu::get());
+        world_clear_area_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_clear_area_menu::get());
+        world_ocean_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_ocean_menu::get());
+        spawner_peds_menu::get()->load();
+        menu::submenu::handler::add_submenu(spawner_peds_menu::get());
+        misc_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_menu::get());
+        player_model_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_model_menu::get());
+        player_wardrobe_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_wardrobe_menu::get());
+        player_animations_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_animations_menu::get());
+        player_scenarios_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_scenarios_menu::get());
+        player_clipsets_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_clipsets_menu::get());
+        player_wardrobe_saveload_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_wardrobe_saveload_menu::get());
+        player_particles_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_particles_menu::get());
+        player_particle_manager_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_particle_manager_menu::get());
+        player_hand_trails_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_hand_trails_menu::get());
+        player_animation_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_animation_menu::get());
+        player_movement_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_movement_menu::get());
+        player_appearance_menu::get()->load();
+        menu::submenu::handler::add_submenu(player_appearance_menu::get());
         vehicle_menu::get()->load();
         menu::submenu::handler::add_submenu(vehicle_menu::get());
+        vehicle_customs_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_customs_menu::get());
+        vehicle_health_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_health_menu::get());
+        vehicle_weapons_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_weapons_menu::get());
+        vehicle_particles_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_particles_menu::get());
+        vehicle_movement_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_movement_menu::get());
+        vehicle_boost_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_boost_menu::get());
+        vehicle_collision_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_collision_menu::get());
+        vehicle_gravity_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_gravity_menu::get());
+        vehicle_multipliers_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_multipliers_menu::get());
+        vehicle_modifiers_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_modifiers_menu::get());
+        vehicle_autopilot_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_autopilot_menu::get());
+        vehicle_ramps_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_ramps_menu::get());
+        vehicle_randomization_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_randomization_menu::get());
+        vehicle_seats_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_seats_menu::get());
+        vehicle_speedometer_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_speedometer_menu::get());
+        vehicle_doors_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_doors_menu::get());
+        vehicle_tyre_tracks_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_tyre_tracks_menu::get());
+        vehicle_spawner_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_spawner_menu::get());
+        vehicle_class_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_class_menu::get());
+        handling_editor_menu::get()->load();
+        menu::submenu::handler::add_submenu(handling_editor_menu::get());
+        vehicle_acrobatics_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_acrobatics_menu::get());
+        vehicle_parachute_menu::get()->load();
+        menu::submenu::handler::add_submenu(vehicle_parachute_menu::get());
+        world_bullet_tracers_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_bullet_tracers_menu::get());
+        world_trains_menu::get()->load();
+        menu::submenu::handler::add_submenu(world_trains_menu::get());
+        settings_streamer_menu::get()->load();
+        menu::submenu::handler::add_submenu(settings_streamer_menu::get());
         settings_menu::get()->load();
         menu::submenu::handler::add_submenu(settings_menu::get());
         language_menu::get()->load();
         menu::submenu::handler::add_submenu(language_menu::get());
 
         register_demo_panel();
+
+        // Kept: one line, once, and it is the proof that the whole tree got
+        // built without taking the game down. Paired with the BUILD= line it
+        // says which .prx ran and how far it got.
+        platform::klogf("boot: build done, %d submenus",
+                        (int)menu::submenu::handler::get_submenus().size());
     }
+
+    static int g_hash_tries = 0;   // attempts at recovering the native table
 
     void tick() {
         bool open = menu::base::is_open();
@@ -125,8 +346,25 @@ namespace menu {
         // Per-frame feature loop (godmode etc. re-applied every frame, whether or
         // not the owning submenu is open), then the control manager's request
         // queues (model/asset streaming for spawns).
+        // Features touch the game through natives, so they only run once the local
+        // player actually exists. Ozark gates the same way (it waits for
+        // GameStatePlaying before init); without a gate a feature firing during the
+        // loading screen dereferences a player that is not there yet.
+        // The game's native table is empty when the plugin loads - GoldHEN gets
+        // us in before the script system registers anything - so it is recovered
+        // here instead, once the game is actually up. Retried a few times because
+        // "the player exists" and "every native is registered" are not the same
+        // moment; each attempt is a cheap walk of 256 buckets.
+        if (game::player_valid() && !rage::hash_natives::usable() && g_hash_tries < 10) {
+            if ((native::get_frame_count() % 120) == 0) {
+                g_hash_tries++;
+                rage::hash_natives::build();
+            }
+        }
+
         TICK_TRACE("feature_update");
-        menu::submenu::handler::feature_update();
+        if (game::player_valid())
+            menu::submenu::handler::feature_update();
         TICK_TRACE("control");
         menu::control::update();
 

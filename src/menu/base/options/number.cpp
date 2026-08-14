@@ -7,6 +7,7 @@
 #include "util/config.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"   // play_sound_frontend
 #include <stdlib.h>
 
 template<typename Type>
@@ -56,6 +57,15 @@ void number_option<Type>::render_selected(int position, stl::stack<stl::string> 
                 dont_process = true;
                 menu::base::set_keyboard_title("Enter input");
                 native::display_onscreen_keyboard(0, "Ozark", "", "", "", "", "", 10);
+                break;
+
+            case SCROLLSELECT:
+                // Nothing, deliberately: the press falls through to m_on_click()
+                // below. That is the difference between the two scroll types -
+                // SCROLL means "press to type a value", SCROLLSELECT means
+                // "scroll to pick a value, press to act on it". Spelled out
+                // rather than left to the default so the next reader does not
+                // "fix" the gap and put a keyboard on every slider.
                 break;
         }
 

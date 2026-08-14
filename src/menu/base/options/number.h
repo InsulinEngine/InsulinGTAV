@@ -40,7 +40,11 @@ public:
             if (m_type == TOGGLE && m_toggle) {
                 *m_toggle = util::config::read_bool(menu_stack, m_name.get_original().c_str(), *m_toggle);
                 m_toggle_cache = *m_toggle;
-                if (*m_toggle) m_on_click();
+                // No m_on_click() here - same rule as toggle_option::add_savable.
+                // add_savable runs inside menu::build(), which can be while the
+                // game is still on its loading screen, and a click handler that
+                // touches natives dereferences a player that does not exist yet.
+                // Restoring sets the value; applying it belongs in feature_update.
             }
 
             if (m_has_min && *m_number < m_min) *m_number = m_min;

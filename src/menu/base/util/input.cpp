@@ -4,6 +4,7 @@
 #include "menu/base/submenu_handler.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"   // play_sound_frontend
 
 namespace menu::input {
     void input::update() {

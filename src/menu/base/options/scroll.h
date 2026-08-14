@@ -9,6 +9,7 @@
 #include "global/vars.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"   // play_sound_frontend
 
 template<typename Type>
 struct scroll_struct {

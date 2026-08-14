@@ -13,7 +13,14 @@
 #include "menu/base/options/modal.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/util/animated_texture.h"
-#include "menu/base/submenus/self.h"
+#include "menu/base/submenus/player.h"
+#include "menu/base/submenus/network.h"
+#include "menu/base/submenus/protections.h"
+#include "menu/base/submenus/teleport.h"
+#include "menu/base/submenus/weapon.h"
+#include "menu/base/submenus/spawner.h"
+#include "menu/base/submenus/world.h"
+#include "menu/base/submenus/misc.h"
 #include "menu/base/submenus/vehicle.h"
 #include "menu/base/submenus/settings.h"
 #include "menu/base/util/notify.h"
@@ -49,17 +56,20 @@ void main_menu::load() {
     g_demo_radio.m_sprite = stl::make_pair("commonmenu", "shop_art_icon");
     g_demo_radio.m_count = 0;
 
-    add_option(submenu_option("Self")
-        .add_submenu<self_menu>()
-        .add_tooltip("Player features (godmode, heal, weapons ...)"));
+    // Same order as Ozark: Player, Network, Protections, Teleport, Weapon,
+    // Vehicle, Spawner, World, Miscellaneous, Settings.
+    add_option(submenu_option("Player").add_submenu<player_menu>());
+    add_option(submenu_option("Network").add_submenu<network_menu>());
+    add_option(submenu_option("Protections").add_submenu<protections_menu>());
+    add_option(submenu_option("Teleport").add_submenu<teleport_menu>());
+    add_option(submenu_option("Weapon").add_submenu<weapon_menu>());
+    add_option(submenu_option("Vehicle").add_submenu<vehicle_menu>());
+    add_option(submenu_option("Spawner").add_submenu<spawner_menu>());
+    add_option(submenu_option("World").add_submenu<world_menu>());
+    add_option(submenu_option("Miscellaneous").add_submenu<misc_menu>());
+    add_option(submenu_option("Settings").add_submenu<settings_menu>());
 
-    add_option(submenu_option("Vehicle")
-        .add_submenu<vehicle_menu>()
-        .add_tooltip("Spawn vehicles (via the control manager)"));
-
-    add_option(submenu_option("Settings")
-        .add_submenu<settings_menu>()
-        .add_tooltip("Themes (save / reset / apply)"));
+    add_option(break_option("Framework Demo").ref());
 
     add_option(submenu_option("Demo Submenu")
         .add_submenu<demo_child>()

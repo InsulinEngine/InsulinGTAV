@@ -24,7 +24,14 @@ public:
         m_savable = true;
         if (m_toggle && m_requirement()) {
             *m_toggle = util::config::read_bool(menu_stack, m_name.get_original().c_str(), *m_toggle);
-            if (*m_toggle) m_on_click();
+            // Deliberately NOT calling m_on_click() here. add_savable runs inside
+            // menu::build(), which happens right after the frame hook is installed and
+            // possibly while the game is still on its loading screen - a click handler
+            // that touches natives (get_player_ped and friends) then dereferences a
+            // player that does not exist yet and takes the game down. Whether it
+            // crashed depended on how far the game had booted, which made it look
+            // random. Savable toggles must apply their effect from feature_update,
+            // which runs every frame and already re-applies them.
         }
         return *this;
     }

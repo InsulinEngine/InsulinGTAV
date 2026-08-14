@@ -9,6 +9,7 @@
 #include "stl/type_traits.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"   // play_sound_frontend
 #include <stdio.h>
 
 // Scrollbar / slider option: a numeric value drawn as a filled progress bar on

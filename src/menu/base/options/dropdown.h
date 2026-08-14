@@ -9,6 +9,7 @@
 #include "stl/vector.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"   // play_sound_frontend
 #include <stdio.h>
 
 // Dropdown option: shows the current choice inline; Cross opens a centered list

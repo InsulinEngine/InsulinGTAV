@@ -28,6 +28,8 @@ namespace menu::submenu::handler {
     void submenu_handler::feature_update() {
         // Single-player base: no network gate. Feature submenus are out of scope,
         // so this just fans out update to whatever submenus are registered.
+        // menu::tick gates the whole sweep on game::player_valid() - see the
+        // boot rules; nothing in here may run before the local player exists.
         for (submenu* submenu : m_submenus) {
             submenu->feature_update();
         }
