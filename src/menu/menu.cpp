@@ -50,6 +50,7 @@
 #include "menu/base/submenus/world_ocean.h"
 #include "menu/base/submenus/spawner_peds.h"
 #include "menu/base/submenus/misc.h"
+#include "menu/base/submenus/misc_panels.h"
 #include "menu/base/submenus/player_movement.h"
 #include "menu/base/submenus/player_appearance.h"
 #include "menu/base/submenus/vehicle.h"
@@ -274,6 +275,10 @@ namespace menu {
         menu::submenu::handler::add_submenu(language_menu::get());
 
         menu::panels::register_builtin_panels();
+
+        // Panels registered above so this load() has children to read from.
+        misc_panels_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_panels_menu::get());
 
         // Kept: one line, once, and it is the proof that the whole tree got
         // built without taking the game down. Paired with the BUILD= line it
