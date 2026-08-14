@@ -22,7 +22,6 @@ struct color_rgba {
 
     color_rgba opacity(int opacity) { return color_rgba(r, g, b, opacity); }
     math::vector3_<int> as_vector() { return { r, g, b }; }
-    std::initializer_list<int> as_initializer_list() { return std::initializer_list<int>{ r, g, b, a }; }
 
     uint32_t to_argb() {
         uint8_t val[4];
