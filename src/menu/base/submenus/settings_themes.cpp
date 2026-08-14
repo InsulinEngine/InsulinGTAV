@@ -8,6 +8,7 @@
 #include "menu/base/util/theme.h"
 #include "menu/base/util/rainbow.h"
 #include "menu/base/renderer.h"
+#include "util/config.h"
 #include <stdio.h>
 
 namespace {
@@ -15,6 +16,11 @@ namespace {
     // menu::theme::list() must not run unconditionally every frame (sceKernelOpen +
     // sceKernelGetdents), so update() only rebuilds when this flag is set.
     bool g_themes_dirty = true;
+
+    // Config key (under this submenu's own name stack) remembering the last
+    // theme applied, so build() can re-apply it at boot. Empty means "none" /
+    // reset to default.
+    const char* LAST_THEME_KEY = "LastTheme";
 }
 
 void settings_themes_menu::load() {
@@ -27,6 +33,7 @@ void settings_themes_menu::load() {
             char name[32];
             snprintf(name, sizeof(name), "theme_%d", (int)menu::theme::list().size() + 1);
             menu::theme::save(name);
+            util::config::write_string(settings_themes_menu::get()->get_submenu_name_stack(), LAST_THEME_KEY, name);
             menu::notify::stacked("Theme", "Saved");
             g_themes_dirty = true;   // list refreshed in update(), not re-entrantly here
         }));
@@ -39,6 +46,9 @@ void settings_themes_menu::load() {
             // snapshots stale, and stopping later would undo the reset.
             menu::get_rainbow()->stop();
             menu::theme::reset_to_default();
+            // Empty means "none" - otherwise the next boot would immediately
+            // undo this reset by re-applying the last theme.
+            util::config::write_string(settings_themes_menu::get()->get_submenu_name_stack(), LAST_THEME_KEY, "");
             menu::notify::stacked("Theme", "Reset to default");
         }));
 
@@ -82,7 +92,11 @@ void settings_themes_menu::update_once() {
             .add_click([i] {
                 stl::vector<stl::string> list = menu::theme::list();
                 if (i < (int)list.size()) {
+                    // Same reasoning as Reset to Default: stop the rainbow first
+                    // or it reverts this theme the moment it is next switched off.
+                    menu::get_rainbow()->stop();
                     menu::theme::load_by_name(list[i].c_str());
+                    util::config::write_string(settings_themes_menu::get()->get_submenu_name_stack(), LAST_THEME_KEY, list[i]);
                     menu::notify::stacked("Theme", "Applied");
                 }
             }));
@@ -92,4 +106,13 @@ void settings_themes_menu::update_once() {
 settings_themes_menu* settings_themes_menu::get() {
     static settings_themes_menu instance;
     return &instance;
+}
+
+void settings_themes_menu::apply_last_theme() {
+    stl::string last = util::config::read_string(get()->get_submenu_name_stack(), LAST_THEME_KEY, "");
+    if (last.size() == 0) return;
+
+    // theme::load_file/load_by_name touch files and platform::logf only - no
+    // natives - so this is legal this early in build(). See theme.cpp.
+    if (!menu::theme::load_by_name(last.c_str())) return;
 }

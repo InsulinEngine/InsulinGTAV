@@ -113,6 +113,14 @@ namespace menu::theme {
     // ---- load ---------------------------------------------------------------
     bool load_file(const char* path) {
         tj::json root = tj::json::load_from_file(path);
+        // load_from_file returns a null json() both when sceKernelOpen fails
+        // (missing file) and when the file is empty - either way there is
+        // nothing to apply, so callers that check the return value (boot-time
+        // re-apply) can treat this the same as "missing".
+        if (root.is_null()) {
+            platform::logf("theme", "missing/unreadable \"%s\"", path);
+            return false;
+        }
 
         const tj::json* colors = root.try_get("colors");
         if (colors) for (nc& c : COLORS) {

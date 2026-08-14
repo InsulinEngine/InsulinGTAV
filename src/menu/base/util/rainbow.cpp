@@ -46,6 +46,9 @@ namespace menu {
     void rainbow::stop() {
         for (int i = 0; i < (int)m_colors.size(); i++)
             *m_colors[i] = m_originals[i];
+        m_colors.clear();
+        m_originals.clear();
+        m_step = 0;
         m_enabled = false;
     }
 

@@ -12,6 +12,8 @@ namespace menu::panels {
                  native::get_clock_hours(), native::get_clock_minutes());
 
         p.item("Time",    clock);
+        // TODO: shows the raw weather hash - a weather-name table (hash ->
+        // display name) would replace this with the readable name.
         p.item("Weather", util::itos((int)native::get_prev_weather_type_hash_name(), buf, sizeof(buf)));
 
         return p.get_render_scale();

@@ -159,6 +159,18 @@ namespace menu {
         menu::submenu::handler::add_submenu(vehicle_plate_menu::get());
         settings_themes_menu::get()->load();
         menu::submenu::handler::add_submenu(settings_themes_menu::get());
+
+        // Re-apply the last saved theme now: util::config::load() has already
+        // run (above) so the "LastTheme" key is in memory, and
+        // settings_themes_menu::load() has just run so its name stack (parent
+        // chain via set_parent<settings_menu>()) is populated - both are
+        // required for get_submenu_name_stack() to resolve to the right config
+        // path. Placed as early as both conditions allow, so every submenu
+        // loaded afterward sees the restored colours rather than the compiled
+        // defaults. Legal here: load_file only touches files and logf, no
+        // natives (see theme.cpp).
+        settings_themes_menu::apply_last_theme();
+
         helper_color_menu::get()->load();
         menu::submenu::handler::add_submenu(helper_color_menu::get());
         helper_color_presets_menu::get()->load();
