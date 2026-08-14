@@ -101,11 +101,13 @@ void misc_panels_menu::load() {
 
         child->m_render = r.m_render;
         menu::panels::rearrange(parent, r.m_id, r.m_column, r.m_index);
-        // rearrange() assigns its own index when the column changes (append
-        // to the end of the target column) rather than honouring the
-        // requested one - read back what actually took effect so the row,
-        // the on-screen Order and the framework agree.
-        r.m_index = child->m_index;
+        // rearrange() ends in a sort that swaps panel_child *values* between
+        // slots (panels.cpp), and panel_child is stored by value - so `child`,
+        // resolved before the call, may now address a different panel than
+        // the one it was resolved for. Re-resolve by id before reading back
+        // what actually took effect (see the find_child() comment above).
+        child = find_child(r.m_parent_name, r.m_id);
+        if (child) r.m_index = child->m_index;
         r.m_applied_column = r.m_column;
         r.m_applied_index = r.m_index;
     }
@@ -156,10 +158,11 @@ void misc_panels_menu::update_once() {
                 if (!child) return;
 
                 menu::panels::rearrange(parent, r.m_id, r.m_column, r.m_index);
-                // See load()'s apply pass: rearrange() can override the
-                // requested index on a column change, so read back what it
-                // actually applied before stamping it as current.
-                r.m_index = child->m_index;
+                // See load()'s apply pass: rearrange()'s trailing sort can
+                // move `child` to a different slot, so re-resolve by id
+                // before reading back what actually took effect.
+                child = find_child(r.m_parent_name, r.m_id);
+                if (child) r.m_index = child->m_index;
                 r.m_applied_column = r.m_column;
                 r.m_applied_index = r.m_index;
             }));
@@ -176,7 +179,8 @@ void misc_panels_menu::update_once() {
 
                 menu::panels::rearrange(parent, r.m_id, r.m_column, r.m_index);
                 // Same reason as the Column handler above.
-                r.m_index = child->m_index;
+                child = find_child(r.m_parent_name, r.m_id);
+                if (child) r.m_index = child->m_index;
                 r.m_applied_column = r.m_column;
                 r.m_applied_index = r.m_index;
             }));
