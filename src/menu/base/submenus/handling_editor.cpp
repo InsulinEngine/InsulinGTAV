@@ -198,7 +198,13 @@ void handling_editor_menu::load() {
 
     for (int i = 0; i < FIELD_COUNT; i++) {
         int idx = i;    // tiny capture: stl::function caps captures at 64 bytes
-        add_option(number_option<float>(SCROLLSELECT, g_fields[i].name)
+        // SCROLL, not SCROLLSELECT: handling values are three-decimal floats over
+        // wide ranges, so dialling one in with left/right at a fixed step is
+        // hopeless. SCROLL keeps the scrolling and adds the on-screen keyboard on
+        // press; the typed value is clamped to the field's min/max on the way in,
+        // and the per-frame add_update below writes it to the handling block like
+        // any scrolled change.
+        add_option(number_option<float>(SCROLL, g_fields[i].name)
             .add_number(g_val[i], "%.3f", g_fields[i].step)
             .add_min(g_fields[i].lo)
             .add_max(g_fields[i].hi)
