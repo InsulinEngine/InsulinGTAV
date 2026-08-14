@@ -663,10 +663,19 @@ int main() {
     hsv grey = rgb_to_hsv(128, 128, 128);
     check_near("grey saturation", (int)(grey.s * 100.f), 0, 0);
 
-    // Out-of-range input is clamped, not wrapped: config.json is hand-editable.
+    // Out-of-range input must CLAMP, not wrap. These two cases are chosen so a
+    // wrapping implementation gives a different answer and the test fails:
+    // -90 clamped to 0 is red-ish, -90 wrapped to 270 would be violet.
     int r = 0, g = 0, b = 0;
-    hsv_to_rgb(720.f, 5.f, 5.f, &r, &g, &b);
-    check_near("clamped r", r > 255 ? 999 : r, r, 0);
+    hsv_to_rgb(-90.f, 0.5f, 0.5f, &r, &g, &b);
+    check_near("clamp low r", r, 128, 1);
+    check_near("clamp low g", g, 64, 1);
+    check_near("clamp low b", b, 64, 1);
+
+    hsv_to_rgb(400.f, 2.f, 2.f, &r, &g, &b);   // h->360 (hue 0), s->1, v->1
+    check_near("clamp high r", r, 255, 1);
+    check_near("clamp high g", g, 0, 1);
+    check_near("clamp high b", b, 0, 1);
 
     printf(g_failed ? "\n%d FAILED\n" : "\nall passed\n", g_failed);
     return g_failed ? 1 : 0;
