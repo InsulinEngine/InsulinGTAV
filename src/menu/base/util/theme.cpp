@@ -29,6 +29,19 @@ namespace menu::theme {
         {"panel_background",&g_panel_background},{"hotkey_background",&g_hotkey_background},{"color_grid_background",&g_color_grid_background},
         {"hotkey_input",&g_hotkey_input},{"instructional_background",&g_instructional_background},{"globe",&g_globe},
     };
+
+    int color_count() { return (int)(sizeof(COLORS) / sizeof(COLORS[0])); }
+
+    const char* color_name(int index) {
+        if (index < 0 || index >= color_count()) return "";
+        return COLORS[index].name;
+    }
+
+    color_rgba* color_ptr(int index) {
+        if (index < 0 || index >= color_count()) return nullptr;
+        return COLORS[index].p;
+    }
+
     static nf FONTS[] = {
         {"header",&g_header_font},{"sub_header",&g_sub_header_font},{"option",&g_option_font},{"open_tooltip",&g_open_tooltip_font},
         {"tooltip",&g_tooltip_font},{"stacked_display",&g_stacked_display_font},{"notify_title",&g_notify_title_font},
