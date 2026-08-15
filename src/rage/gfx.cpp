@@ -146,7 +146,13 @@ namespace rage::gfx {
         if (!tex || !tex_name || !tex_name[0]) return false;
         char nm[64]; copy_name(nm, tex_name);
 
-        // Replace an existing entry with the same name (supports reload).
+        // Replace an existing entry with the same name (supports reload). This
+        // drops the displaced grcTexture* on the floor: nothing in this codebase
+        // reverses the engine's texture destructor (rage_alloc above has no
+        // matching free), so a proper release would mean reimplementing that
+        // destructor - real work with real crash risk, and not undertaken here.
+        // Every replace strands the old texture's video memory; the one caller
+        // that replaces routinely (menu::images::apply) logs when it happens.
         for (size_t i = 0; i < m_entries.size(); i++) {
             if (!strcmp(m_entries[i].name, nm)) { m_entries[i].tex = tex; return true; }
         }
@@ -321,7 +327,10 @@ namespace rage::gfx {
         platform::logf("gfx", "commit \"%s\": %d tex, slot %d, dict %p, GetPtr %p, rage=%d", m_dict, m, m_slot, (void*)dict, got, (int)rage_backed);
         platform::klogf("gfx commit \"%s\": %d tex, slot %d, dict %p, rage=%d", m_dict, m, m_slot, (void*)dict, (int)rage_backed);
         m_committed = (got == (void*)dict);
-        if (m_committed) platform::notify("Custom textures loaded");
+        // Demoted from platform::notify: commit() runs on routine actions (e.g.
+        // picking a menu image) that already raise their own notification, and
+        // an unsolicited toast per commit was noise. Still visible in the log.
+        if (m_committed) platform::logf("gfx", "\"%s\": custom textures loaded", m_dict);
         return m_committed;
     }
 

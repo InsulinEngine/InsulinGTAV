@@ -34,6 +34,7 @@
 #include "menu/base/submenus/vehicle_neon.h"
 #include "menu/base/submenus/vehicle_plate.h"
 #include "menu/base/submenus/settings_themes.h"
+#include "menu/base/submenus/settings_images.h"
 #include "menu/base/submenus/helper_color.h"
 #include "menu/base/submenus/helper_color_presets.h"
 #include "menu/base/submenus/helper_color_sync.h"
@@ -88,6 +89,8 @@
 #include "menu/panels/builtin_panels.h"
 #include "menu/base/util/animated_texture.h"
 #include "menu/base/util/rainbow.h"
+#include "menu/base/util/textures.h"
+#include "menu/base/util/menu_images.h"
 #include "util/config.h"
 #include "global/ui_vars.h"
 #include "platform/system_ui.h"
@@ -111,6 +114,7 @@ namespace menu {
         // add_savable() reads the persisted value.
         global::ui::init();
         util::config::load();
+        menu::textures::load();           // reads /data/Ozark/images only - no natives, safe here
         menu::submenu::handler::load();   // m_current = main_menu::get()
         main_menu::get()->load();
 
@@ -157,6 +161,8 @@ namespace menu {
         menu::submenu::handler::add_submenu(vehicle_plate_menu::get());
         settings_themes_menu::get()->load();
         menu::submenu::handler::add_submenu(settings_themes_menu::get());
+        settings_images_menu::get()->load();
+        menu::submenu::handler::add_submenu(settings_images_menu::get());
 
         // Re-apply the last saved theme now: util::config::load() has already
         // run (above) so the "LastTheme" key is in memory, and
@@ -166,7 +172,10 @@ namespace menu {
         // path. Placed as early as both conditions allow, so every submenu
         // loaded afterward sees the restored colours rather than the compiled
         // defaults. Legal here: load_file only touches files and logf, no
-        // natives (see theme.cpp).
+        // natives (see theme.cpp). A saved theme's pictures are only recorded
+        // here (menu::images::request()) - the actual decode + texture
+        // dictionary injection is deliberately deferred to menu::images::update(),
+        // wired into tick() below, so it never runs inside build().
         settings_themes_menu::apply_last_theme();
 
         helper_color_menu::get()->load();
@@ -361,6 +370,15 @@ namespace menu {
         TICK_TRACE("feature_update");
         if (game::player_valid())
             menu::submenu::handler::feature_update();
+
+        // Deferred image application. Gated and in tick rather than build(),
+        // because applying a picture decodes it and injects a texture
+        // dictionary - neither of which belongs in the boot window. tick is
+        // only wired as the frame callback after build() returns, so this is
+        // structurally outside the boot window as well as gated.
+        if (game::player_valid())
+            menu::images::update();
+
         TICK_TRACE("control");
         menu::control::update();
 

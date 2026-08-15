@@ -1,6 +1,7 @@
 #include "menu/base/submenus/settings_themes.h"
 #include "menu/base/submenus/settings.h"
 #include "menu/base/submenus/helper_color.h"
+#include "menu/base/submenus/settings_images.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/break.h"
 #include "menu/base/options/submenu_option.h"
@@ -52,6 +53,10 @@ void settings_themes_menu::load() {
             menu::notify::stacked("Theme", "Reset to default");
         }));
 
+    add_option(submenu_option("Menu Images")
+        .add_submenu<settings_images_menu>()
+        .add_tooltip("Header/background pictures are part of the theme - kept with Save Theme, like the colours"));
+
     add_option(break_option("Colours").ref());
 
     // Index only: stl::function caps captures at 64 bytes, and a color_entry
@@ -76,10 +81,10 @@ void settings_themes_menu::update() {
 
 void settings_themes_menu::update_once() {
     stl::vector<stl::string> themes = menu::theme::list();
-    // Static options from load(): Save Theme, Reset to Default, break("Colours"),
-    // one submenu_option per registry colour, then break("Saved Themes"). Only
-    // what follows that is rebuilt here.
-    clear_options(4 + menu::theme::color_count());
+    // Static options from load(): Save Theme, Reset to Default, submenu_option
+    // "Menu Images", break("Colours"), one submenu_option per registry colour,
+    // then break("Saved Themes"). Only what follows that is rebuilt here.
+    clear_options(5 + menu::theme::color_count());
 
     if (themes.size() == 0) {
         add_option(button_option("~m~(no themes saved)").ref());

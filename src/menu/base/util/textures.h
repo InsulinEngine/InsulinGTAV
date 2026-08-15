@@ -1,12 +1,12 @@
 #pragma once
 #include "platform/stdafx.h"
 
-// Texture registry, stubbed for the PS4 base. Ozark loaded custom .png assets
-// into a grc texture dictionary (WIC on PC); custom-YTD streaming is unsolved
-// on console, so the base renders with the game's own dictionaries
-// (commonmenu, ...) / sentinel quads. get_texture always misses, which is
-// exactly what the renderer's fallback path expects. The DX11 texture pointer
-// from the PC struct is dropped (not needed without a custom pipeline).
+// Texture registry: the names menu_texture slots may resolve to. Ozark loaded
+// custom .png assets into a grc texture dictionary (WIC on PC); this port's
+// equivalent is rage::gfx::texture_dictionary ("insulin"), fed by
+// menu::images::convert()/apply(). load() lists the stems available in
+// /data/Ozark/images (menu::images::list_sources()) so renderer::get_texture
+// can find a picked name by name, not by index.
 namespace menu::textures {
     struct texture_context {
         stl::string m_name;
@@ -14,7 +14,7 @@ namespace menu::textures {
 
     class textures {
     public:
-        void load() {}
+        void load();
         void update() {}
         bool get_texture(stl::string /*name*/, texture_context* /*out*/) { return false; }
 

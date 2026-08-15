@@ -18,14 +18,11 @@ namespace menu::renderer {
     stl::pair<stl::string, stl::string> renderer::get_texture(menu_texture texture) {
         if (texture.m_texture != "sa7anisafaggot") {
             if (texture.m_enabled) {
-                stl::vector<menu::textures::texture_context> list = menu::textures::get_list();
+                stl::vector<menu::textures::texture_context>& list = menu::textures::get_list();
 
-                int texture_index = texture.m_context.m_selected;
-                if (texture_index < (int)list.size()) {
-                    auto vit = stl::find_if(list.begin(), list.end(), [=](menu::textures::texture_context& context) { return context.m_name == texture.m_texture; });
-                    if (vit != list.end()) {
-                        return { "ozarktextures", vit->m_name };
-                    }
+                auto vit = stl::find_if(list.begin(), list.end(), [=](menu::textures::texture_context& context) { return context.m_name == texture.m_texture; });
+                if (vit != list.end()) {
+                    return { "insulin", vit->m_name };
                 }
             }
         }
@@ -48,19 +45,43 @@ namespace menu::renderer {
         // it into the txd store as "insulin"/"logo"; draw it at full colour.
         // Otherwise fall back to the sentinel / game header texture.
         stl::pair<stl::string, stl::string> texture = get_texture(global::ui::m_header);
-        // Header source, in order: the "banner" animation's current frame, the
-        // static custom logo, then the game/sentinel texture below.
+        // Header source, in order: the "slot_header" animation's current frame,
+        // the "banner" animation's current frame, the static custom logo, then
+        // the game/sentinel texture below.
+        menu::animated_texture* slot_anim = menu::animation::get("slot_header");
         menu::animated_texture* banner_anim = menu::animation::get("banner");
-        if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
+        if (slot_anim && slot_anim->ready()) {
+            draw_sprite_aligned(menu::animation::slot_asset("slot_header", global::ui::m_header.m_texture), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
+        } else if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
             draw_sprite_aligned(menu::animation::header_asset(), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
         } else {
-            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
+            // A picture applied but its animation not ready (e.g. still-only)
+            // resolves here to {"insulin", <stem>}. g_main_header defaults to
+            // opaque black, which would paint the user's picture as a black
+            // rectangle - tint only the sentinel / game-texture paths, which are
+            // meant to be tinted, and draw a custom-dictionary texture at full
+            // colour.
+            color_rgba header_color = rage::gfx::is_custom_dict(texture.first.c_str()) ? color_rgba(255, 255, 255, 255) : global::ui::g_main_header;
+            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, header_color);
         }
 
         // background
         texture = get_texture(global::ui::m_background);
-        if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
-        draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale }, 0.f, global::ui::g_background);
+        menu::animated_texture* bg_anim = menu::animation::get("slot_background");
+        if (bg_anim && bg_anim->ready()) {
+            draw_sprite_aligned(menu::animation::slot_asset("slot_background", global::ui::m_background.m_texture),
+                                global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale },
+                                0.f, { 255, 255, 255, 255 });
+        } else {
+            if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
+            // Same reasoning as the header fallback above: draw a custom
+            // background picture at full colour instead of through g_background
+            // (opaque black by default), and keep the tint for the sentinel's
+            // gradient_bgd substitute and any game texture.
+            color_rgba bg_color = rage::gfx::is_custom_dict(texture.first.c_str()) ? color_rgba(255, 255, 255, 255) : global::ui::g_background;
+            draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale },
+                                0.f, bg_color);
+        }
 
         // scroller
         if (global::ui::g_scroll_lerp) {
@@ -110,10 +131,18 @@ namespace menu::renderer {
         }
 
         if (menu::submenu::handler::get_current() == main_menu::get()) {
-            // A loaded custom banner IS the branding -- drop the øZARK title text
-            // so it doesn't overlap the header image.
+            menu::animated_texture* slot_anim  = menu::animation::get("slot_header");
             menu::animated_texture* title_anim = menu::animation::get("banner");
-            if (!rage::gfx::banner_ready() && !(title_anim && title_anim->ready())) {
+            // Any picture in the header is the branding, whether it came from the
+            // banner button or from the image picker, and whether it animates or
+            // not. m_enabled covers the still-only case, where a picture is applied
+            // but its animation is not ready.
+            const bool header_shows_a_picture =
+                (slot_anim && slot_anim->ready()) ||
+                (title_anim && title_anim->ready()) ||
+                rage::gfx::banner_ready() ||
+                global::ui::m_header.m_enabled;
+            if (!header_shows_a_picture) {
                 draw_text("~s~&#248;ZARK " VERSION_TYPE, { global::ui::g_position.x + 0.005f, global::ui::g_position.y - 0.061f }, 0.77f, global::ui::g_header_font, global::ui::g_title, JUSTIFY_LEFT);
             }
         } else {
@@ -284,7 +313,7 @@ namespace menu::renderer {
         // the header/scroller/footer bars show as solid colour without any PNG.
         if (asset.first == "randomha") { draw_rect_unaligned(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 
@@ -297,7 +326,7 @@ namespace menu::renderer {
         // See draw_sprite: sentinel -> solid colour quad (aligned).
         if (asset.first == "randomha") { draw_rect(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 

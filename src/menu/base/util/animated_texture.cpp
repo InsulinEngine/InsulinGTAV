@@ -224,5 +224,16 @@ namespace menu {
             if (banner && banner->ready()) return banner->current();
             return stl::make_pair(stl::string("insulin"), stl::string("logo"));
         }
+
+        stl::pair<stl::string, stl::string> slot_asset(const char* anim_name,
+                                                        const stl::string& still_name) {
+            animated_texture* anim = get(anim_name);
+            if (anim && anim->ready()) return anim->current();
+            // Named rather than make_pair'd: still_name is a const reference, and
+            // stl::decay strips references but not cv, so deducing from it here
+            // would yield pair<string, const string>, which does not convert to
+            // the return type (see animated_texture::current() above).
+            return stl::pair<stl::string, stl::string>(stl::string("insulin"), still_name);
+        }
     }
 }
