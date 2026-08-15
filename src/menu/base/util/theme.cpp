@@ -149,11 +149,12 @@ namespace menu::theme {
             // shape animated_texture.cpp uses for frames.json.
             const tj::json* hj = imgs->try_get("header");
             const tj::json* bj = imgs->try_get("background");
-            const char* h = (hj && hj->is_string()) ? hj->get_string() : "";
-            const char* b = (bj && bj->is_string()) ? bj->get_string() : "";
-
-            if (h[0]) menu::images::request(h, menu::images::slot::header);
-            if (b[0]) menu::images::request(b, menu::images::slot::background);
+            // Present-and-a-string is the theme expressing an intent, and "" is a
+            // real intent: this slot has no picture. Absent, or the wrong type, is
+            // the theme not saying - leave the slot as it is, so a theme written
+            // before this feature existed does not silently clear anyone's images.
+            if (hj && hj->is_string()) menu::images::request(hj->get_string(), menu::images::slot::header);
+            if (bj && bj->is_string()) menu::images::request(bj->get_string(), menu::images::slot::background);
         }
 
         const tj::json* fonts = root.try_get("fonts");

@@ -381,15 +381,24 @@ namespace menu::images {
     }
 
     void request(const char* name, slot s) {
-        char* buf = (s == slot::header) ? g_header_pending_name : g_background_pending_name;
-
         size_t n = name ? strlen(name) : 0;
-        if (n > sizeof(g_header_pending_name) - 1) n = sizeof(g_header_pending_name) - 1;
-        if (n) memcpy(buf, name, n);
-        buf[n] = 0;
 
-        if (s == slot::header) g_header_pending = true;
-        else                   g_background_pending = true;
+        // Each branch bounds its copy by its own destination's sizeof, so the
+        // two buffers stay independently safe even if one of them is ever
+        // resized on its own - a shared bound (e.g. sizeof(g_header_pending_name)
+        // reused for the background copy) would silently stop matching the
+        // moment the sizes diverged.
+        if (s == slot::header) {
+            if (n > sizeof(g_header_pending_name) - 1) n = sizeof(g_header_pending_name) - 1;
+            if (n) memcpy(g_header_pending_name, name, n);
+            g_header_pending_name[n] = 0;
+            g_header_pending = true;
+        } else {
+            if (n > sizeof(g_background_pending_name) - 1) n = sizeof(g_background_pending_name) - 1;
+            if (n) memcpy(g_background_pending_name, name, n);
+            g_background_pending_name[n] = 0;
+            g_background_pending = true;
+        }
     }
 
     void update() {
