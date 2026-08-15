@@ -45,6 +45,12 @@ namespace rage::gfx {
         bool commit();
 
         bool has(const char* tex_name) const;
+
+        // The grcTexture already registered under `tex_name`, or null. Lets a
+        // caller give a second name to a texture that is already loaded instead
+        // of loading the same file twice.
+        void* get(const char* tex_name) const;
+
         int  count() const;
         bool ready() const;
         const char* name() const;   // dictionary name, for draw_sprite()

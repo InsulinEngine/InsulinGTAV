@@ -475,43 +475,47 @@ namespace menu::images {
                      "release path)", slot_dir_name(s), mt.m_texture.c_str(), name);
         }
 
-        char frame0[384];
-        snprintf(frame0, sizeof(frame0), "%s/frame_000.dds", dir);
-        // The still under the plain stem is what get_texture() resolves to, and
-        // it is the fallback the animation branch falls through to. Without it
-        // m_enabled = true points the slot at an unregistered name, which draws
-        // the checkerboard over the gradient/game header this is meant to
-        // replace - so both calls below are checked, and the slot is left
-        // untouched (mt is not written) on either failure.
+        // Load the animation first, then give its first frame a second name.
         //
-        // The animation frames re-register under the fixed "slot_header_000".."
-        // slot_background_000".. names every time load_from_dir runs below, so
-        // they stay capped at 32 dictionary entries total regardless of how
-        // many pictures are applied in a session. This still does not: it is
-        // added under the picture's own stem, a new entry for every distinct
-        // picture ever applied this session. texture_dictionary caps at 64
-        // entries and has no remove, only replace - so there is a real ceiling
-        // of roughly 32 distinct pictures per session. Not solved here; this
-        // just turns hitting it into a named error instead of a checkerboard.
-        if (!rage::gfx::menu_textures().add(name, frame0)) {
-            LOG_ERROR("images: %s failed to load, or the shared \"insulin\" dictionary is "
-                      "already at its 64-texture cap", frame0);
-            return fail("Could not register \"%s\" - the menu's texture dictionary may be full "
-                        "(restart the game to clear it)", name);
-        }
-
-        // Registered under the slot's own name so header and background cannot
-        // collide in the dictionary - load_from_dir names textures
-        // "<name>_000", and two pictures both starting at 000 would drop each
-        // other on commit(). load_from_dir commits the dictionary itself (one
-        // commit for the still add()ed above plus the frames it loads), so
-        // apply() does not commit a second time - commit() fires its own
-        // "Custom textures loaded" notification, and two commits per pick meant
-        // two unwanted toasts for one action.
-        stage("still registered, loading frames from %s", dir);
+        // This used to call add(name, "<dir>/frame_000.dds") before
+        // load_from_dir, which loaded that exact file a second time - the log
+        // showed two Create() lines for one path on every single pick. Both
+        // textures then stayed resident, and because add_texture replaces
+        // without releasing, every picture change stranded two textures instead
+        // of one. Aliasing halves that outright, and a still picture now costs
+        // exactly one texture rather than two.
+        stage("loading frames from %s", dir);
 
         if (!menu::animation::load_from_dir(anim_name, dir)) {
             return fail("Nothing loadable in the cache for \"%s\"", name);
+        }
+
+        // The still under the plain stem is what renderer::get_texture()
+        // resolves to, and it is what the animation branch falls through to when
+        // the animation is not ready. Without it, m_enabled = true would point
+        // the slot at an unregistered name and draw the checkerboard over the
+        // gradient this is meant to replace - so every step below is checked and
+        // mt is left untouched on any failure.
+        //
+        // The frames themselves re-register under the fixed "slot_header_000"..
+        // names on every apply, so they stay capped. This alias does not: it is
+        // one entry per distinct picture applied this session, against a
+        // 64-entry dictionary with no remove - roughly 32 pictures before it
+        // fails, with a named error rather than a checkerboard.
+        char frame0_name[80];
+        snprintf(frame0_name, sizeof(frame0_name), "%s_000", anim_name);
+        void* first = rage::gfx::menu_textures().get(frame0_name);
+        if (!first) {
+            return fail("\"%s\" loaded no first frame", name);
+        }
+        if (!rage::gfx::menu_textures().add_texture(name, first)) {
+            LOG_ERROR("images: the shared \"insulin\" dictionary is already at its "
+                      "64-texture cap");
+            return fail("Could not register \"%s\" - the menu's texture dictionary is full "
+                        "(restart the game to clear it)", name);
+        }
+        if (!rage::gfx::menu_textures().commit()) {
+            return fail("Could not publish \"%s\" to the texture dictionary", name);
         }
 
         stage("apply \"%s\" complete, slot enabled", name);

@@ -145,6 +145,14 @@ namespace rage::gfx {
         return false;
     }
 
+    void* texture_dictionary::get(const char* tex_name) const {
+        if (!tex_name || !tex_name[0]) return nullptr;
+        char q[64]; copy_name(q, tex_name);
+        for (size_t i = 0; i < m_entries.size(); i++)
+            if (!strcmp(m_entries[i].name, q)) return m_entries[i].tex;
+        return nullptr;
+    }
+
     bool texture_dictionary::add_texture(const char* tex_name, void* tex) {
         if (!tex || !tex_name || !tex_name[0]) return false;
         char nm[64]; copy_name(nm, tex_name);
