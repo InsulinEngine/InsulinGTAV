@@ -34,6 +34,9 @@
 #include "menu/base/submenus/vehicle_neon.h"
 #include "menu/base/submenus/vehicle_plate.h"
 #include "menu/base/submenus/settings_themes.h"
+#include "menu/base/submenus/helper_color.h"
+#include "menu/base/submenus/helper_color_presets.h"
+#include "menu/base/submenus/helper_color_sync.h"
 #include "menu/base/submenus/weapon_give.h"
 #include "menu/base/submenus/weapon_aimbot.h"
 #include "menu/base/submenus/weapon_disables.h"
@@ -47,6 +50,7 @@
 #include "menu/base/submenus/world_ocean.h"
 #include "menu/base/submenus/spawner_peds.h"
 #include "menu/base/submenus/misc.h"
+#include "menu/base/submenus/misc_panels.h"
 #include "menu/base/submenus/player_movement.h"
 #include "menu/base/submenus/player_appearance.h"
 #include "menu/base/submenus/vehicle.h"
@@ -82,7 +86,9 @@
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "menu/base/util/panels.h"
+#include "menu/panels/builtin_panels.h"
 #include "menu/base/util/animated_texture.h"
+#include "menu/base/util/rainbow.h"
 #include "util/config.h"
 #include "global/ui_vars.h"
 #include "platform/system_ui.h"
@@ -99,34 +105,6 @@
 #define INSULIN_TICK_TRACE 0
 
 namespace menu {
-    // Demo side-panel render callback (m_update is a plain function pointer).
-    static math::vector2<float> demo_panel_update(menu::panels::panel_child& child) {
-        menu::panels::panel p(child, global::ui::g_panel_bar);
-        p.item("Health", "100");
-        p.item("Armor", "50");
-        p.item_full("Session", "Story Mode");
-        return p.get_render_scale();
-    }
-
-    static void register_demo_panel() {
-        panels::panel_parent* parent = new panels::panel_parent();
-        parent->m_render = true;
-        parent->m_id = "demo";
-        parent->m_name = "Demo";
-
-        panels::panel_child child{};
-        child.m_parent = parent;
-        child.m_render = true;
-        child.m_id = "info";
-        child.m_double_sided = true;
-        child.m_panel_option_count_left = 3;
-        child.m_panel_option_count_right = 0;
-        child.m_update = demo_panel_update;
-
-        parent->m_children_panels.push_back(child);
-        panels::get_panels().push_back(parent);
-    }
-
     void build() {
         // Bind the string/pointer-bearing texture globals (skipped by the absent
         // .init_array), load the config file, then set up the submenu tree and
@@ -181,6 +159,24 @@ namespace menu {
         menu::submenu::handler::add_submenu(vehicle_plate_menu::get());
         settings_themes_menu::get()->load();
         menu::submenu::handler::add_submenu(settings_themes_menu::get());
+
+        // Re-apply the last saved theme now: util::config::load() has already
+        // run (above) so the "LastTheme" key is in memory, and
+        // settings_themes_menu::load() has just run so its name stack (parent
+        // chain via set_parent<settings_menu>()) is populated - both are
+        // required for get_submenu_name_stack() to resolve to the right config
+        // path. Placed as early as both conditions allow, so every submenu
+        // loaded afterward sees the restored colours rather than the compiled
+        // defaults. Legal here: load_file only touches files and logf, no
+        // natives (see theme.cpp).
+        settings_themes_menu::apply_last_theme();
+
+        helper_color_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_menu::get());
+        helper_color_presets_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_presets_menu::get());
+        helper_color_sync_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_sync_menu::get());
         weapon_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_menu::get());
         weapon_give_menu::get()->load();
@@ -290,7 +286,11 @@ namespace menu {
         language_menu::get()->load();
         menu::submenu::handler::add_submenu(language_menu::get());
 
-        register_demo_panel();
+        menu::panels::register_builtin_panels();
+
+        // Panels registered above so this load() has children to read from.
+        misc_panels_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_panels_menu::get());
 
         // Kept: one line, once, and it is the proof that the whole tree got
         // built without taking the game down. Paired with the BUILD= line it
@@ -368,14 +368,24 @@ namespace menu {
         TICK_TRACE("control");
         menu::control::update();
 
-        // Notifications + stacked display + side panels render every frame
-        // (panels::update no-ops while the menu is closed).
+        // No player_valid() gate: this reads and writes plain memory and calls
+        // no natives. It cannot run during build() either, because tick is only
+        // wired as the frame callback after build() returns.
+        menu::get_rainbow()->run();
+
+        // Notifications + stacked display render every frame.
         TICK_TRACE("notify");
         menu::notify::update();
         TICK_TRACE("display");
         menu::display::render();
+
         TICK_TRACE("panels");
-        menu::panels::update();
+        // Gated like feature_update: panel callbacks call natives, and before the
+        // local player exists those dereference a player that is not there. The
+        // gate lives here rather than in each callback so it also covers every
+        // panel written from now on.
+        if (game::player_valid())
+            menu::panels::update();
         TICK_TRACE("done");
 
 #undef TICK_TRACE

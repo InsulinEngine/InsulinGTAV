@@ -8,6 +8,7 @@
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/animated_texture.h"
 #include "menu/base/submenus/main.h"
+#include "menu/base/util/color_math.h"
 #include "rage/gfx.h"
 #include <math.h>
 
@@ -346,74 +347,14 @@ namespace menu::renderer {
     }
 
     color_rgba renderer::hsv_to_rgb(float h, float s, float v, int original_alpha) {
-        double r = 0.f, g = 0.f, b = 0.f;
-
-        if (s == 0.f) {
-            r = v; g = v; b = v;
-        } else {
-            int i;
-            double f, p, q, t;
-
-            if (h == 360.f) {
-                h = 0.f;
-            } else h = h / 60.f;
-
-            i = (int)trunc(h);
-            f = h - i;
-
-            p = v * (1.f - s);
-            q = v * (1.f - (s * f));
-            t = v * (1.f - (s * (1.f - f)));
-
-            switch (i) {
-                case 0: r = v; g = t; b = p; break;
-                case 1: r = q; g = v; b = p; break;
-                case 2: r = p; g = v; b = t; break;
-                case 3: r = p; g = q; b = v; break;
-                case 4: r = t; g = p; b = v; break;
-                default: r = v; g = p; b = q; break;
-            }
-        }
-
-        return color_rgba((int)(r * 255.f), (int)(g * 255.f), (int)(b * 255.f), original_alpha);
+        int r = 0, g = 0, b = 0;
+        menu::color_math::hsv_to_rgb(h, s, v, &r, &g, &b);
+        return color_rgba(r, g, b, original_alpha);
     }
 
     color_hsv renderer::rgb_to_hsv(color_rgba in) {
-        color_hsv out;
-
-        float r = in.r / 255.0f;
-        float g = in.g / 255.0f;
-        float b = in.b / 255.0f;
-
-        float h, s, v;
-
-        float max = fmaxf(r, fmaxf(g, b));
-        float min = fminf(r, fminf(g, b));
-
-        v = max;
-
-        if (max == 0.0f) {
-            s = 0; h = 0;
-        } else if (max - min == 0.0f) {
-            s = 0; h = 0;
-        } else {
-            s = (max - min) / max;
-
-            if (max == r) {
-                h = 60 * ((g - b) / (max - min)) + 0;
-            } else if (max == g) {
-                h = 60 * ((b - r) / (max - min)) + 120;
-            } else {
-                h = 60 * ((r - g) / (max - min)) + 240;
-            }
-        }
-
-        if (h < 0) h += 360.0f;
-
-        out.h = h;
-        out.s = s;
-        out.v = v;
-
+        menu::color_math::hsv h = menu::color_math::rgb_to_hsv(in.r, in.g, in.b);
+        color_hsv out; out.h = h.h; out.s = h.s; out.v = h.v;
         return out;
     }
 

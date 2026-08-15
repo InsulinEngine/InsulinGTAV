@@ -29,6 +29,45 @@ namespace menu::theme {
         {"panel_background",&g_panel_background},{"hotkey_background",&g_hotkey_background},{"color_grid_background",&g_color_grid_background},
         {"hotkey_input",&g_hotkey_input},{"instructional_background",&g_instructional_background},{"globe",&g_globe},
     };
+
+    int color_count() { return (int)(sizeof(COLORS) / sizeof(COLORS[0])); }
+
+    const char* color_name(int index) {
+        if (index < 0 || index >= color_count()) return "";
+        return COLORS[index].name;
+    }
+
+    color_rgba* color_ptr(int index) {
+        if (index < 0 || index >= color_count()) return nullptr;
+        return COLORS[index].p;
+    }
+
+    // Returned buffer is a function-local static: the result is only valid
+    // until the next call, so build one display name at a time - never hold
+    // two calls' results in the same expression (e.g. two of these as
+    // printf args), the second call clobbers the first.
+    const char* color_display_name(int index) {
+        static char buf[64];
+        if (index < 0 || index >= color_count()) return "";
+
+        const char* src = COLORS[index].name;
+        size_t i = 0;
+        bool start_of_word = true;
+        for (; src[i] != '\0' && i < sizeof(buf) - 1; i++) {
+            char c = src[i];
+            if (c == '_') {
+                c = ' ';
+                start_of_word = true;
+            } else if (start_of_word) {
+                if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+                start_of_word = false;
+            }
+            buf[i] = c;
+        }
+        buf[i] = '\0';
+        return buf;
+    }
+
     static nf FONTS[] = {
         {"header",&g_header_font},{"sub_header",&g_sub_header_font},{"option",&g_option_font},{"open_tooltip",&g_open_tooltip_font},
         {"tooltip",&g_tooltip_font},{"stacked_display",&g_stacked_display_font},{"notify_title",&g_notify_title_font},
@@ -74,6 +113,14 @@ namespace menu::theme {
     // ---- load ---------------------------------------------------------------
     bool load_file(const char* path) {
         tj::json root = tj::json::load_from_file(path);
+        // load_from_file returns a null json() both when sceKernelOpen fails
+        // (missing file) and when the file is empty - either way there is
+        // nothing to apply, so callers that check the return value (boot-time
+        // re-apply) can treat this the same as "missing".
+        if (root.is_null()) {
+            platform::logf("theme", "missing/unreadable \"%s\"", path);
+            return false;
+        }
 
         const tj::json* colors = root.try_get("colors");
         if (colors) for (nc& c : COLORS) {

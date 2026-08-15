@@ -5,6 +5,7 @@
 #include "menu/base/submenus/misc_visions.h"
 #include "menu/base/submenus/misc_disables.h"
 #include "menu/base/submenus/misc_dispatch.h"
+#include "menu/base/submenus/misc_panels.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/toggle.h"
 #include "menu/base/options/submenu_option.h"
@@ -31,6 +32,7 @@ void misc_menu::load() {
     add_option(submenu_option("Visions").add_submenu<misc_visions_menu>());
     add_option(submenu_option("Disables").add_submenu<misc_disables_menu>());
     add_option(submenu_option("Dispatch").add_submenu<misc_dispatch_menu>());
+    add_option(submenu_option("Panels").add_submenu<misc_panels_menu>());
 
     add_option(break_option("HUD").ref());
 

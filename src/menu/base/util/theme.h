@@ -2,6 +2,7 @@
 #include "platform/stdafx.h"
 #include "stl/vector.h"
 #include "stl/string.h"
+#include "global/ui_vars.h"
 
 // Theme system: named registries of the ui_vars colours / fonts / positions,
 // serialised to /data/insulin/themes/<name>.json via the tj mini-JSON and applied
@@ -17,4 +18,16 @@ namespace menu::theme {
     void reset_to_default();                 // restore the built-in default palette
 
     stl::vector<stl::string> list();         // theme names (stem, no .json) in the dir
+
+    // The colour registry, exposed for editing surfaces. theme.cpp already owns
+    // this table for save/load; a second copy elsewhere would drift against it
+    // the first time a colour is added to ui_vars.
+    int         color_count();
+    const char* color_name(int index);   // stable key, e.g. "option_selected"
+    color_rgba* color_ptr(int index);    // nullptr for an invalid index
+
+    // Human-readable form of color_name(), for display only - color_name()
+    // itself is a config.json key and must not change. "option_selected" ->
+    // "Option Selected". Returns "" for an invalid index.
+    const char* color_display_name(int index);
 }

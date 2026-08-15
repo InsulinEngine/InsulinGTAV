@@ -31,13 +31,30 @@ namespace util::config {
         return node;
     }
 
+    // Writes normally persist immediately. A batch defers that to the outermost
+    // end_batch(), so a caller writing many keys at once (the theme's 31
+    // colours) pays for one serialisation instead of 31.
+    static int  g_batch_depth = 0;
+    static bool g_batch_dirty = false;
+
     static void save() {
+        if (g_batch_depth > 0) { g_batch_dirty = true; return; }
         g_root.save_to_file(CONFIG_PATH, 2);
     }
 
     void config::load() {
         sceKernelMkdir(CONFIG_DIR, 0777);
         g_root = tj::json::load_from_file(CONFIG_PATH);
+    }
+
+    void begin_batch() { g_batch_depth++; }
+
+    void end_batch() {
+        if (g_batch_depth > 0) g_batch_depth--;
+        if (g_batch_depth == 0 && g_batch_dirty) {
+            g_batch_dirty = false;
+            g_root.save_to_file(CONFIG_PATH, 2);
+        }
     }
 
     // --- reads --------------------------------------------------------------
