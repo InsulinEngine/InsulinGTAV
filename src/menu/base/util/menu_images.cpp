@@ -4,6 +4,7 @@
 #include "global/ui_vars.h"          // apply() writes m_header / m_background
 #include "platform/paths.h"
 #include "platform/log.h"
+#include "platform/compat.h"   // now_ms for the stage timings below
 #include "rage/gfx.h"
 #include "util/image/decode.h"
 #include "util/image/dds_write.h"
@@ -175,6 +176,16 @@ namespace menu::images {
     bool convert(const char* name, slot s) {
         if (!name || !name[0]) return false;
 
+        // Stage markers go to the KERNEL log, not the file log. The file log is
+        // written synchronously per line, so it survives a fault - but it cannot
+        // record a stage that never finished. When the process is killed part way
+        // through a conversion, the last klog line you saw over `nc <ip> 3232` is
+        // the stage that was running, and the elapsed figures say why. That is
+        // exactly the evidence the first GIF crash did not leave behind: the file
+        // log jumped straight from the previous pick to the next boot.
+        const uint32_t t_begin = platform::now_ms();
+        platform::klogf("img: convert \"%s\" slot=%d begin", name, (int)s);
+
         char src[320];
         bool found = false;
         for (int i = 0; i < k_ext_count && !found; i++) {
@@ -209,11 +220,17 @@ namespace menu::images {
             return false;
         }
 
+        platform::klogf("img: probe %dx%d (%u ms)", src_w, src_h,
+                        (unsigned)(platform::now_ms() - t_begin));
+
         util::image::decoded d;
         if (!util::image::decode_file(src, &d)) {
             LOG_ERROR("images: could not decode \"%s\"", src);
             return false;
         }
+
+        platform::klogf("img: decode %dx%d x%d frames (%u ms)", d.w, d.h, d.frames,
+                        (unsigned)(platform::now_ms() - t_begin));
 
         box b = box_for(s);
         int dw = 0, dh = 0;
@@ -275,6 +292,9 @@ namespace menu::images {
             ok = util::image::write_dds(frame_path, use, dw, dh);
             if (!ok) { LOG_ERROR("images: could not write %s", frame_path); break; }
 
+            platform::klogf("img: frame %d/%d written %dx%d (%u ms)", i + 1, frames, dw, dh,
+                            (unsigned)(platform::now_ms() - t_begin));
+
             char file_name[64];
             snprintf(file_name, sizeof(file_name), "frame_%03d.dds", i);
             tj::json entry;
@@ -298,6 +318,9 @@ namespace menu::images {
                 ok = false;
             } else {
                 platform::logf("images", "\"%s\": %d frame(s) at %dx%d", name, frames, dw, dh);
+                platform::klogf("img: convert \"%s\" done, %d frame(s) at %dx%d (%u ms total)",
+                                name, frames, dw, dh,
+                                (unsigned)(platform::now_ms() - t_begin));
             }
         }
 
@@ -392,10 +415,14 @@ namespace menu::images {
         // apply() does not commit a second time - commit() fires its own
         // "Custom textures loaded" notification, and two commits per pick meant
         // two unwanted toasts for one action.
+        platform::klogf("img: still registered, loading frames from %s", dir);
+
         if (!menu::animation::load_from_dir(anim_name, dir)) {
             LOG_ERROR("images: nothing loadable in %s", dir);
             return false;
         }
+
+        platform::klogf("img: apply \"%s\" complete, slot enabled", name);
 
         mt.m_texture.set(name);
         mt.m_enabled = true;
