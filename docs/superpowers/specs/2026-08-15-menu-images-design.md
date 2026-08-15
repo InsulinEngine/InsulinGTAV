@@ -188,3 +188,34 @@ On console:
 - Replacing or swapping the game's own textures.
 - Any in-memory path around `grcImage::Load`, which would need
   `grcImage::Create` reversed and buys nothing here.
+
+## Known limitations, as built
+
+Four things this shipped with. None is a bug to hunt; each is a decision, and
+the reason is here so it does not get rediscovered as a mystery.
+
+**Re-picking a slot strands video memory.** `texture_dictionary::add_texture`
+replaces an entry with `m_entries[i].tex = tex;` and never releases the old
+`grcTexture` — there is no release path anywhere in this codebase, and building
+one means reversing the engine's texture destructor. Re-picking a background
+therefore strands roughly 33 MB (16 frames at up to 512×1024×4); the header
+about 4 MB. Re-picking the picture *already* in a slot is free — that case
+returns early. Replacing one logs what it cost. A session that cycles through
+ten backgrounds strands a few hundred MB until the game restarts.
+
+**Animations cap at 16 frames.** `menu::animation::k_max_frames`. A longer GIF
+is truncated and the user is told, so a 26-frame source loops visibly short.
+At the size maxima, 16 frames of background is 33 MB resident and the header
+4 MB.
+
+**Sources are refused above 4096 in either dimension.** `stb_image` decodes
+every GIF frame at full source resolution in one allocation, before the frame
+cap and before downscaling — a 1080p 60-frame GIF is roughly 500 MB inside the
+game process. The dimension guard bounds the common case. Frame count cannot be
+known before decoding, so a small-but-very-long GIF is still unbounded.
+
+**The shared dictionary holds 64 textures.** Animation frames re-register under
+fixed per-slot names and stay capped at 32 for both slots, but each distinct
+picture applied adds one permanent still entry — so roughly 32 pictures per
+session. Past that, applying fails with a named error rather than silently
+drawing the checkerboard.
