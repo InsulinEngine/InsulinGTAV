@@ -21,10 +21,11 @@ namespace menu::images {
     // answer for the other and hand back a stretched frame.
     bool is_cached(const char* name, slot s);
 
-    // Decode, downscale and write the cache for `name`, sized for `s`. Safe to
-    // call when the cache is already current - it returns true without work.
-    // Returns false on a missing source, a decode failure or an unwritable
-    // cache, having reported which.
+    // Decode, downscale and write the cache for `name`, sized for `s`. Always
+    // reconverts - it does not check whether the cache is already current;
+    // apply() below is the caller that guards with is_cached() first. Returns
+    // false on a missing source, a decode failure or an unwritable cache,
+    // having reported which.
     bool convert(const char* name, slot s);
 
     // Load the cached picture into the shared "insulin" dictionary and point the

@@ -7,7 +7,6 @@
 #define STBI_ONLY_JPEG
 #define STBI_ONLY_GIF
 #define STBI_ONLY_BMP
-#define STBI_NO_STDIO_WRITE
 // SceLibcInternal does not export __assert_fail, so assert.h's default
 // STBI_ASSERT(x) leaves the PS4 link with an undefined symbol. stb_image.h
 // documents this override for exactly that situation.
