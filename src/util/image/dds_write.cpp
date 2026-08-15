@@ -25,7 +25,7 @@ namespace util::image {
         put32(d + 4,  0x100F);                    // CAPS|HEIGHT|WIDTH|PITCH|PIXELFORMAT
         put32(d + 8,  (unsigned)h);
         put32(d + 12, (unsigned)w);
-        put32(d + 16, (unsigned)(w * 4));         // dwPitchOrLinearSize
+        put32(d + 16, (unsigned)((size_t)w * 4u)); // dwPitchOrLinearSize
         put32(d + 20, 0);                         // dwDepth
         put32(d + 24, 0);                         // dwMipMapCount - claiming more
                                                   // levels than the dimensions
@@ -65,6 +65,7 @@ namespace util::image {
         bool ok = fwrite(head, 1, sizeof(head), f) == sizeof(head) &&
                   fwrite(bgra, 1, n, f) == n;
         fclose(f);
+        if (!ok) remove(path);
         free(bgra);
         return ok;
     }
