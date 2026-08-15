@@ -47,16 +47,32 @@ namespace game::aim {
             from.z + dir.z * distance
         };
 
-        // START_SHAPE_TEST_RAY is spelled start_shape_test_los_probe on this build.
+        // The SYNCHRONOUS probe, deliberately. start_shape_test_los_probe is
+        // asynchronous: it queues the query and the result is not available until
+        // a later frame. This code used to call it and read the result in the same
+        // breath, so get_shape_test_result always reported "still running", did_hit
+        // stayed false, and every aim feature - laser sight, delete, force,
+        // teleport, airstrike, instant kill - returned at the h.valid check having
+        // done nothing. They were not broken individually; they all sat behind one
+        // raycast that never landed.
+        //
         // flags -1 = hit everything, and the player is excluded so aiming does not
         // simply resolve to yourself.
-        int ray = native::start_shape_test_los_probe(from.x, from.y, from.z, to.x, to.y, to.z, -1, ped, 7);
+        int ray = native::start_expensive_synchronous_shape_test_los_probe(
+                      from.x, from.y, from.z, to.x, to.y, to.z, -1, ped, 7);
 
         bool did_hit = false;
         Entity ent = 0;
         math::vector3<float> pos = { 0.f, 0.f, 0.f };
         math::vector3<float> normal = { 0.f, 0.f, 0.f };
-        native::get_shape_test_result(ray, &did_hit, &pos, &normal, &ent);
+
+        // And check the status this time. 2 is "complete"; anything else means the
+        // out-params were not written and reading them is reading whatever was on
+        // the stack. Ignoring this return is what let the original failure look
+        // like "no hit" instead of "no answer".
+        int status = native::get_shape_test_result(ray, &did_hit, &pos, &normal, &ent);
+        if (status != 2)
+            return h;
 
         h.valid = did_hit;
         h.entity = ent;
