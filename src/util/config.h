@@ -4,7 +4,7 @@
 #include "util/math.h"
 
 // Ozark's config API, backed by the Mini-JSON (util/json.h) and persisted to
-// /data/InsulinGTAV/config.json. The transformed option files call these exactly
+// /data/Ozark/config.json. The transformed option files call these exactly
 // as the PC source did (name_stack = submenu path, additional_stacks = category
 // like {"Values"} / {"Color"}, key = option name).
 namespace util::config {

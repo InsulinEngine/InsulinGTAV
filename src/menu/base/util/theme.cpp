@@ -1,4 +1,5 @@
 #include "menu/base/util/theme.h"
+#include "platform/paths.h"
 #include "global/ui_vars.h"
 #include "util/json.h"
 #include "platform/log.h"
@@ -11,7 +12,7 @@
 using namespace global::ui;
 
 namespace menu::theme {
-    const char* dir() { return "/data/insulin/themes"; }
+    const char* dir() { return OZARK_THEMES; }
 
     // ---- registries ---------------------------------------------------------
     struct nc { const char* name; color_rgba* p; };
@@ -82,7 +83,7 @@ namespace menu::theme {
 
     // ---- save ---------------------------------------------------------------
     void save(const char* name) {
-        sceKernelMkdir("/data/insulin", 0777);
+        platform::ensure_data_dir();
         sceKernelMkdir(dir(), 0777);
 
         tj::json root;

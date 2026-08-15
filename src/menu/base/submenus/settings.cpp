@@ -18,7 +18,7 @@ void settings_menu::load() {
 
     add_option(submenu_option("Language")
         .add_submenu<language_menu>()
-        .add_tooltip("Switch UI language (from /data/insulin/lang)"));
+        .add_tooltip("Switch UI language (from /data/Ozark/lang)"));
 }
 
 void settings_menu::update() {

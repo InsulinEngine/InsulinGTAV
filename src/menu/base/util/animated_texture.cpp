@@ -1,4 +1,5 @@
 #include "menu/base/util/animated_texture.h"
+#include "platform/paths.h"
 #include "menu/base/util/frame_clock.h"
 #include "platform/log.h"
 #include "rage/gfx.h"
@@ -210,7 +211,7 @@ namespace menu {
         }
 
         animated_texture* load_banner() {
-            return load_from_dir("banner", "/data/insulin/anim/banner");
+            return load_from_dir("banner", OZARK_BANNER);
         }
 
         void update(float dt_seconds) {

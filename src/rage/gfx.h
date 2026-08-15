@@ -13,7 +13,7 @@
 // script/game thread (menu tick or a button), with a session (e.g. Story Mode) up.
 namespace rage::gfx {
     // Create a grcTexture from an image file at `path` (absolute, e.g.
-    // "/data/insulin/logo.dds"). Passing NULL params is safe. Returns the
+    // "/data/Ozark/logo.dds"). Passing NULL params is safe. Returns the
     // grcTexture* or nullptr. Prefer texture_dictionary below for drawing.
     void* create_texture_from_file(const char* path);
 
@@ -24,7 +24,7 @@ namespace rage::gfx {
         explicit texture_dictionary(const char* dict_name);
 
         // Load `path` and add it under `tex_name`. If `tex_name` is null/empty the
-        // lowercased file stem is used ("/data/insulin/logo.dds" -> "logo").
+        // lowercased file stem is used ("/data/Ozark/logo.dds" -> "logo").
         // Buffers the texture; call commit() to (re)inject. Re-adding a name
         // replaces it. Returns true if the texture was created.
         // DDS only -- the engine's image loader parses no other format, and hands

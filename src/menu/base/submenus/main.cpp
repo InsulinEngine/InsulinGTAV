@@ -1,4 +1,5 @@
 #include "menu/base/submenus/main.h"
+#include "platform/paths.h"
 #include "menu/base/submenu_handler.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/toggle.h"
@@ -47,20 +48,20 @@ void main_menu::load() {
     add_option(break_option("Custom Textures").ref());
 
     add_option(button_option("Load Custom Textures")
-        .add_tooltip("Loads every .dds/.png in /data/insulin into the \"insulin\" dictionary; \"logo\" becomes the header")
+        .add_tooltip("Loads every .dds/.png in /data/Ozark into the \"insulin\" dictionary; \"logo\" becomes the header")
         .add_click([] {
             auto& t = rage::gfx::menu_textures();
-            if (t.add_directory("/data/insulin") == 0)
-                t.add("logo", "/data/insulin/logo.dds");   // fallback if the dir scan yields nothing
+            if (t.add_directory(OZARK_DIR) == 0)
+                t.add("logo", OZARK_LOGO);   // fallback if the dir scan yields nothing
             t.commit();
         }));
 
     add_option(button_option("Load Banner Animation")
-        .add_tooltip("Plays /data/insulin/anim/banner as the menu header")
+        .add_tooltip("Plays /data/Ozark/anim/banner as the menu header")
         .add_click([] {
             menu::animated_texture* a = menu::animation::load_banner();
             if (a) menu::notify::stacked("Animation", stl::string::format("%i frames", a->frame_count()), global::ui::g_success);
-            else   menu::notify::stacked("Animation", "Nothing loadable in /data/insulin/anim/banner", global::ui::g_error);
+            else   menu::notify::stacked("Animation", "Nothing loadable in /data/Ozark/anim/banner", global::ui::g_error);
         }));
 }
 

@@ -1,9 +1,8 @@
 #include "util/config.h"
 #include "util/json.h"
+#include "platform/paths.h"
 #include <orbis/libkernel.h>
 
-#define CONFIG_DIR  "/data/InsulinGTAV"
-#define CONFIG_PATH "/data/InsulinGTAV/config.json"
 
 namespace util::config {
     // In-memory config document, loaded once and re-saved on each write.
@@ -39,12 +38,12 @@ namespace util::config {
 
     static void save() {
         if (g_batch_depth > 0) { g_batch_dirty = true; return; }
-        g_root.save_to_file(CONFIG_PATH, 2);
+        g_root.save_to_file(OZARK_CONFIG, 2);
     }
 
     void config::load() {
-        sceKernelMkdir(CONFIG_DIR, 0777);
-        g_root = tj::json::load_from_file(CONFIG_PATH);
+        platform::ensure_data_dir();
+        g_root = tj::json::load_from_file(OZARK_CONFIG);
     }
 
     void begin_batch() { g_batch_depth++; }
@@ -53,7 +52,7 @@ namespace util::config {
         if (g_batch_depth > 0) g_batch_depth--;
         if (g_batch_depth == 0 && g_batch_dirty) {
             g_batch_dirty = false;
-            g_root.save_to_file(CONFIG_PATH, 2);
+            g_root.save_to_file(OZARK_CONFIG, 2);
         }
     }
 

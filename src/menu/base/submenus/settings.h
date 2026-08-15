@@ -12,7 +12,7 @@ public:
     static settings_menu* get();
 };
 
-// Language submenu: "English (Default)" reset + the /data/insulin/lang/*.json
+// Language submenu: "English (Default)" reset + the /data/Ozark/lang/*.json
 // languages, applied on click. Rebuilt each time it is entered.
 class language_menu : public menu::submenu::submenu {
 public:

@@ -96,7 +96,7 @@
 #include "rage/invoker/natives.h"
 
 // Crash-tracing: while the menu is open, write one line per tick phase to
-// /data/insulingtav.log. The last line on disk before a crash localises it:
+// /data/Ozark/insulingtav.log. The last line on disk before a crash localises it:
 //   - "overlaid-return" as the last line  -> guard fired; crash is OUTSIDE our
 //     tick (the game touching our injected state) -> need the klog RIP.
 //   - a phase name (input/base/render/...) as the last line -> crash is INSIDE
@@ -306,7 +306,7 @@ namespace menu {
 
 #if INSULIN_TICK_TRACE
     // Dual sink so we capture the crash window no matter what: klog shows up live
-    // in `nc <ip> 3232` (no FTP), and /data/insulingtav.log is the guaranteed
+    // in `nc <ip> 3232` (no FTP), and /data/Ozark/insulingtav.log is the guaranteed
     // backup if plugin klog output doesn't reach the broadcast. Only while the
     // menu is open (the sole crash condition), so the volume stays bounded.
     #define TICK_TRACE(p) do { if (open) { \

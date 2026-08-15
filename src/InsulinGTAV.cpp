@@ -12,6 +12,7 @@
 #include "game/game_thread.h"
 #include "menu/menu.h"
 #include "platform/log.h"
+#include "platform/paths.h"
 #include "platform/build_tag.h"
 #include "stl_smoke.h"
 
@@ -30,14 +31,13 @@ attr_public const char *g_pluginVersion = PLUGIN_VERSION;
 #define SMOKE_STRING   "insulin"
 #define SMOKE_EXPECTED 0x0669D57Fu
 
-#define LOG_PATH "/data/insulingtav.log"
 #define ORBIS_O_WRONLY 0x0001
 #define ORBIS_O_APPEND 0x0008
 #define ORBIS_O_CREAT  0x0200
 
 static void log_line(const char *msg)
 {
-    int fd = sceKernelOpen(LOG_PATH, ORBIS_O_WRONLY | ORBIS_O_APPEND | ORBIS_O_CREAT, 0666);
+    int fd = sceKernelOpen(OZARK_LOG, ORBIS_O_WRONLY | ORBIS_O_APPEND | ORBIS_O_CREAT, 0666);
     if (fd < 0)
         return;
     sceKernelWrite(fd, msg, strlen(msg));
@@ -92,6 +92,11 @@ int module_start(size_t argc, const void *argp)
 {
     (void)argc;
     (void)argp;
+
+    // Before anything writes: the log lives in this folder and silently writes
+    // nothing if it is missing - which would cost exactly the diagnostic that
+    // matters most when a boot goes wrong.
+    platform::ensure_data_dir();
 
     notify(PLUGIN_NAME " v" PLUGIN_VERSION " loaded");
 

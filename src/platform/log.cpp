@@ -1,4 +1,5 @@
 #include "platform/log.h"
+#include "platform/paths.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -11,7 +12,7 @@
 #define ORBIS_O_APPEND 0x0008
 #define ORBIS_O_CREAT  0x0200
 
-#define LOG_PATH "/data/insulingtav.log"
+#define LOG_PATH OZARK_LOG
 
 namespace platform {
 

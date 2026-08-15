@@ -70,7 +70,7 @@ namespace menu {
         // Returns nullptr if the directory is missing, empty, or nothing loaded.
         animated_texture* load_from_dir(const char* name, const char* dir);
 
-        // load_from_dir("banner", "/data/insulin/anim/banner").
+        // load_from_dir("banner", "/data/Ozark/anim/banner").
         animated_texture* load_banner();
 
         // Advance every registered animation. Called once per tick.

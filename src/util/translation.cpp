@@ -1,4 +1,5 @@
 #include "util/translation.h"
+#include "platform/paths.h"
 #include "util/json.h"
 #include "stl/pair.h"
 
@@ -12,7 +13,7 @@ namespace util::i18n {
     static stl::vector<stl::pair<uint32_t, stl::string>> s_map;
     static bool s_active = false;
 
-    const char* dir() { return "/data/insulin/lang"; }
+    const char* dir() { return OZARK_LANG; }
 
     static uint32_t hash(const char* s) {
         uint32_t h = 0;
