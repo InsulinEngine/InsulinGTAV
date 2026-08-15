@@ -1,5 +1,6 @@
 #pragma once
 #include "rage/invoker/natives.h"
+#include "game/camera_dir.h"
 #include "rage/invoker/missing_natives.h"
 #include "rage/invoker/natives_hash.h"
 
@@ -38,19 +39,7 @@ namespace game::aim {
             return h;
 
         math::vector3<float> from = native::get_gameplay_cam_coord();
-        math::vector3<float> rot  = native::get_gameplay_cam_rot(2);
-
-        // Camera rotation to a direction vector: the usual pitch/yaw expansion,
-        // with the game's z-up convention.
-        const float deg = 0.0174532924f;
-        float pitch = rot.x * deg;
-        float yaw   = rot.z * deg;
-        float cp = native::cos(pitch);
-        math::vector3<float> dir = {
-            -native::sin(yaw) * cp,
-             native::cos(yaw) * cp,
-             native::sin(pitch)
-        };
+        math::vector3<float> dir  = game::camera_direction();
 
         math::vector3<float> to = {
             from.x + dir.x * distance,

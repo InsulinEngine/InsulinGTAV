@@ -22,6 +22,9 @@ namespace platform {
 // Ozark/Basic Input enum). A named enum so it also serves as the overload tag
 // for instructionals::add_instructional(text, eControls).
 enum eControls {
+    // Gameplay controls (group 0). The frontend ids below are group 2.
+    ControlSprint         = 21,    // Cross held, on foot
+
     ControlPhoneSelect    = 176,
     ControlFrontendDown   = 187,
     ControlFrontendUp     = 188,

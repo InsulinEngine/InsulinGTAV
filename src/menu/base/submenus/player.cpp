@@ -6,10 +6,12 @@
 #include "menu/base/submenus/player_particles.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/toggle.h"
+#include "menu/base/options/number.h"
 #include "menu/base/options/scroll.h"
 #include "menu/base/options/submenu_option.h"
 #include "menu/base/util/notify.h"
 #include "rage/invoker/natives.h"
+#include "game/camera_dir.h"
 #include "rage/invoker/missing_natives.h"
 #include "rage/invoker/natives_hash.h"
 
@@ -29,7 +31,8 @@ namespace {
     bool g_reveal_hidden = false;
     bool g_peds_ignore = false;
     bool g_reduced_collision = false;
-    bool g_superman = false;
+    bool  g_superman = false;
+    float g_fly_speed = 30.f;   // m/s; ~4x sprint, well under a helicopter
     bool g_badsport = false;
     bool g_breathe_fire = false;
     bool g_swim_anywhere = false;
@@ -138,7 +141,12 @@ void player_menu::load() {
 
     add_option(toggle_option("Superman")
         .add_toggle(g_superman)
-        .add_tooltip("Free flight. Look where you want to go and hold forward.")
+        .add_tooltip("Hover in place; hold Cross to fly where the camera looks")
+        .add_savable(get_submenu_name_stack()));
+
+    add_option(number_option<float>(SCROLLSELECT, "Flight Speed")
+        .add_number(g_fly_speed, "%.0f m/s", 5.f).add_min(5.f).add_max(150.f)
+        .add_tooltip("How fast Superman flies. Sprinting on foot is about 7 m/s")
         .add_savable(get_submenu_name_stack()));
 
     add_option(toggle_option("Badsport")
@@ -210,13 +218,24 @@ void player_menu::feature_update() {
     if (g_breathe_fire)
         native::set_fire_ammo_this_frame(player);
 
-    // Superman: cancel gravity and push along the camera each frame. Not Ozark's
-    // implementation, which uses its own flight controller, but the same effect
-    // with what this port has.
+    // Superman: hover by default, fly along the camera while Cross is held.
+    // Setting the velocity every frame is what keeps gravity from taking over -
+    // the zero case is the hover, not a no-op.
+    //
+    // While the menu is open the base disables gameplay controls, so
+    // is_control_pressed reads false and you hover instead of flying off while
+    // navigating. That is deliberate.
     if (g_superman && !native::is_ped_in_any_vehicle(ped, false)) {
-        math::vector3<float> f = native::get_gameplay_cam_rot(2);
-        native::set_entity_velocity(ped, f.x * 0.f, f.y * 0.f, 0.f);
         native::set_ped_can_ragdoll(ped, false);
+
+        if (native::is_control_pressed(0, ControlSprint)) {
+            math::vector3<float> d = game::camera_direction();
+            native::set_entity_velocity(ped, d.x * g_fly_speed,
+                                             d.y * g_fly_speed,
+                                             d.z * g_fly_speed);
+        } else {
+            native::set_entity_velocity(ped, 0.f, 0.f, 0.f);
+        }
     }
 }
 
