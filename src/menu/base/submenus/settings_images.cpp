@@ -61,7 +61,11 @@ void settings_images_menu::update_once() {
                     menu::notify::stacked("Images", "Header set - Save Theme to keep it", global::ui::g_success);
                     g_images_dirty = true;
                 } else {
-                    menu::notify::stacked("Images", "Could not load that picture", global::ui::g_error);
+                    // No message here on purpose: every failure inside apply()
+                    // already reported itself with the actual reason - the file
+                    // is missing, too large to decode, the cache could not be
+                    // written. Adding a generic line here overwrote that with
+                    // something that says less.
                 }
             }));
     }
@@ -88,7 +92,11 @@ void settings_images_menu::update_once() {
                     menu::notify::stacked("Images", "Background set - Save Theme to keep it", global::ui::g_success);
                     g_images_dirty = true;
                 } else {
-                    menu::notify::stacked("Images", "Could not load that picture", global::ui::g_error);
+                    // No message here on purpose: every failure inside apply()
+                    // already reported itself with the actual reason - the file
+                    // is missing, too large to decode, the cache could not be
+                    // written. Adding a generic line here overwrote that with
+                    // something that says less.
                 }
             }));
     }

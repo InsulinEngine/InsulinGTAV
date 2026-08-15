@@ -193,6 +193,26 @@ namespace menu::images {
         }
     }
 
+    namespace {
+        // Every failure names itself on screen, not only in the log.
+        //
+        // The picker used to append a generic "Could not load that picture"
+        // whenever apply() returned false. That overwrote the specific message
+        // convert() had just shown - the log said a 1245x960 GIF needed 31MB and
+        // the screen said nothing useful - and for the paths that only logged,
+        // the generic line was all the user ever got. So the specific message
+        // belongs at the point of failure, and the picker no longer adds one.
+        bool fail(const char* fmt, ...) {
+            char buf[224];
+            va_list ap; va_start(ap, fmt);
+            vsnprintf(buf, sizeof(buf), fmt, ap);
+            va_end(ap);
+            platform::logf("Err", "images: %s", buf);
+            platform::notify(buf);
+            return false;
+        }
+    }
+
     // ---- convert ------------------------------------------------------------
     bool convert(const char* name, slot s) {
         if (!name || !name[0]) return false;
@@ -215,8 +235,7 @@ namespace menu::images {
             if (fd >= 0) { sceKernelClose(fd); found = true; }
         }
         if (!found) {
-            LOG_ERROR("images: no source for \"%s\" in %s", name, OZARK_IMAGES);
-            return false;
+            return fail("No file named \"%s\" in %s", name, OZARK_IMAGES);
         }
 
         // stbi_load_gif_from_memory decodes every frame of a GIF at full source
@@ -292,11 +311,11 @@ namespace menu::images {
                 // The ceiling above let this through and the decode still ran out
                 // of memory, so the ceiling is wrong for this console. The number
                 // that failed is the one to lower it to.
-                LOG_ERROR("images: could not decode \"%s\" - an allocation of %lluKB failed. "
-                          "The decode ceiling in convert() is too high for this console.",
-                          src, failed / 1024ull);
+                LOG_ERROR("images: the decode ceiling in convert() is too high for this "
+                          "console - lower it to below %lluKB", failed / 1024ull);
+                return fail("\"%s\" ran out of memory decoding (%lluKB)", name, failed / 1024ull);
             } else {
-                LOG_ERROR("images: could not decode \"%s\"", src);
+                return fail("\"%s\" is not a picture this menu can read", name);
             }
             return false;
         }
@@ -336,9 +355,8 @@ namespace menu::images {
         if (dw != d.w || dh != d.h) {
             scaled = (unsigned char*)malloc((size_t)dw * dh * 4);
             if (!scaled) {
-                LOG_ERROR("images: out of memory scaling \"%s\" to %dx%d", name, dw, dh);
                 util::image::free_decoded(&d);
-                return false;
+                return fail("Out of memory scaling \"%s\" to %dx%d", name, dw, dh);
             }
         }
 
@@ -352,7 +370,7 @@ namespace menu::images {
 
             if (scaled) {
                 if (!stbir_resize_uint8(srcpx, d.w, d.h, 0, scaled, dw, dh, 0, 4)) {
-                    LOG_ERROR("images: resize failed for \"%s\" frame %d", name, i);
+                    fail("Could not scale \"%s\" (frame %d)", name, i + 1);
                     ok = false;
                     break;
                 }
@@ -362,7 +380,7 @@ namespace menu::images {
             char frame_path[384];
             snprintf(frame_path, sizeof(frame_path), "%s/frame_%03d.dds", dir, i);
             ok = util::image::write_dds(frame_path, use, dw, dh);
-            if (!ok) { LOG_ERROR("images: could not write %s", frame_path); break; }
+            if (!ok) { fail("Could not write the cache for \"%s\" - is /data full?", name); break; }
 
             stage("frame %d/%d written %dx%d (%u ms)", i + 1, frames, dw, dh,
                   (unsigned)(platform::now_ms() - t_begin));
@@ -386,7 +404,7 @@ namespace menu::images {
             // failure it is rather than returning true with half the cache
             // missing.
             if (!manifest.save_to_file(man, 2)) {
-                LOG_ERROR("images: could not write %s", man);
+                fail("Could not write the cache index for \"%s\" - is /data full?", name);
                 ok = false;
             } else {
                 platform::logf("images", "\"%s\": %d frame(s) at %dx%d", name, frames, dw, dh);
@@ -476,10 +494,10 @@ namespace menu::images {
         // of roughly 32 distinct pictures per session. Not solved here; this
         // just turns hitting it into a named error instead of a checkerboard.
         if (!rage::gfx::menu_textures().add(name, frame0)) {
-            LOG_ERROR("images: could not register still texture \"%s\" - %s failed to load, "
-                      "or the shared \"insulin\" dictionary is already at its 64-texture cap",
-                      name, frame0);
-            return false;
+            LOG_ERROR("images: %s failed to load, or the shared \"insulin\" dictionary is "
+                      "already at its 64-texture cap", frame0);
+            return fail("Could not register \"%s\" - the menu's texture dictionary may be full "
+                        "(restart the game to clear it)", name);
         }
 
         // Registered under the slot's own name so header and background cannot
@@ -493,8 +511,7 @@ namespace menu::images {
         stage("still registered, loading frames from %s", dir);
 
         if (!menu::animation::load_from_dir(anim_name, dir)) {
-            LOG_ERROR("images: nothing loadable in %s", dir);
-            return false;
+            return fail("Nothing loadable in the cache for \"%s\"", name);
         }
 
         stage("apply \"%s\" complete, slot enabled", name);
