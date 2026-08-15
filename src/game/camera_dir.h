@@ -2,6 +2,7 @@
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "util/math.h"
+#include "game/camera_dir_math.h"
 
 // Where the gameplay camera is looking, as a unit vector.
 //
@@ -16,18 +17,21 @@
 // at all.
 namespace game {
 
+    // Uses libm, deliberately, not native::sin / native::cos. Those are the
+    // game's SIN and COS script commands and they take DEGREES. The code this
+    // replaced converted to radians first and then handed the result to them,
+    // so a 90 degree yaw arrived as 1.57 "degrees" and every direction came out
+    // as very nearly {0, 1, 0} - always forward, always drifting slightly left.
+    //
+    // It survived unnoticed because get_gameplay_cam_rot was a {0,0,0} stub, and
+    // sin(0)/cos(0) are 0 and 1 in either unit. Fixing the stub is what made the
+    // unit bug visible. libm also spares two script-native calls per frame on a
+    // path that runs while flying.
     inline math::vector3<float> camera_direction() {
         math::vector3<float> rot = native::get_gameplay_cam_rot(2);
 
-        const float deg = 0.0174532924f;
-        float pitch = rot.x * deg;
-        float yaw   = rot.z * deg;
-        float cp    = native::cos(pitch);
-
-        return {
-            -native::sin(yaw) * cp,
-             native::cos(yaw) * cp,
-             native::sin(pitch)
-        };
+        float x, y, z;
+        camera_math::direction_from_rotation(rot.x, rot.z, &x, &y, &z);
+        return { x, y, z };
     }
 }
