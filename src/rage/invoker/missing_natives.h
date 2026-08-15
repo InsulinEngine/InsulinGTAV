@@ -90,18 +90,19 @@ namespace native {
         return rage::invoker::invoke<Void>(0x9D1A50, value);
     }
 
-    // Camera rotation. STILL A STUB, and no longer a cosmetic one: the globe it
-    // was written for is gone, but game/aim_ray.h, weapon_gravity_gun.cpp and
-    // player.cpp all derive directions from this. They are getting {0,0,0}, so
-    // every one of them behaves as if the camera pointed along a fixed axis.
-    // The fix is no longer an RVA hunt - GET_GAMEPLAY_CAM_ROT is in the source
-    // header as hash 0xD84A545408A3099A, so deleting this stub lets
-    // gen_hash_natives.py emit the real wrapper (see the note at the top of this
-    // file about stubs shadowing generated natives). Left in place only because
-    // it returns a Vector3, whose struct-return path through this invoker is the
-    // thing that needs verifying first.
-    static math::vector3<float> get_gameplay_cam_rot(int /*rotationOrder*/) {
-        return math::vector3<float>(0.f, 0.f, 0.f);
+    // Camera rotation, RVA-verified. Was a {0,0,0} stub justified as "the globe
+    // just will not spin" - but the globe is gone and three real features derive
+    // their directions from this: game/aim_ray.h, weapon_gravity_gun.cpp and
+    // player.cpp. A constant zero made all three behave as if the camera pointed
+    // along a fixed axis.
+    //
+    // 0x994110 is not an IDB label taken on faith: SetupScriptCommands_Camera
+    // registers it at 0x99027E as `lea rsi, 0x994110` immediately followed by
+    // `movabs rdi, 0xD84A545408A3099A`, which is GET_GAMEPLAY_CAM_ROT's hash in
+    // this build. It returns a Vector3 through the same return-slot path as
+    // get_entity_coords below, which is already proven on console.
+    static math::vector3<float> get_gameplay_cam_rot(int rotationOrder) {
+        return rage::invoker::invoke<math::vector3<float>>(0x994110, rotationOrder);
     }
 
     // --- Vector3-returning coord natives (spawn positioning) --------------
