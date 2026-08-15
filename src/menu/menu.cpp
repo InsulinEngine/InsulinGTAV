@@ -80,6 +80,7 @@
 #include "menu/base/submenus/vehicle_spawner.h"
 #include "menu/base/submenus/handling_editor.h"
 #include "game/player_valid.h"
+#include "menu/base/util/render_parts.h"
 #include "menu/base/util/input.h"
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/control.h"
@@ -383,7 +384,7 @@ namespace menu {
         // local player exists those dereference a player that is not there. The
         // gate lives here rather than in each callback so it also covers every
         // panel written from now on.
-        if (game::player_valid())
+        if (menu::parts::g_panels && game::player_valid())
             menu::panels::update();
         TICK_TRACE("done");
 

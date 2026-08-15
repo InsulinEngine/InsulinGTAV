@@ -11,6 +11,7 @@
 #include "menu/base/options/submenu_option.h"
 #include "menu/base/options/break.h"
 #include "menu/base/util/notify.h"
+#include "menu/base/util/render_parts.h"
 #include "global/ui_vars.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/natives_hash.h"
@@ -29,6 +30,26 @@ void misc_menu::load() {
     set_parent<main_menu>();
 
     add_option(submenu_option("Camera").add_submenu<misc_camera_menu>());
+
+    // DIAGNOSTICS - bisecting the phone background. One switch per drawn part;
+    // turn them off one at a time and watch which one takes the artefact with it.
+    add_option(toggle_option("[draw] Header")
+        .add_toggle(menu::parts::g_header));
+    add_option(toggle_option("[draw] Background")
+        .add_toggle(menu::parts::g_background));
+    add_option(toggle_option("[draw] Scroller")
+        .add_toggle(menu::parts::g_scroller));
+    add_option(toggle_option("[draw] Footer")
+        .add_toggle(menu::parts::g_footer));
+    add_option(toggle_option("[draw] Scrollbar")
+        .add_toggle(menu::parts::g_scrollbar));
+    add_option(toggle_option("[draw] Option Counter")
+        .add_toggle(menu::parts::g_counter));
+    add_option(toggle_option("[draw] Instructional Bar")
+        .add_toggle(menu::parts::g_instructionals));
+    add_option(toggle_option("[draw] Panels")
+        .add_toggle(menu::parts::g_panels));
+
 
     add_option(submenu_option("Radio").add_submenu<misc_radio_menu>());
     add_option(submenu_option("Visions").add_submenu<misc_visions_menu>());
