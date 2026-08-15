@@ -146,7 +146,13 @@ namespace rage::gfx {
         if (!tex || !tex_name || !tex_name[0]) return false;
         char nm[64]; copy_name(nm, tex_name);
 
-        // Replace an existing entry with the same name (supports reload).
+        // Replace an existing entry with the same name (supports reload). This
+        // drops the displaced grcTexture* on the floor: nothing in this codebase
+        // reverses the engine's texture destructor (rage_alloc above has no
+        // matching free), so a proper release would mean reimplementing that
+        // destructor - real work with real crash risk, and not undertaken here.
+        // Every replace strands the old texture's video memory; the one caller
+        // that replaces routinely (menu::images::apply) logs when it happens.
         for (size_t i = 0; i < m_entries.size(); i++) {
             if (!strcmp(m_entries[i].name, nm)) { m_entries[i].tex = tex; return true; }
         }

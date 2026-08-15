@@ -305,11 +305,37 @@ namespace menu::images {
             return true;
         }
 
+        menu::animated_texture* current_anim = menu::animation::get(anim_name);
+
+        // Re-picking what is already showing is free: nothing is re-decoded,
+        // re-registered or recommitted, and no video memory moves. Requiring
+        // the animation to be ready (not just mt.m_texture matching) matters
+        // because mt.m_texture can already name a picture whose apply() failed
+        // partway through a previous call - that case must still run the real
+        // path below, not bail out here believing it is already showing.
+        if (mt.m_texture == name && current_anim && current_anim->ready())
+            return true;
+
         if (!is_cached(name, s) && !convert(name, s))
             return false;
 
         char dir[320];
         cache_dir_for(s, name, dir, sizeof(dir));
+
+        // texture_dictionary::add_texture (rage/gfx.cpp) replaces an existing
+        // entry in place and never releases the grcTexture it displaces - there
+        // is no release path anywhere in this codebase (rage_alloc has no
+        // matching free). load_from_dir below re-registers this slot's frames
+        // under fixed names ("slot_header_000" etc.), so swapping in a
+        // different picture here strands the previous picture's frames: up to
+        // roughly 4MB for the header, ~33MB for a full 16-frame background.
+        // Warn here, at the point that causes it, so the log names the cost
+        // next to the symptom.
+        if (current_anim && current_anim->ready()) {
+            LOG_WARN("images: replacing %s picture \"%s\" with \"%s\" - the previous frames' "
+                     "video memory is not reclaimed (texture_dictionary::add_texture has no "
+                     "release path)", slot_dir_name(s), mt.m_texture.c_str(), name);
+        }
 
         // Registered under the slot's own name so header and background cannot
         // collide in the dictionary - load_from_dir names textures
