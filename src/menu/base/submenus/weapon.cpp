@@ -1,7 +1,6 @@
 #include "menu/base/submenus/weapon.h"
 #include "menu/base/submenus/main.h"
 #include "menu/base/submenus/weapon_give.h"
-#include "menu/base/submenus/weapon_aimbot.h"
 #include "menu/base/submenus/weapon_disables.h"
 #include "menu/base/submenus/weapon_explosion_gun.h"
 #include "menu/base/submenus/weapon_gravity_gun.h"
@@ -47,7 +46,6 @@ void weapon_menu::load() {
     set_parent<main_menu>();
 
     add_option(submenu_option("Give Weapons and Ammo").add_submenu<weapon_give_menu>());
-    add_option(submenu_option("Aim Assist").add_submenu<weapon_aimbot_menu>());
     add_option(submenu_option("Explosion Gun").add_submenu<weapon_explosion_gun_menu>());
     add_option(submenu_option("Entity Gun").add_submenu<weapon_entity_gun_menu>());
     add_option(submenu_option("Gravity Gun").add_submenu<weapon_gravity_gun_menu>());

@@ -38,7 +38,6 @@
 #include "menu/base/submenus/helper_color_presets.h"
 #include "menu/base/submenus/helper_color_sync.h"
 #include "menu/base/submenus/weapon_give.h"
-#include "menu/base/submenus/weapon_aimbot.h"
 #include "menu/base/submenus/weapon_disables.h"
 #include "menu/base/submenus/spawner.h"
 #include "menu/base/submenus/world.h"
@@ -180,8 +179,6 @@ namespace menu {
         menu::submenu::handler::add_submenu(weapon_menu::get());
         weapon_give_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_give_menu::get());
-        weapon_aimbot_menu::get()->load();
-        menu::submenu::handler::add_submenu(weapon_aimbot_menu::get());
         weapon_disables_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_disables_menu::get());
         spawner_menu::get()->load();
