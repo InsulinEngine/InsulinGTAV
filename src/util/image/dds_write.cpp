@@ -50,23 +50,36 @@ namespace util::image {
 
         // stb_image hands back RGBA; the format above is BGRA. Swap on the way
         // out rather than asking every caller to.
-        size_t n = (size_t)w * (size_t)h * 4u;
-        unsigned char* bgra = (unsigned char*)malloc(n);
-        if (!bgra) return false;
-        for (size_t i = 0; i < n; i += 4) {
-            bgra[i + 0] = rgba[i + 2];
-            bgra[i + 1] = rgba[i + 1];
-            bgra[i + 2] = rgba[i + 0];
-            bgra[i + 3] = rgba[i + 3];
-        }
+        //
+        // One row at a time, not one whole image. This used to allocate a full
+        // w*h*4 copy, which is a second image-sized block held at the same moment
+        // as the decoded source and the scaled copy - and on this console that
+        // third allocation is what failed first: a 1080x1920 JPG decoded fine and
+        // then could not write its frame. A row buffer is 4*w, so the cost stops
+        // scaling with height and the peak during a conversion drops by a whole
+        // image.
+        const size_t row_bytes = (size_t)w * 4u;
+        unsigned char* row = (unsigned char*)malloc(row_bytes);
+        if (!row) return false;
 
         FILE* f = fopen(path, "wb");
-        if (!f) { free(bgra); return false; }
-        bool ok = fwrite(head, 1, sizeof(head), f) == sizeof(head) &&
-                  fwrite(bgra, 1, n, f) == n;
+        if (!f) { free(row); return false; }
+
+        bool ok = fwrite(head, 1, sizeof(head), f) == sizeof(head);
+        for (int y = 0; ok && y < h; y++) {
+            const unsigned char* src = rgba + (size_t)y * row_bytes;
+            for (size_t i = 0; i < row_bytes; i += 4) {
+                row[i + 0] = src[i + 2];
+                row[i + 1] = src[i + 1];
+                row[i + 2] = src[i + 0];
+                row[i + 3] = src[i + 3];
+            }
+            ok = fwrite(row, 1, row_bytes, f) == row_bytes;
+        }
+
         fclose(f);
         if (!ok) remove(path);
-        free(bgra);
+        free(row);
         return ok;
     }
 }
