@@ -356,8 +356,12 @@ int main() {
 
     // Rows are top-down and pixels are copied verbatim.
     const int px_off = 4 + 124 + 20;
-    check("first pixel byte", b[px_off], 0u);
-    check("last pixel byte", b[px_off + w * h * 4 - 1], (unsigned)(w * h * 4 - 1));
+    // px[i] = i going in, and write_dds swaps RGBA to BGRA, so the first byte
+    // out is px[2]. The last byte is the final alpha, which the swap leaves
+    // alone. These are the values the swap produces - if they fail, the writer
+    // and this test genuinely disagree, so fix the writer, not the numbers.
+    check("first pixel byte (B of pixel 0)", b[px_off], 2u);
+    check("last pixel byte (A of last pixel)", b[px_off + w * h * 4 - 1], (unsigned)(w * h * 4 - 1));
 
     free(b);
     printf(g_failed ? "\n%d FAILED\n" : "\nall passed\n", g_failed);
@@ -470,10 +474,6 @@ namespace util::image {
     }
 }
 ```
-
-Note the test writes `px[i] = i`, so with the channel swap the first byte out is
-`px[2]`, not `px[0]`. Update the two pixel assertions in the test to match the
-swap once you see it fail — that failure is the test doing its job, not a bug.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
@@ -702,6 +702,7 @@ Directory scanning follows `menu::theme::list()` in `src/menu/base/util/theme.cp
 ```cpp
 #include "menu/base/util/menu_images.h"
 #include "menu/base/util/animated_texture.h"
+#include "global/ui_vars.h"          // apply() writes m_header / m_background
 #include "platform/paths.h"
 #include "platform/log.h"
 #include "rage/gfx.h"
