@@ -9,11 +9,13 @@ namespace platform {
 
         int r = sceKernelMkdir(OZARK_DIR, 0777);
 
-        // Report once, and report the failure too. The folder this replaces was
-        // created by an unchecked sceKernelMkdir, and on this console it never
-        // appeared at all - which means every "savable" option silently wrote
-        // nothing and no theme ever survived a restart. Nobody could see that,
-        // because a failing mkdir looked exactly like a succeeding one.
+        // Report once, and report the failure too, because the call this replaces
+        // did not: it was an unchecked sceKernelMkdir, so a failure and a success
+        // looked identical. When neither of the old folders turned up on this
+        // console we had no way to tell whether the directory was never created
+        // or had simply been deleted. It creates fine - measured, 0x00000000 -
+        // so the absence had some other cause. The line stays so the question is
+        // answerable next time instead of guessable.
         //
         // 0 is success; 0x80020011 is "already exists", which is the normal case
         // from the second boot onward and not a problem.
