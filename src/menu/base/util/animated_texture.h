@@ -79,5 +79,12 @@ namespace menu {
         // Banner frame if the animation named "banner" is loaded and ready,
         // otherwise the static {"insulin", "logo"} pair.
         stl::pair<stl::string, stl::string> header_asset();
+
+        // Current frame of `anim_name` if that animation is loaded and ready,
+        // otherwise the still texture `still_name` in the same dictionary. The
+        // header's own helper stays as it is - the banner button predates slots and
+        // still has its own name.
+        stl::pair<stl::string, stl::string> slot_asset(const char* anim_name,
+                                                        const stl::string& still_name);
     }
 }

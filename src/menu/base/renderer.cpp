@@ -45,10 +45,14 @@ namespace menu::renderer {
         // it into the txd store as "insulin"/"logo"; draw it at full colour.
         // Otherwise fall back to the sentinel / game header texture.
         stl::pair<stl::string, stl::string> texture = get_texture(global::ui::m_header);
-        // Header source, in order: the "banner" animation's current frame, the
-        // static custom logo, then the game/sentinel texture below.
+        // Header source, in order: the "slot_header" animation's current frame,
+        // the "banner" animation's current frame, the static custom logo, then
+        // the game/sentinel texture below.
+        menu::animated_texture* slot_anim = menu::animation::get("slot_header");
         menu::animated_texture* banner_anim = menu::animation::get("banner");
-        if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
+        if (slot_anim && slot_anim->ready()) {
+            draw_sprite_aligned(menu::animation::slot_asset("slot_header", global::ui::m_header.m_texture), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
+        } else if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
             draw_sprite_aligned(menu::animation::header_asset(), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
         } else {
             draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
@@ -56,8 +60,16 @@ namespace menu::renderer {
 
         // background
         texture = get_texture(global::ui::m_background);
-        if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
-        draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale }, 0.f, global::ui::g_background);
+        menu::animated_texture* bg_anim = menu::animation::get("slot_background");
+        if (bg_anim && bg_anim->ready()) {
+            draw_sprite_aligned(menu::animation::slot_asset("slot_background", global::ui::m_background.m_texture),
+                                global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale },
+                                0.f, { 255, 255, 255, 255 });
+        } else {
+            if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
+            draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale },
+                                0.f, global::ui::g_background);
+        }
 
         // scroller
         if (global::ui::g_scroll_lerp) {
