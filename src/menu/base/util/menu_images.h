@@ -31,4 +31,16 @@ namespace menu::images {
     // slot at it. Converts first if needed. `name` of nullptr or "" clears the
     // slot back to its solid colour.
     bool apply(const char* name, slot s);
+
+    // Record a slot's wanted picture without touching the engine. Safe during
+    // menu::build(): it copies a name into a buffer and nothing else. The real
+    // apply() happens on the next tick, from update(). `name` of nullptr or ""
+    // records a clear.
+    void request(const char* name, slot s);
+
+    // Perform at most one pending request (recorded via request()). Called
+    // once per frame from menu::tick(), inside the game::player_valid() gate -
+    // never from build(). Decoding an image and injecting a texture
+    // dictionary are engine work that does not belong in the boot window.
+    void update();
 }

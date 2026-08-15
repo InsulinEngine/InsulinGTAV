@@ -360,4 +360,54 @@ namespace menu::images {
         menu::textures::load();
         return true;
     }
+
+    // ---- request / update (deferred apply) -------------------------------
+    //
+    // theme::load_file() runs inside menu::build() (by way of
+    // apply_last_theme()), before the frame hook exists and possibly before
+    // the game has finished loading. apply() above decodes an image, resizes
+    // it, writes DDS frames and injects a texture dictionary - none of that
+    // is legal there. request() records what the caller wants without doing
+    // any of it; update() performs it later, from menu::tick().
+    //
+    // State is file-scope POD - plain bool/char, zero-initialised in .bss by
+    // the loader - because this plugin runs no .init_array, so nothing with a
+    // constructor (an stl::string included) may live at file scope.
+    namespace {
+        bool g_header_pending = false;
+        char g_header_pending_name[128];
+        bool g_background_pending = false;
+        char g_background_pending_name[128];
+    }
+
+    void request(const char* name, slot s) {
+        char* buf = (s == slot::header) ? g_header_pending_name : g_background_pending_name;
+
+        size_t n = name ? strlen(name) : 0;
+        if (n > sizeof(g_header_pending_name) - 1) n = sizeof(g_header_pending_name) - 1;
+        if (n) memcpy(buf, name, n);
+        buf[n] = 0;
+
+        if (s == slot::header) g_header_pending = true;
+        else                   g_background_pending = true;
+    }
+
+    void update() {
+        // At most one pending request per call, so a theme that names both a
+        // header and a background picture spreads their (potentially costly,
+        // first-time) conversion across two frames instead of stalling one.
+        if (g_header_pending) {
+            g_header_pending = false;   // cleared first: a failing convert must not retry forever
+            const char* n = g_header_pending_name[0] ? g_header_pending_name : nullptr;
+            if (!apply(n, slot::header))
+                LOG_WARN("theme: header image \"%s\" not available", g_header_pending_name);
+            return;
+        }
+        if (g_background_pending) {
+            g_background_pending = false;
+            const char* n = g_background_pending_name[0] ? g_background_pending_name : nullptr;
+            if (!apply(n, slot::background))
+                LOG_WARN("theme: background image \"%s\" not available", g_background_pending_name);
+        }
+    }
 }

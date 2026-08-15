@@ -1,4 +1,5 @@
 #include "menu/base/util/theme.h"
+#include "menu/base/util/menu_images.h"
 #include "platform/paths.h"
 #include "global/ui_vars.h"
 #include "util/json.h"
@@ -104,6 +105,9 @@ namespace menu::theme {
         root["misc"]["smooth_speed"] = tj::json((double)g_scroll_lerp_speed);
         root["misc"]["wrap"] = tj::json((double)g_wrap);
 
+        root["images"]["header"]     = tj::json(global::ui::m_header.m_texture.c_str());
+        root["images"]["background"] = tj::json(global::ui::m_background.m_texture.c_str());
+
         char path[256];
         snprintf(path, sizeof(path), "%s/%s.json", dir(), name);
         root.save_to_file(path, 2);
@@ -132,6 +136,26 @@ namespace menu::theme {
                 c.p->a = (int)o->value_int("a", c.p->a);
             }
         }
+        // Convert-or-load, exactly as picking would - just not here. load_file
+        // runs inside menu::build() (via apply_last_theme()), so this only
+        // records the wanted picture; menu::images::update() (wired into
+        // menu::tick()) performs the actual apply() next frame. A theme naming
+        // a picture this console does not have leaves that slot alone and says
+        // so, rather than failing the whole theme.
+        const tj::json* imgs = root.try_get("images");
+        if (imgs) {
+            // json.h has value_bool / value_int / value_float but NO
+            // value_string - read the child and check its type by hand, same
+            // shape animated_texture.cpp uses for frames.json.
+            const tj::json* hj = imgs->try_get("header");
+            const tj::json* bj = imgs->try_get("background");
+            const char* h = (hj && hj->is_string()) ? hj->get_string() : "";
+            const char* b = (bj && bj->is_string()) ? bj->get_string() : "";
+
+            if (h[0]) menu::images::request(h, menu::images::slot::header);
+            if (b[0]) menu::images::request(b, menu::images::slot::background);
+        }
+
         const tj::json* fonts = root.try_get("fonts");
         if (fonts) for (nf& f : FONTS) {
             const tj::json* v = fonts->try_get(f.name);
@@ -213,5 +237,12 @@ namespace menu::theme {
         g_notify_background = { 40, 40, 40, 255 }; g_panel_bar = { 220, 76, 81, 255 }; g_stacked_display_bar = { 220, 76, 81, 255 };
         g_stacked_display_background = { 0, 0, 0, 180 }; g_panel_background = { 0, 0, 0, 180 }; g_hotkey_background = { 0, 0, 0, 180 };
         g_color_grid_background = { 0, 0, 0, 180 }; g_hotkey_input = { 40, 40, 40, 200 }; g_instructional_background = { 0, 0, 0, 255 };
+
+        // Route through request() too, the same one rule as load_file() above,
+        // so there is no "which calls are safe where" to remember. update()
+        // turns an empty name into apply(nullptr, s), which clears the slot's
+        // animation and flags.
+        menu::images::request(nullptr, menu::images::slot::header);
+        menu::images::request(nullptr, menu::images::slot::background);
     }
 }
