@@ -77,6 +77,7 @@ enum {
     INPUT_VEH_HEADLIGHT = 74,
     INPUT_VEH_RADIO_WHEEL = 85,
     INPUT_VEH_SELECT_NEXT_WEAPON = 99,
+    INPUT_PHONE = 27,              // D-pad up on console - collides with menu nav
     INPUT_MELEE_ATTACK_LIGHT = 140,
     INPUT_MELEE_ATTACK_HEAVY = 141,
     INPUT_MELEE_BLOCK = 143,

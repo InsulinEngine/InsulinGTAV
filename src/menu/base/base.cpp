@@ -17,6 +17,15 @@ namespace menu::base {
             native::set_input_exclusive(2, INPUT_FRONTEND_UP);
             native::set_input_exclusive(2, INPUT_FRONTEND_LEFT);
             native::set_input_exclusive(2, INPUT_FRONTEND_RIGHT);
+            // NOT in Ozark's list, and the one place this deliberately diverges
+            // from it. Ozark's list is PC-shaped: there, menu navigation is the
+            // arrow keys and nothing else answers to them. On console the menu is
+            // driven by the D-pad, and D-pad up is INPUT_PHONE - so every "up"
+            // press also told the game to get the phone out. Ozark's author had
+            // already patched the neighbouring console collisions (character
+            // wheel on down, radio wheel on left/right, both below) and missed
+            // this one.
+            native::disable_control_action(0, INPUT_PHONE, true);
             native::disable_control_action(0, INPUT_VEH_SELECT_NEXT_WEAPON, true);
             native::disable_control_action(0, INPUT_FRONTEND_RIGHT, true);
             native::disable_control_action(0, INPUT_FRONTEND_DOWN, true);
