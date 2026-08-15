@@ -58,7 +58,7 @@ void settings_images_menu::update_once() {
                 if (i >= (int)list.size()) return;
                 menu::notify::stacked("Images", "Loading...");
                 if (menu::images::apply(list[i].c_str(), menu::images::slot::header)) {
-                    menu::notify::stacked("Images", "Header set", global::ui::g_success);
+                    menu::notify::stacked("Images", "Header set - Save Theme to keep it", global::ui::g_success);
                     g_images_dirty = true;
                 } else {
                     menu::notify::stacked("Images", "Could not load that picture", global::ui::g_error);
@@ -85,7 +85,7 @@ void settings_images_menu::update_once() {
                 if (i >= (int)list.size()) return;
                 menu::notify::stacked("Images", "Loading...");
                 if (menu::images::apply(list[i].c_str(), menu::images::slot::background)) {
-                    menu::notify::stacked("Images", "Background set", global::ui::g_success);
+                    menu::notify::stacked("Images", "Background set - Save Theme to keep it", global::ui::g_success);
                     g_images_dirty = true;
                 } else {
                     menu::notify::stacked("Images", "Could not load that picture", global::ui::g_error);

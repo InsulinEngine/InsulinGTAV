@@ -8,6 +8,12 @@ namespace platform {
         static bool s_reported = false;
 
         int r = sceKernelMkdir(OZARK_DIR, 0777);
+        // Nested under OZARK_DIR, created right after it so the parent already
+        // exists. On a fresh install nothing has ever put this folder there, so
+        // without it list_sources() (menu_images.cpp) finds nothing to scan and
+        // Settings -> Themes -> Menu Images shows two lone "None" entries with
+        // no hint that a picture needs to go somewhere first.
+        int ri = sceKernelMkdir(OZARK_IMAGES, 0777);
 
         // Report once, and report the failure too, because the call this replaces
         // did not: it was an unchecked sceKernelMkdir, so a failure and a success
@@ -23,6 +29,8 @@ namespace platform {
             s_reported = true;
             klogf("paths: mkdir(\"%s\") -> 0x%08X%s", OZARK_DIR, (unsigned)r,
                   (r == 0 || (unsigned)r == 0x80020011u) ? " (ok)" : " *** FAILED ***");
+            klogf("paths: mkdir(\"%s\") -> 0x%08X%s", OZARK_IMAGES, (unsigned)ri,
+                  (ri == 0 || (unsigned)ri == 0x80020011u) ? " (ok)" : " *** FAILED ***");
         }
     }
 }

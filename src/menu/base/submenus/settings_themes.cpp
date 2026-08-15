@@ -53,7 +53,9 @@ void settings_themes_menu::load() {
             menu::notify::stacked("Theme", "Reset to default");
         }));
 
-    add_option(submenu_option("Menu Images").add_submenu<settings_images_menu>());
+    add_option(submenu_option("Menu Images")
+        .add_submenu<settings_images_menu>()
+        .add_tooltip("Header/background pictures are part of the theme - kept with Save Theme, like the colours"));
 
     add_option(break_option("Colours").ref());
 
