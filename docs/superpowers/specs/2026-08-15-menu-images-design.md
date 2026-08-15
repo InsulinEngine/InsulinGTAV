@@ -208,11 +208,37 @@ is truncated and the user is told, so a 26-frame source loops visibly short.
 At the size maxima, 16 frames of background is 33 MB resident and the header
 4 MB.
 
-**Sources are refused above 4096 in either dimension.** `stb_image` decodes
-every GIF frame at full source resolution in one allocation, before the frame
-cap and before downscaling — a 1080p 60-frame GIF is roughly 500 MB inside the
-game process. The dimension guard bounds the common case. Frame count cannot be
-known before decoding, so a small-but-very-long GIF is still unbounded.
+**Sources are refused above 4096 in either dimension, or above a 12 MB decode
+peak.** This one was found on hardware, not reasoned out, and the reasoning that
+preceded it was wrong twice over.
+
+`stb_image` grows an animated GIF's buffer with one realloc per frame, so near
+the end the old and new buffers are both live and the peak is close to **twice**
+the final size. Measured on this console: a 1080×1920 still needs 8.3 MB and
+decodes fine in 230 ms; a 1245×960 four-frame GIF needs 19.1 MB final, 31.9 MB
+peak, and took the game down.
+
+It took the game down rather than failing because `stbi__load_gif_main` takes the
+first frame's buffer with an unchecked `stbi__malloc` and `memcpy`s into it
+regardless, so the failure lands as a write to address 0. The per-frame
+`*delays` realloc is unchecked the same way. That is upstream code, and the PS4
+build resolves `<stb/stb_image.h>` from the toolchain, so patching the vendored
+copy would change nothing on the console.
+
+So the peak is computed before decoding — `probe_file` counts a GIF's frames out
+of its own block structure without decoding anything — and a source over 12 MB is
+refused with its real size and frame count. 12 MB sits above the largest peak
+measured working and well below the one measured fatal; it is a floor to raise
+with evidence, and the computed peak is logged on every conversion so that
+evidence exists. `STBI_MALLOC`/`STBI_REALLOC` are ours (the implementation is
+compiled in our own translation unit), so an allocation that fails anyway is
+reported by size instead of being guessed at.
+
+A frame is written a row at a time for the same reason: the old code allocated a
+full `w*h*4` BGRA copy, a third image-sized block live alongside the decoded
+source and the scaled copy, and that was the allocation that failed first on a
+1080×1920 JPG — reporting the picture as unloadable for a reason that had nothing
+to do with the picture.
 
 **The shared dictionary holds 64 textures.** Animation frames re-register under
 fixed per-slot names and stay capped at 32 for both slots, but each distinct
