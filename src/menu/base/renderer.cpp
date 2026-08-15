@@ -1,5 +1,4 @@
 #include "renderer.h"
-#include "menu/base/util/render_parts.h"
 #include "base.h"
 #include "submenu_handler.h"
 #include "rage/invoker/natives.h"
@@ -52,19 +51,16 @@ namespace menu::renderer {
         // Header source, in order: the "banner" animation's current frame, the
         // static custom logo, then the game/sentinel texture below.
         menu::animated_texture* banner_anim = menu::animation::get("banner");
-        if (menu::parts::g_header) {
-            if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
-                draw_sprite_aligned(menu::animation::header_asset(), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
-            } else {
-                draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
-            }
+        if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
+            draw_sprite_aligned(menu::animation::header_asset(), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
+        } else {
+            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
         }
 
         // background
         texture = get_texture(global::ui::m_background);
         if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
-        if (menu::parts::g_background)
-            draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale }, 0.f, global::ui::g_background);
+        draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale }, 0.f, global::ui::g_background);
 
         // scroller
         if (global::ui::g_scroll_lerp) {
@@ -72,8 +68,7 @@ namespace menu::renderer {
         } else m_smooth_scroll = global::ui::g_position.y + (scroller_position * global::ui::g_option_scale);
 
         texture = get_texture(global::ui::m_scroller);
-        if (menu::parts::g_scroller)
-            draw_sprite_aligned(texture, { global::ui::g_position.x, m_smooth_scroll }, { global::ui::g_scale.x, global::ui::g_option_scale }, 0.f, global::ui::g_scroller);
+        draw_sprite_aligned(texture, { global::ui::g_position.x, m_smooth_scroll }, { global::ui::g_scale.x, global::ui::g_option_scale }, 0.f, global::ui::g_scroller);
 
         stl::vector<stl::shared_ptr<base_option>> options = menu::submenu::handler::get_current()->get_options();
         int count = stl::count_if(options.begin(), options.end(), [](stl::shared_ptr<base_option> option) { return option->is_visible(); });
@@ -85,15 +80,13 @@ namespace menu::renderer {
 
         // footer
         texture = get_texture(global::ui::m_footer);
-        if (menu::parts::g_footer) {
         draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y + (render_count * global::ui::g_option_scale) }, { global::ui::g_scale.x, global::ui::g_option_scale }, 0.f, global::ui::g_footer);
 
         draw_sprite({ "commonmenu", "shop_arrows_upanddown" }, { global::ui::g_position.x + ((global::ui::g_scale.x) * 0.5f), global::ui::g_position.y + (render_count * global::ui::g_option_scale) + (global::ui::g_option_scale * 0.5f) }, { 0.015f, 0.027f }, 0.f, { 255, 255, 255, 255 });
-        }
 
         // proportional scrollbar on the right edge when the list is longer than
         // the visible window (thumb size = visible/total, thumb pos = offset/total).
-        if (menu::parts::g_scrollbar && total_options > max_options) {
+        if (total_options > max_options) {
             const float track_x = global::ui::g_position.x + global::ui::g_scale.x - 0.0035f;
             const float track_h = max_options * global::ui::g_option_scale;
             const float thumb_h = track_h * ((float)max_options / (float)total_options);
@@ -106,7 +99,6 @@ namespace menu::renderer {
         // option counter
         char counter[50];
         snprintf(counter, sizeof(counter), "%i ~s~&#8226; %i", current_option + 1, count);
-        if (menu::parts::g_counter)
         draw_text(counter, { global::ui::g_position.x + 0.004f, global::ui::g_position.y + (render_count * global::ui::g_option_scale) + 0.004f }, get_normalized_font_scale(global::ui::g_sub_header_font, 0.30f), global::ui::g_sub_header_font, global::ui::g_sub_header_text, JUSTIFY_RIGHT, { 0.f, (1.0f - (1.0f - (global::ui::g_position.x + (0.315f / 2.f) - (0.23f - global::ui::g_scale.x)) - .068f)) });
     }
 

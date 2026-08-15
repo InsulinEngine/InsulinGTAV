@@ -2,7 +2,6 @@
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "global/ui_vars.h"
-#include "menu/base/util/render_parts.h"
 
 namespace instructionals {
     // Minimal key-name table for the vk instructional path (hotkey feature).
@@ -11,8 +10,6 @@ namespace instructionals {
     static const char* g_key_names_instructional[256] = { "" };
 
     void instructionals::setup() {
-        if (!menu::parts::g_instructionals) { m_count = 0; return; }
-
         // Resolve the handle by NAME every frame; never trust a cached index.
         //
         // Scaleform handles are pool indices. The game tears its movies down and
@@ -95,8 +92,6 @@ namespace instructionals {
     }
 
     void instructionals::close() {
-        if (!menu::parts::g_instructionals) { m_count = 0; return; }
-
         native::push_scaleform_movie_function(m_handle, "SET_BACKGROUND_COLOUR");
         native::push_scaleform_movie_function_parameter_int(global::ui::g_instructional_background.r);
         native::push_scaleform_movie_function_parameter_int(global::ui::g_instructional_background.g);
