@@ -41,7 +41,6 @@ namespace menu::renderer {
     private:
         float m_smooth_scroll = global::ui::g_position.y;
         int m_render_count;
-        int m_globe_handle;
     };
 
     renderer* get_renderer();

@@ -27,7 +27,7 @@ namespace menu::theme {
         {"color_grid_bar",&g_color_grid_bar},{"notify_bar",&g_notify_bar},{"notify_background",&g_notify_background},
         {"panel_bar",&g_panel_bar},{"stacked_display_bar",&g_stacked_display_bar},{"stacked_display_background",&g_stacked_display_background},
         {"panel_background",&g_panel_background},{"hotkey_background",&g_hotkey_background},{"color_grid_background",&g_color_grid_background},
-        {"hotkey_input",&g_hotkey_input},{"instructional_background",&g_instructional_background},{"globe",&g_globe},
+        {"hotkey_input",&g_hotkey_input},{"instructional_background",&g_instructional_background},
     };
 
     int color_count() { return (int)(sizeof(COLORS) / sizeof(COLORS[0])); }
@@ -76,7 +76,7 @@ namespace menu::theme {
     static nv POS[] = {
         {"position",&g_position},{"scale",&g_scale},{"submenu_arrow_position",&g_submenu_arrow_position},
         {"submenu_arrow_scale",&g_submenu_arrow_scale},{"toggle_position",&g_toggle_position},{"toggle_scale",&g_toggle_scale},
-        {"globe_position",&g_globe_position},{"globe_scale",&g_globe_scale},{"stacked_display_scale",&g_stacked_display_scale},
+        {"stacked_display_scale",&g_stacked_display_scale},
         {"stacked_display_position",&g_stacked_display_position},
     };
 
@@ -99,7 +99,6 @@ namespace menu::theme {
             o["x"] = tj::json((double)v.p->x);
             o["y"] = tj::json((double)v.p->y);
         }
-        root["misc"]["globe"] = tj::json(g_render_globe);
         root["misc"]["smooth"] = tj::json(g_scroll_lerp);
         root["misc"]["smooth_speed"] = tj::json((double)g_scroll_lerp_speed);
         root["misc"]["wrap"] = tj::json((double)g_wrap);
@@ -147,7 +146,6 @@ namespace menu::theme {
         }
         const tj::json* misc = root.try_get("misc");
         if (misc) {
-            g_render_globe = misc->value_bool("globe", g_render_globe);
             g_scroll_lerp = misc->value_bool("smooth", g_scroll_lerp);
             g_scroll_lerp_speed = (float)misc->value_float("smooth_speed", g_scroll_lerp_speed);
             g_wrap = (float)misc->value_float("wrap", g_wrap);
@@ -194,7 +192,7 @@ namespace menu::theme {
 
     // ---- default palette ----------------------------------------------------
     void reset_to_default() {
-        g_render_globe = true; g_scroll_lerp = true; g_scroll_lerp_speed = 25.f; g_wrap = 0.063f;
+        g_scroll_lerp = true; g_scroll_lerp_speed = 25.f; g_wrap = 0.063f;
 
         g_header_font = 0; g_sub_header_font = 4; g_option_font = 4; g_open_tooltip_font = 4; g_tooltip_font = 4;
         g_stacked_display_font = 0; g_notify_title_font = 0; g_notify_body_font = 0; g_panel_font = 4;
@@ -202,7 +200,6 @@ namespace menu::theme {
         g_position = { 0.70f, 0.3f }; g_scale = { 0.22f, 0.f };
         g_submenu_arrow_position = { 0.218f, 0.010f }; g_submenu_arrow_scale = { 0.007f, 0.013f };
         g_toggle_position = { 0.221f, 0.016f }; g_toggle_scale = { 0.007f, 0.011f };
-        g_globe_position = { 0.4405f, 0.328f }; g_globe_scale = { 0.978f, 0.906f };
         g_stacked_display_scale = { 0.15f, 0.015f }; g_stacked_display_position = { 0.845f, 0.01f };
 
         g_success = { 70, 219, 37, 255 }; g_error = { 219, 37, 37, 255 }; g_main_header = { 220, 76, 81, 255 };
@@ -215,6 +212,5 @@ namespace menu::theme {
         g_notify_background = { 40, 40, 40, 255 }; g_panel_bar = { 220, 76, 81, 255 }; g_stacked_display_bar = { 220, 76, 81, 255 };
         g_stacked_display_background = { 0, 0, 0, 180 }; g_panel_background = { 0, 0, 0, 180 }; g_hotkey_background = { 0, 0, 0, 180 };
         g_color_grid_background = { 0, 0, 0, 180 }; g_hotkey_input = { 40, 40, 40, 200 }; g_instructional_background = { 0, 0, 0, 255 };
-        g_globe = { 255, 255, 255, 255 };
     }
 }

@@ -11,6 +11,7 @@
 #include "menu/base/options/submenu_option.h"
 #include "menu/base/options/break.h"
 #include "menu/base/util/notify.h"
+#include "global/ui_vars.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/natives_hash.h"
 
@@ -28,6 +29,7 @@ void misc_menu::load() {
     set_parent<main_menu>();
 
     add_option(submenu_option("Camera").add_submenu<misc_camera_menu>());
+
     add_option(submenu_option("Radio").add_submenu<misc_radio_menu>());
     add_option(submenu_option("Visions").add_submenu<misc_visions_menu>());
     add_option(submenu_option("Disables").add_submenu<misc_disables_menu>());

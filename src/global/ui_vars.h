@@ -91,7 +91,6 @@ namespace global::ui {
     extern bool g_stop_rendering;
     extern bool g_render_tooltip;
     extern bool g_rendering_color;
-    extern bool g_render_globe;
     extern bool g_disable_title;
     extern bool g_scroll_lerp;
     extern bool g_input_open;
@@ -116,8 +115,6 @@ namespace global::ui {
     extern math::vector2<float> g_submenu_arrow_scale;
     extern math::vector2<float> g_toggle_position;
     extern math::vector2<float> g_toggle_scale;
-    extern math::vector2<float> g_globe_position;
-    extern math::vector2<float> g_globe_scale;
     extern math::vector2<float> g_stacked_display_scale;
     extern math::vector2<float> g_stacked_display_position;
 
@@ -149,7 +146,6 @@ namespace global::ui {
     extern color_rgba g_hotkey_background;
     extern color_rgba g_hotkey_input;
     extern color_rgba g_instructional_background;
-    extern color_rgba g_globe;
     extern color_rgba g_color_grid_background;
     extern color_rgba g_color_grid_bar;
 

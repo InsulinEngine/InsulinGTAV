@@ -61,7 +61,7 @@ namespace native {
         return false;
     }
 
-    // --- scaleform method natives (renderer globe) ------------------------
+    // --- scaleform method natives (instructional bar) ----------------------
     // These are the modern names for BEGIN/END_SCALEFORM_MOVIE_METHOD +
     // SCALEFORM_MOVIE_METHOD_ADD_PARAM_FLOAT, whose RVAs are the v1.57-validated
     // ones already used by scaleform.h (sf::). natives.h omits these names.
@@ -90,10 +90,16 @@ namespace native {
         return rage::invoker::invoke<Void>(0x9D1A50, value);
     }
 
-    // Camera rotation (globe spin). Fallback {0,0,0} -> the globe renders but
-    // does not spin. Returning by value avoids the native's Vector3-return path
-    // (unverified through this invoker). TODO: verify GET_GAMEPLAY_CAM_ROT if the
-    // spin is wanted.
+    // Camera rotation. STILL A STUB, and no longer a cosmetic one: the globe it
+    // was written for is gone, but game/aim_ray.h, weapon_gravity_gun.cpp and
+    // player.cpp all derive directions from this. They are getting {0,0,0}, so
+    // every one of them behaves as if the camera pointed along a fixed axis.
+    // The fix is no longer an RVA hunt - GET_GAMEPLAY_CAM_ROT is in the source
+    // header as hash 0xD84A545408A3099A, so deleting this stub lets
+    // gen_hash_natives.py emit the real wrapper (see the note at the top of this
+    // file about stubs shadowing generated natives). Left in place only because
+    // it returns a Vector3, whose struct-return path through this invoker is the
+    // thing that needs verifying first.
     static math::vector3<float> get_gameplay_cam_rot(int /*rotationOrder*/) {
         return math::vector3<float>(0.f, 0.f, 0.f);
     }

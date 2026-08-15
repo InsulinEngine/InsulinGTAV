@@ -57,25 +57,6 @@ namespace menu::renderer {
             draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
         }
 
-        // globe
-        if (global::ui::g_render_globe) {
-            if (!native::has_scaleform_movie_loaded(m_globe_handle)) {
-                m_globe_handle = native::request_scaleform_movie("MP_MENU_GLARE");
-            } else {
-                float rotation = native::get_gameplay_cam_rot(2).z;
-                rotation -= roundf(rotation / 360.0f) * 360.0f;
-                if (rotation < 0.f) {
-                    rotation += 360.0f;
-                }
-
-                native::push_scaleform_movie_function(m_globe_handle, "SET_DATA_SLOT");
-                native::push_scaleform_movie_function_parameter_float(rotation);
-                native::pop_scaleform_movie_function_void();
-            }
-
-            native::draw_scaleform_movie(m_globe_handle, global::ui::g_position.x + global::ui::g_globe_position.x, global::ui::g_position.y + global::ui::g_globe_position.y, global::ui::g_globe_scale.x, global::ui::g_globe_scale.y, global::ui::g_globe.r, global::ui::g_globe.g, global::ui::g_globe.b, global::ui::g_globe.a, 0);
-        }
-
         // background
         texture = get_texture(global::ui::m_background);
         if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
