@@ -119,10 +119,18 @@ namespace menu::renderer {
         }
 
         if (menu::submenu::handler::get_current() == main_menu::get()) {
-            // A loaded custom banner IS the branding -- drop the øZARK title text
-            // so it doesn't overlap the header image.
+            menu::animated_texture* slot_anim  = menu::animation::get("slot_header");
             menu::animated_texture* title_anim = menu::animation::get("banner");
-            if (!rage::gfx::banner_ready() && !(title_anim && title_anim->ready())) {
+            // Any picture in the header is the branding, whether it came from the
+            // banner button or from the image picker, and whether it animates or
+            // not. m_enabled covers the still-only case, where a picture is applied
+            // but its animation is not ready.
+            const bool header_shows_a_picture =
+                (slot_anim && slot_anim->ready()) ||
+                (title_anim && title_anim->ready()) ||
+                rage::gfx::banner_ready() ||
+                global::ui::m_header.m_enabled;
+            if (!header_shows_a_picture) {
                 draw_text("~s~&#248;ZARK " VERSION_TYPE, { global::ui::g_position.x + 0.005f, global::ui::g_position.y - 0.061f }, 0.77f, global::ui::g_header_font, global::ui::g_title, JUSTIFY_LEFT);
             }
         } else {
