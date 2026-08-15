@@ -48,10 +48,17 @@ namespace util::image {
                                                       &out->w, &out->h, &z, &comp, 4);
         if (px) {
             free(buf);
+            // z is documented as the frame count and stb only ever hands back
+            // a null px when z == 0, so the ?: 1 below is currently dead - but
+            // that is today's stb behaviour, not a contract, so the guard stays.
             out->frames = z > 0 ? z : 1;
             out->rgba = px;
             out->delays_ms = (int*)malloc(sizeof(int) * (size_t)out->frames);
-            if (!out->delays_ms) { free_decoded(out); return false; }
+            if (!out->delays_ms) {
+                if (delays) STBI_FREE(delays);   // stb's buffer, before we bail
+                free_decoded(out);
+                return false;
+            }
             for (int i = 0; i < out->frames; i++) {
                 int d = delays ? delays[i] : 0;
                 out->delays_ms[i] = d >= k_min_delay_ms ? d : k_min_delay_ms;

@@ -8,11 +8,6 @@
 
 static int g_failed = 0;
 
-static void check(const char* what, int got, int want) {
-    if (got != want) { printf("FAIL %s: got %d, want %d\n", what, got, want); g_failed++; }
-    else             { printf("ok   %s = %d\n", what, got); }
-}
-
 static void check_true(const char* what, bool cond) {
     if (!cond) { printf("FAIL %s\n", what); g_failed++; }
     else       { printf("ok   %s\n", what); }
