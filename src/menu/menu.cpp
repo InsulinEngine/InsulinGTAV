@@ -114,7 +114,6 @@ namespace menu {
         util::config::load();
         menu::submenu::handler::load();   // m_current = main_menu::get()
         main_menu::get()->load();
-        demo_child::get()->load();
 
         // Feature submenus: load + register so their feature_update runs each frame.
         player_menu::get()->load();
