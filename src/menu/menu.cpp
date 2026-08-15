@@ -88,6 +88,7 @@
 #include "menu/panels/builtin_panels.h"
 #include "menu/base/util/animated_texture.h"
 #include "menu/base/util/rainbow.h"
+#include "menu/base/util/textures.h"
 #include "util/config.h"
 #include "global/ui_vars.h"
 #include "platform/system_ui.h"
@@ -111,6 +112,7 @@ namespace menu {
         // add_savable() reads the persisted value.
         global::ui::init();
         util::config::load();
+        menu::textures::load();           // reads /data/Ozark/images only - no natives, safe here
         menu::submenu::handler::load();   // m_current = main_menu::get()
         main_menu::get()->load();
 

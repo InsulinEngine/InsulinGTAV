@@ -18,14 +18,11 @@ namespace menu::renderer {
     stl::pair<stl::string, stl::string> renderer::get_texture(menu_texture texture) {
         if (texture.m_texture != "sa7anisafaggot") {
             if (texture.m_enabled) {
-                stl::vector<menu::textures::texture_context> list = menu::textures::get_list();
+                stl::vector<menu::textures::texture_context>& list = menu::textures::get_list();
 
-                int texture_index = texture.m_context.m_selected;
-                if (texture_index < (int)list.size()) {
-                    auto vit = stl::find_if(list.begin(), list.end(), [=](menu::textures::texture_context& context) { return context.m_name == texture.m_texture; });
-                    if (vit != list.end()) {
-                        return { "ozarktextures", vit->m_name };
-                    }
+                auto vit = stl::find_if(list.begin(), list.end(), [=](menu::textures::texture_context& context) { return context.m_name == texture.m_texture; });
+                if (vit != list.end()) {
+                    return { "insulin", vit->m_name };
                 }
             }
         }
@@ -284,7 +281,7 @@ namespace menu::renderer {
         // the header/scroller/footer bars show as solid colour without any PNG.
         if (asset.first == "randomha") { draw_rect_unaligned(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 
@@ -297,7 +294,7 @@ namespace menu::renderer {
         // See draw_sprite: sentinel -> solid colour quad (aligned).
         if (asset.first == "randomha") { draw_rect(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 

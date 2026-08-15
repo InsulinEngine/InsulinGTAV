@@ -17,6 +17,12 @@ void button_option::render(int position) {
     menu::renderer::draw_text(m_name.get(), { global::ui::g_position.x + 0.004f + m_offset, global::ui::g_position.y + (position * global::ui::g_option_scale) + 0.004f }, menu::renderer::get_normalized_font_scale(global::ui::g_option_font, global::ui::g_option_height), global::ui::g_option_font, color);
 
     if (m_keyboard.m_enabled) {
+        // "ozarktextures" is Ozark's PC-side YTD, which this port does not ship;
+        // keyboard.png resolves nowhere. Reachable only via add_keyboard(), which
+        // no submenu calls, so it never draws today. Note for whoever changes
+        // that: draw_sprite used to skip the streaming request for this exact
+        // name, and that special case is gone as of this commit, so enabling a
+        // keyboard option will now request a dictionary that does not exist.
         menu::renderer::draw_sprite({ "ozarktextures", "keyboard.png" }, { global::ui::g_position.x + 0.209f - (0.22f - global::ui::g_scale.x), global::ui::g_position.y + 0.016f + (position * global::ui::g_option_scale) }, { 0.015f * 0.9f, 0.022f * 0.9f }, 0.f, { 255, 255, 255, 255 });
     } else if (m_sprite.m_enabled && m_sprite.m_requirement()) {
         color_rgba _color = color;

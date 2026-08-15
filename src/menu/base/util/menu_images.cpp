@@ -1,5 +1,6 @@
 #include "menu/base/util/menu_images.h"
 #include "menu/base/util/animated_texture.h"
+#include "menu/base/util/textures.h"  // apply() refreshes the registry on success; not in the header so the two modules stay one-way dependent
 #include "global/ui_vars.h"          // apply() writes m_header / m_background
 #include "platform/paths.h"
 #include "platform/log.h"
@@ -350,6 +351,13 @@ namespace menu::images {
 
         mt.m_texture.set(name);
         mt.m_enabled = true;
+
+        // A picture applied mid-session (e.g. dropped in over FTP after boot)
+        // needs its name in the registry too, or renderer::get_texture's
+        // find_if never finds it and the still fallback silently fails while
+        // the animation keeps drawing - a half-working feature. load() clears
+        // and refills, so this is a refresh, not a doubling.
+        menu::textures::load();
         return true;
     }
 }
