@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 namespace menu::images {
 
@@ -172,6 +173,26 @@ namespace menu::images {
         return cache_st.st_mtim.tv_sec >= src_st.st_mtim.tv_sec;
     }
 
+
+    namespace {
+        // Stage markers go to BOTH logs on purpose. The kernel log (nc <ip> 3232)
+        // is read outside the process and survives it being killed, but only if
+        // somebody is listening at the time. The file log is written
+        // synchronously per line - open, write, close - so it also survives a
+        // fault, and it can be collected afterwards over FTP with nobody
+        // watching. The first round of this instrumentation went only to the
+        // kernel log and the crash was reproduced without a listener attached,
+        // which cost a whole test cycle for no evidence.
+        void stage(const char* fmt, ...) {
+            char buf[256];
+            va_list ap; va_start(ap, fmt);
+            vsnprintf(buf, sizeof(buf), fmt, ap);
+            va_end(ap);
+            platform::log_line("img", buf);
+            platform::klogf("img: %s", buf);
+        }
+    }
+
     // ---- convert ------------------------------------------------------------
     bool convert(const char* name, slot s) {
         if (!name || !name[0]) return false;
@@ -184,7 +205,7 @@ namespace menu::images {
         // exactly the evidence the first GIF crash did not leave behind: the file
         // log jumped straight from the previous pick to the next boot.
         const uint32_t t_begin = platform::now_ms();
-        platform::klogf("img: convert \"%s\" slot=%d begin", name, (int)s);
+        stage("convert \"%s\" slot=%d begin", name, (int)s);
 
         char src[320];
         bool found = false;
@@ -208,29 +229,80 @@ namespace menu::images {
         // not close it. If the header itself can't be read, that is left for
         // decode_file below to fail and report properly.
         const int k_max_source_dim = 4096;
-        int src_w = 0, src_h = 0;
-        if (util::image::probe_file(src, &src_w, &src_h) &&
-            (src_w > k_max_source_dim || src_h > k_max_source_dim)) {
-            LOG_ERROR("images: \"%s\" is %dx%d, refusing anything over %dx%d",
-                      src, src_w, src_h, k_max_source_dim, k_max_source_dim);
-            char msg[160];
-            snprintf(msg, sizeof(msg), "\"%s\" is %dx%d - too large (max %dx%d)",
-                     name, src_w, src_h, k_max_source_dim, k_max_source_dim);
-            platform::notify(msg);
-            return false;
+
+        // What stb will have live at once, measured rather than assumed. The
+        // numbers behind the 12MB ceiling came off this console:
+        //
+        //   1080x1920 still, peak 8.3MB   -> decoded fine (230 ms)
+        //   1245x960 x4 GIF, peak 33.4MB  -> took the game down inside stb,
+        //                                    with no error and no log line
+        //
+        // The still is one allocation; the GIF reallocs once per frame, so near
+        // the end the old and new buffers are both live and the peak is close to
+        // double the final size. That peak is what fails, and stb's GIF path does
+        // not survive its own allocation failing - stbi__load_gif_main memcpys
+        // into the result of an unchecked stbi__malloc. So this has to be caught
+        // before the decode, not handled after it.
+        //
+        // 12MB sits above the largest peak known to work and well below the one
+        // known to be fatal. It is a floor to raise with evidence, not a limit
+        // anybody derived - which is why the computed peak is logged every time,
+        // including for sources that pass.
+        const unsigned long long k_max_decode_peak = 12ull * 1024ull * 1024ull;
+
+        int src_w = 0, src_h = 0, src_frames = 1;
+        if (util::image::probe_file(src, &src_w, &src_h, &src_frames)) {
+            const unsigned long long peak =
+                util::image::decode_peak_bytes(src_w, src_h, src_frames);
+
+            stage("probe %dx%d x%d frames, decode peak %lluKB", src_w, src_h, src_frames,
+                  peak / 1024ull);
+
+            if (src_w > k_max_source_dim || src_h > k_max_source_dim) {
+                LOG_ERROR("images: \"%s\" is %dx%d, refusing anything over %dx%d",
+                          src, src_w, src_h, k_max_source_dim, k_max_source_dim);
+                char msg[160];
+                snprintf(msg, sizeof(msg), "\"%s\" is %dx%d - too large (max %dx%d)",
+                         name, src_w, src_h, k_max_source_dim, k_max_source_dim);
+                platform::notify(msg);
+                return false;
+            }
+
+            if (peak > k_max_decode_peak) {
+                LOG_ERROR("images: \"%s\" is %dx%d x%d frame(s) - decoding it needs %lluKB "
+                          "live at once, over the %lluKB ceiling; refusing before stb "
+                          "allocates it", src, src_w, src_h, src_frames,
+                          peak / 1024ull, k_max_decode_peak / 1024ull);
+                char msg[190];
+                snprintf(msg, sizeof(msg),
+                         "\"%s\" needs %lluMB to decode (%dx%d, %d frames) - use a smaller "
+                         "picture or fewer frames", name, peak / (1024ull * 1024ull),
+                         src_w, src_h, src_frames);
+                platform::notify(msg);
+                return false;
+            }
         }
 
-        platform::klogf("img: probe %dx%d (%u ms)", src_w, src_h,
-                        (unsigned)(platform::now_ms() - t_begin));
+        stage("decode begin (%u ms)", (unsigned)(platform::now_ms() - t_begin));
 
         util::image::decoded d;
         if (!util::image::decode_file(src, &d)) {
-            LOG_ERROR("images: could not decode \"%s\"", src);
+            const unsigned long long failed = util::image::last_alloc_failure_bytes();
+            if (failed) {
+                // The ceiling above let this through and the decode still ran out
+                // of memory, so the ceiling is wrong for this console. The number
+                // that failed is the one to lower it to.
+                LOG_ERROR("images: could not decode \"%s\" - an allocation of %lluKB failed. "
+                          "The decode ceiling in convert() is too high for this console.",
+                          src, failed / 1024ull);
+            } else {
+                LOG_ERROR("images: could not decode \"%s\"", src);
+            }
             return false;
         }
 
-        platform::klogf("img: decode %dx%d x%d frames (%u ms)", d.w, d.h, d.frames,
-                        (unsigned)(platform::now_ms() - t_begin));
+        stage("decode %dx%d x%d frames (%u ms)", d.w, d.h, d.frames,
+              (unsigned)(platform::now_ms() - t_begin));
 
         box b = box_for(s);
         int dw = 0, dh = 0;
@@ -292,8 +364,8 @@ namespace menu::images {
             ok = util::image::write_dds(frame_path, use, dw, dh);
             if (!ok) { LOG_ERROR("images: could not write %s", frame_path); break; }
 
-            platform::klogf("img: frame %d/%d written %dx%d (%u ms)", i + 1, frames, dw, dh,
-                            (unsigned)(platform::now_ms() - t_begin));
+            stage("frame %d/%d written %dx%d (%u ms)", i + 1, frames, dw, dh,
+                  (unsigned)(platform::now_ms() - t_begin));
 
             char file_name[64];
             snprintf(file_name, sizeof(file_name), "frame_%03d.dds", i);
@@ -318,9 +390,9 @@ namespace menu::images {
                 ok = false;
             } else {
                 platform::logf("images", "\"%s\": %d frame(s) at %dx%d", name, frames, dw, dh);
-                platform::klogf("img: convert \"%s\" done, %d frame(s) at %dx%d (%u ms total)",
-                                name, frames, dw, dh,
-                                (unsigned)(platform::now_ms() - t_begin));
+                stage("convert \"%s\" done, %d frame(s) at %dx%d (%u ms total)",
+                      name, frames, dw, dh,
+                      (unsigned)(platform::now_ms() - t_begin));
             }
         }
 
@@ -334,6 +406,7 @@ namespace menu::images {
         menu_texture& mt = (s == slot::header) ? global::ui::m_header
                                                : global::ui::m_background;
         const char* anim_name = anim_name_for(s);
+        stage("apply \"%s\" slot=%s begin", name ? name : "(none)", slot_dir_name(s));
 
         if (!name || !name[0]) {           // "None"
             // The renderer's per-slot animation branch reads the animation
@@ -361,7 +434,9 @@ namespace menu::images {
         if (mt.m_texture == name && current_anim && current_anim->ready())
             return true;
 
-        if (!is_cached(name, s) && !convert(name, s))
+        const bool cached = is_cached(name, s);
+        stage("cache %s for \"%s\"", cached ? "hit" : "miss", name);
+        if (!cached && !convert(name, s))
             return false;
 
         char dir[320];
@@ -415,14 +490,14 @@ namespace menu::images {
         // apply() does not commit a second time - commit() fires its own
         // "Custom textures loaded" notification, and two commits per pick meant
         // two unwanted toasts for one action.
-        platform::klogf("img: still registered, loading frames from %s", dir);
+        stage("still registered, loading frames from %s", dir);
 
         if (!menu::animation::load_from_dir(anim_name, dir)) {
             LOG_ERROR("images: nothing loadable in %s", dir);
             return false;
         }
 
-        platform::klogf("img: apply \"%s\" complete, slot enabled", name);
+        stage("apply \"%s\" complete, slot enabled", name);
 
         mt.m_texture.set(name);
         mt.m_enabled = true;
