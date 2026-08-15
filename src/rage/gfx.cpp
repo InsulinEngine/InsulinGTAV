@@ -30,7 +30,10 @@ namespace rage::gfx {
     static constexpr uint64_t STORE_SLOTBASE_OFF = 0x38;
     static constexpr uint64_t STORE_FLAGARR_OFF  = 0x40;
     static constexpr uint64_t STORE_STRIDE_OFF   = 0x4C;
-    static constexpr uint64_t STORE_COUNT_OFF    = 0x88; // slot count (donor-vtable scan bound)
+    // (There was a STORE_COUNT_OFF = 0x88 here, used as the donor-vtable scan
+    // bound. It is gone: the donor scan now walks up to our own slot index,
+    // which the store hands us and is in bounds by construction. Whatever 0x88
+    // holds, it never passed the sanity check it was guarded with.)
 
     template<typename Fn> static inline Fn as_fn(uint64_t rva) { return (Fn)(rage::invoker::g_eboot_base + rva); }
     static inline void* at(uint64_t rva) { return (void*)(rage::invoker::g_eboot_base + rva); }
@@ -293,8 +296,19 @@ namespace rage::gfx {
         // real class; stealing a resident dict's vtable replicates that. The
         // donor's first qword must point into the eboot image to be accepted.
         {
-            int total = *(int*)((uint8_t*)store + STORE_COUNT_OFF);
-            if (total < 0 || total > 65535) total = 0;
+            // Scan up to our own slot index. m_slot was just handed to us by
+            // FindSlot/AddSlot, so every index below it is in bounds by
+            // construction - no separate count field has to be trusted to walk
+            // the array safely.
+            //
+            // This used to read a count from STORE_COUNT_OFF and reject anything
+            // over 65535 as garbage. In this title that bound is far too tight:
+            // our own slot came back as 78146, so a correct count was thrown
+            // away as nonsense on every single commit, `total` became 0, the
+            // loop below never ran once, and the dictionary shipped with the
+            // NULL vtable this whole block exists to avoid. The warning was in
+            // every log we ever collected and read as background noise.
+            const int total = m_slot;
             void* vt = nullptr;
             int donor = -1;
             for (int i = 0; i < total && !vt; i++) {
@@ -310,8 +324,10 @@ namespace rage::gfx {
                 }
             }
             *(void**)(dict + 0x00) = vt;
-            if (vt) platform::logf("gfx", "vtable %p adopted from slot %d", vt, donor);
-            else    LOG_WARN("gfx: no donor dict found; vtable stays NULL");
+            if (vt) platform::logf("gfx", "vtable %p adopted from slot %d (scanned %d)", vt, donor, total);
+            else    LOG_WARN("gfx: no donor dict found in %d slots; vtable stays NULL - the "
+                             "engine will fault if it ever makes a virtual call on this "
+                             "dictionary", total);
         }
 
         void** slot = (void**)(slotbase + (uint64_t)m_slot * stride);
