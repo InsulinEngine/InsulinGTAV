@@ -22,4 +22,8 @@ namespace util::image {
 
     // Release what decode_file allocated. Safe on a zeroed struct.
     void free_decoded(decoded* d);
+
+    // Source dimensions without decoding pixels. False if the file is missing or
+    // not an image this build understands.
+    bool probe_file(const char* path, int* w, int* h);
 }

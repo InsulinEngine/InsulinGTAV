@@ -187,6 +187,28 @@ namespace menu::images {
             return false;
         }
 
+        // stbi_load_gif_from_memory decodes every frame of a GIF at full source
+        // resolution in one allocation, before the frame cap below and before any
+        // downscale - a 1080p 60-frame GIF is roughly 500MB of malloc in the game
+        // process. probe_file reads only the header, so refusing an absurd source
+        // here is cheap even for a source we go on to refuse. Frame count still
+        // cannot be known without a full decode, so a many-frame GIF at a safe
+        // resolution is not caught here - this narrows the OOM window, it does
+        // not close it. If the header itself can't be read, that is left for
+        // decode_file below to fail and report properly.
+        const int k_max_source_dim = 4096;
+        int src_w = 0, src_h = 0;
+        if (util::image::probe_file(src, &src_w, &src_h) &&
+            (src_w > k_max_source_dim || src_h > k_max_source_dim)) {
+            LOG_ERROR("images: \"%s\" is %dx%d, refusing anything over %dx%d",
+                      src, src_w, src_h, k_max_source_dim, k_max_source_dim);
+            char msg[160];
+            snprintf(msg, sizeof(msg), "\"%s\" is %dx%d - too large (max %dx%d)",
+                     name, src_w, src_h, k_max_source_dim, k_max_source_dim);
+            platform::notify(msg);
+            return false;
+        }
+
         util::image::decoded d;
         if (!util::image::decode_file(src, &d)) {
             LOG_ERROR("images: could not decode \"%s\"", src);

@@ -22,9 +22,11 @@ namespace util::image {
 
     static const int k_min_delay_ms = 20;   // a 0 delay would spin at frame rate
 
-    bool decode_file(const char* path, decoded* out) {
-        if (!path || !out) return false;
-        memset(out, 0, sizeof(*out));
+    // Shared by decode_file and probe_file so there is exactly one place that
+    // opens and reads a source file.
+    static bool read_whole_file(const char* path, unsigned char** out_buf, long* out_size) {
+        *out_buf = nullptr;
+        *out_size = 0;
 
         FILE* f = fopen(path, "rb");
         if (!f) return false;
@@ -38,6 +40,19 @@ namespace util::image {
         size_t read = fread(buf, 1, (size_t)size, f);
         fclose(f);
         if (read != (size_t)size) { free(buf); return false; }
+
+        *out_buf = buf;
+        *out_size = size;
+        return true;
+    }
+
+    bool decode_file(const char* path, decoded* out) {
+        if (!path || !out) return false;
+        memset(out, 0, sizeof(*out));
+
+        unsigned char* buf = nullptr;
+        long size = 0;
+        if (!read_whole_file(path, &buf, &size)) return false;
 
         // GIF first: it is the only multi-frame format here, and stb's still
         // loader would silently hand back just the first frame.
@@ -85,5 +100,19 @@ namespace util::image {
         if (d->rgba) STBI_FREE(d->rgba);
         if (d->delays_ms) free(d->delays_ms);
         memset(d, 0, sizeof(*d));
+    }
+
+    bool probe_file(const char* path, int* w, int* h) {
+        if (!path || !w || !h) return false;
+        *w = 0; *h = 0;
+
+        unsigned char* buf = nullptr;
+        long size = 0;
+        if (!read_whole_file(path, &buf, &size)) return false;
+
+        int comp = 0;
+        int ok = stbi_info_from_memory(buf, (int)size, w, h, &comp);
+        free(buf);
+        return ok != 0;
     }
 }
