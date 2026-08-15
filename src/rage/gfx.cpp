@@ -327,7 +327,10 @@ namespace rage::gfx {
         platform::logf("gfx", "commit \"%s\": %d tex, slot %d, dict %p, GetPtr %p, rage=%d", m_dict, m, m_slot, (void*)dict, got, (int)rage_backed);
         platform::klogf("gfx commit \"%s\": %d tex, slot %d, dict %p, rage=%d", m_dict, m, m_slot, (void*)dict, (int)rage_backed);
         m_committed = (got == (void*)dict);
-        if (m_committed) platform::notify("Custom textures loaded");
+        // Demoted from platform::notify: commit() runs on routine actions (e.g.
+        // picking a menu image) that already raise their own notification, and
+        // an unsolicited toast per commit was noise. Still visible in the log.
+        if (m_committed) platform::logf("gfx", "\"%s\": custom textures loaded", m_dict);
         return m_committed;
     }
 

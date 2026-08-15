@@ -337,15 +337,6 @@ namespace menu::images {
                      "release path)", slot_dir_name(s), mt.m_texture.c_str(), name);
         }
 
-        // Registered under the slot's own name so header and background cannot
-        // collide in the dictionary - load_from_dir names textures
-        // "<name>_000", and two pictures both starting at 000 would drop each
-        // other on commit().
-        if (!menu::animation::load_from_dir(anim_name, dir)) {
-            LOG_ERROR("images: nothing loadable in %s", dir);
-            return false;
-        }
-
         char frame0[384];
         snprintf(frame0, sizeof(frame0), "%s/frame_000.dds", dir);
         // The still under the plain stem is what get_texture() resolves to, and
@@ -356,7 +347,7 @@ namespace menu::images {
         // untouched (mt is not written) on either failure.
         //
         // The animation frames re-register under the fixed "slot_header_000".."
-        // slot_background_000".. names every time load_from_dir runs above, so
+        // slot_background_000".. names every time load_from_dir runs below, so
         // they stay capped at 32 dictionary entries total regardless of how
         // many pictures are applied in a session. This still does not: it is
         // added under the picture's own stem, a new entry for every distinct
@@ -370,8 +361,17 @@ namespace menu::images {
                       name, frame0);
             return false;
         }
-        if (!rage::gfx::menu_textures().commit()) {
-            LOG_ERROR("images: dictionary commit failed applying \"%s\"", name);
+
+        // Registered under the slot's own name so header and background cannot
+        // collide in the dictionary - load_from_dir names textures
+        // "<name>_000", and two pictures both starting at 000 would drop each
+        // other on commit(). load_from_dir commits the dictionary itself (one
+        // commit for the still add()ed above plus the frames it loads), so
+        // apply() does not commit a second time - commit() fires its own
+        // "Custom textures loaded" notification, and two commits per pick meant
+        // two unwanted toasts for one action.
+        if (!menu::animation::load_from_dir(anim_name, dir)) {
+            LOG_ERROR("images: nothing loadable in %s", dir);
             return false;
         }
 
