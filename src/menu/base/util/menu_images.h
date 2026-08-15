@@ -15,8 +15,11 @@ namespace menu::images {
     // Source pictures in /data/Ozark/images (png/jpg/gif/bmp), stems only.
     stl::vector<stl::string> list_sources();
 
-    // Is there already a cache entry for this stem?
-    bool is_cached(const char* name);
+    // Is there already a cache entry for this stem, sized for this slot? The
+    // cache is keyed by (slot, name): header and background cache the same
+    // source at different boxes, so a name alone would let one slot's cache
+    // answer for the other and hand back a stretched frame.
+    bool is_cached(const char* name, slot s);
 
     // Decode, downscale and write the cache for `name`, sized for `s`. Safe to
     // call when the cache is already current - it returns true without work.

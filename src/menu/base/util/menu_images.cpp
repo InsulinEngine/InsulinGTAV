@@ -35,9 +35,30 @@ namespace menu::images {
             return s == slot::header ? box{ 512, 128 } : box{ 512, 1024 };
         }
 
-        void cache_dir_for(const char* name, char* out, int len) {
-            snprintf(out, len, "%s/%s", OZARK_IMGCACHE, name);
+        // "header" / "background" - the cache subdirectory per slot. Deliberately
+        // distinct from anim_name_for()'s "slot_header"/"slot_background" below:
+        // that one names an animation-registry/dictionary entry, this one names
+        // a filesystem directory, and nothing requires the two spellings match.
+        const char* slot_dir_name(slot s) {
+            return s == slot::header ? "header" : "background";
         }
+
+        // <OZARK_IMGCACHE>/<slot>/<name>. The slot is part of the path because
+        // the same source picture caches at a different box per slot - keying
+        // by name alone would let applying a picture as the header make
+        // is_cached() answer "yes" for the background too, handing back a
+        // frame sized for the wrong box (stretched, visibly blurry, no log).
+        void cache_dir_for(slot s, const char* name, char* out, int len) {
+            snprintf(out, len, "%s/%s/%s", OZARK_IMGCACHE, slot_dir_name(s), name);
+        }
+
+        // texture_dictionary::copy_name (rage/gfx.cpp) truncates any texture
+        // name at 63 characters. A stem longer than that would register under
+        // one string and be looked up under a shorter, silently truncated one -
+        // a checkerboard with no error anywhere. list_sources() refuses such a
+        // stem outright rather than letting it reach add()/add_texture() and
+        // fail in a way nothing explains.
+        const int k_max_registrable_stem = 63;
 
         // The animation registry key for each slot - one per slot, never
         // derived from the picture's own name. load_from_dir names its
@@ -92,12 +113,18 @@ namespace menu::images {
                 for (int e = 0; e < k_ext_count; e++) {
                     size_t elen = strlen(k_exts[e]);
                     if ((size_t)L > elen && ext_is(de->d_name, k_exts[e])) {
+                        int stem_len = L - (int)elen;
+                        if (stem_len > k_max_registrable_stem) {
+                            LOG_WARN("images: \"%s\" is too long (%d chars, max %d) to register as a "
+                                     "texture, skipping", de->d_name, stem_len, k_max_registrable_stem);
+                            break;
+                        }
                         // Stem kept exactly as it appears on disk. /data is
                         // case-sensitive and convert() rebuilds the source path
                         // from this same stem, so lowercasing here would make a
                         // capitalised source file (e.g. "MyPic.PNG") unopenable.
                         char stem[256]; int i = 0;
-                        for (; i < L - (int)elen && i < (int)sizeof(stem) - 1; i++)
+                        for (; i < stem_len && i < (int)sizeof(stem) - 1; i++)
                             stem[i] = de->d_name[i];
                         stem[i] = 0;
                         out.push_back(stl::string(stem));
@@ -112,16 +139,18 @@ namespace menu::images {
     }
 
     // ---- is_cached --------------------------------------------------------
-    // True only when <OZARK_IMGCACHE>/<name>/frames.json exists and is not
-    // older than the source file. A user who edits foo.png and re-picks it must
-    // see the new picture, not a stale cache with no way to force a refresh. If
-    // either stat fails, this reports "not cached" - reconverting costs
-    // seconds, showing the wrong picture costs trust.
-    bool is_cached(const char* name) {
+    // True only when <OZARK_IMGCACHE>/<slot>/<name>/frames.json exists and is
+    // not older than the source file. A user who edits foo.png and re-picks it
+    // must see the new picture, not a stale cache with no way to force a
+    // refresh. If either stat fails, this reports "not cached" - reconverting
+    // costs seconds, showing the wrong picture costs trust.
+    bool is_cached(const char* name, slot s) {
         if (!name || !name[0]) return false;
 
+        char dir[320];
+        cache_dir_for(s, name, dir, sizeof(dir));
         char manifest[384];
-        snprintf(manifest, sizeof(manifest), "%s/%s/frames.json", OZARK_IMGCACHE, name);
+        snprintf(manifest, sizeof(manifest), "%s/frames.json", dir);
 
         OrbisKernelStat cache_st;
         if (sceKernelStat(manifest, &cache_st) != 0) return false;
@@ -173,14 +202,22 @@ namespace menu::images {
         int frames = d.frames;
         if (frames > menu::animation::k_max_frames) {
             frames = menu::animation::k_max_frames;
-            platform::notify("Image has more frames than the menu plays; using the first 16");
+            char cap_msg[96];
+            snprintf(cap_msg, sizeof(cap_msg),
+                     "Image has more frames than the menu plays; using the first %d",
+                     menu::animation::k_max_frames);
+            platform::notify(cap_msg);
         }
 
         sceKernelMkdir(OZARK_IMAGES, 0777);
         sceKernelMkdir(OZARK_IMGCACHE, 0777);
 
+        char slot_dir[320];
+        snprintf(slot_dir, sizeof(slot_dir), "%s/%s", OZARK_IMGCACHE, slot_dir_name(s));
+        sceKernelMkdir(slot_dir, 0777);
+
         char dir[320];
-        cache_dir_for(name, dir, sizeof(dir));
+        cache_dir_for(s, name, dir, sizeof(dir));
         sceKernelMkdir(dir, 0777);
 
         unsigned char* scaled = nullptr;
@@ -228,8 +265,17 @@ namespace menu::images {
             manifest["frames"] = list;
             char man[384];
             snprintf(man, sizeof(man), "%s/frames.json", dir);
-            manifest.save_to_file(man, 2);
-            platform::logf("images", "\"%s\": %d frame(s) at %dx%d", name, frames, dw, dh);
+            // Frames are already on disk at this point - if the manifest fails
+            // to write, is_cached() can never find it and every future apply()
+            // reconverts the whole picture from scratch. Report it as the
+            // failure it is rather than returning true with half the cache
+            // missing.
+            if (!manifest.save_to_file(man, 2)) {
+                LOG_ERROR("images: could not write %s", man);
+                ok = false;
+            } else {
+                platform::logf("images", "\"%s\": %d frame(s) at %dx%d", name, frames, dw, dh);
+            }
         }
 
         if (scaled) free(scaled);
@@ -258,11 +304,11 @@ namespace menu::images {
             return true;
         }
 
-        if (!is_cached(name) && !convert(name, s))
+        if (!is_cached(name, s) && !convert(name, s))
             return false;
 
         char dir[320];
-        cache_dir_for(name, dir, sizeof(dir));
+        cache_dir_for(s, name, dir, sizeof(dir));
 
         // Registered under the slot's own name so header and background cannot
         // collide in the dictionary - load_from_dir names textures
@@ -279,9 +325,28 @@ namespace menu::images {
         // it is the fallback the animation branch falls through to. Without it
         // m_enabled = true points the slot at an unregistered name, which draws
         // the checkerboard over the gradient/game header this is meant to
-        // replace.
-        rage::gfx::menu_textures().add(name, frame0);
-        rage::gfx::menu_textures().commit();
+        // replace - so both calls below are checked, and the slot is left
+        // untouched (mt is not written) on either failure.
+        //
+        // The animation frames re-register under the fixed "slot_header_000".."
+        // slot_background_000".. names every time load_from_dir runs above, so
+        // they stay capped at 32 dictionary entries total regardless of how
+        // many pictures are applied in a session. This still does not: it is
+        // added under the picture's own stem, a new entry for every distinct
+        // picture ever applied this session. texture_dictionary caps at 64
+        // entries and has no remove, only replace - so there is a real ceiling
+        // of roughly 32 distinct pictures per session. Not solved here; this
+        // just turns hitting it into a named error instead of a checkerboard.
+        if (!rage::gfx::menu_textures().add(name, frame0)) {
+            LOG_ERROR("images: could not register still texture \"%s\" - %s failed to load, "
+                      "or the shared \"insulin\" dictionary is already at its 64-texture cap",
+                      name, frame0);
+            return false;
+        }
+        if (!rage::gfx::menu_textures().commit()) {
+            LOG_ERROR("images: dictionary commit failed applying \"%s\"", name);
+            return false;
+        }
 
         mt.m_texture.set(name);
         mt.m_enabled = true;
