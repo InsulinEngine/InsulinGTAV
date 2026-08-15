@@ -55,7 +55,14 @@ namespace menu::renderer {
         } else if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
             draw_sprite_aligned(menu::animation::header_asset(), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
         } else {
-            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
+            // A picture applied but its animation not ready (e.g. still-only)
+            // resolves here to {"insulin", <stem>}. g_main_header defaults to
+            // opaque black, which would paint the user's picture as a black
+            // rectangle - tint only the sentinel / game-texture paths, which are
+            // meant to be tinted, and draw a custom-dictionary texture at full
+            // colour.
+            color_rgba header_color = rage::gfx::is_custom_dict(texture.first.c_str()) ? color_rgba(255, 255, 255, 255) : global::ui::g_main_header;
+            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, header_color);
         }
 
         // background
@@ -67,8 +74,13 @@ namespace menu::renderer {
                                 0.f, { 255, 255, 255, 255 });
         } else {
             if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
+            // Same reasoning as the header fallback above: draw a custom
+            // background picture at full colour instead of through g_background
+            // (opaque black by default), and keep the tint for the sentinel's
+            // gradient_bgd substitute and any game texture.
+            color_rgba bg_color = rage::gfx::is_custom_dict(texture.first.c_str()) ? color_rgba(255, 255, 255, 255) : global::ui::g_background;
             draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale },
-                                0.f, global::ui::g_background);
+                                0.f, bg_color);
         }
 
         // scroller
