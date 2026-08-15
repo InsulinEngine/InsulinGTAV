@@ -34,6 +34,7 @@
 #include "menu/base/submenus/vehicle_neon.h"
 #include "menu/base/submenus/vehicle_plate.h"
 #include "menu/base/submenus/settings_themes.h"
+#include "menu/base/submenus/settings_images.h"
 #include "menu/base/submenus/helper_color.h"
 #include "menu/base/submenus/helper_color_presets.h"
 #include "menu/base/submenus/helper_color_sync.h"
@@ -159,6 +160,8 @@ namespace menu {
         menu::submenu::handler::add_submenu(vehicle_plate_menu::get());
         settings_themes_menu::get()->load();
         menu::submenu::handler::add_submenu(settings_themes_menu::get());
+        settings_images_menu::get()->load();
+        menu::submenu::handler::add_submenu(settings_images_menu::get());
 
         // Re-apply the last saved theme now: util::config::load() has already
         // run (above) so the "LastTheme" key is in memory, and
