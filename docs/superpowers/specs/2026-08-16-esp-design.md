@@ -126,8 +126,17 @@ can die between the loop that selected it and the call that draws it, and
 dimensions to a radius, eight corners through
 `get_offset_from_entity_in_world_coords`, twelve edge lines plus Ozark's inner
 spokes from the centre; type 1 draws the three coloured axes instead.
-`skeleton_esp` draws Ozark's fourteen bones via `draw_line_2d` between projected
-bone positions, or joint markers of type 28.
+`skeleton_esp` draws Ozark's fourteen bones as world-space 3D lines
+(`menu::renderer::draw_line`) directly between the two bone endpoints' world
+positions, or joint markers of type 28.
+
+**Bones are 3D, not Ozark's screen-space `draw_line_2d`.** Ozark's skeleton
+lines are 2D, consumed by a PC render hook (`render_script_texture.cpp`) this
+port has no equivalent for; on PS4, `draw_line_2d`'s backing buffer
+(`global::ui::m_line_2d`) is never allocated and nothing reads it. Rather than
+build a hook this port lacks, the skeleton draws through the 3D `draw_line`
+that `box_3d_esp` and the snapline already use, with the two bones' world
+positions and no projection.
 
 ## The per-frame budget
 

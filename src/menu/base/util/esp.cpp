@@ -279,34 +279,43 @@ namespace menu::esp {
             };
             const int bone_count = (int)(sizeof(k_bones) / sizeof(k_bones[0]));
 
-            // Fifteen bone-coord natives and fifteen projections, once, up
-            // front. get_ped_bone_coords is a hash native and the most expensive
-            // call in this file; the projection of a world point is a pure
-            // function of that point, so sharing it changes no geometry.
+            // Fifteen bone-coord natives, once, up front. get_ped_bone_coords is
+            // a hash native and the most expensive call in this file; a joint's
+            // world position is a pure fact independent of what gets drawn from
+            // it, so sharing the fetch changes no geometry whichever of
+            // bones/joints is on.
             math::vector3<float> world[J_COUNT];
-            math::vector2<float> screen[J_COUNT];
-            bool                 on_screen[J_COUNT];
-            for (int i = 0; i < J_COUNT; i++) {
+            for (int i = 0; i < J_COUNT; i++)
                 world[i] = native::get_ped_bone_coords(ped, k_joints[i], 0.f, 0.f, 0.f);
-                on_screen[i] = project(world[i], &screen[i]);
-            }
 
             // Bones first, then joints - the order draw_entity used when it
             // called this twice.
+            //
+            // Bones draw as 3D lines straight through the world positions above
+            // (see draw_line_2d in renderer.cpp for why not screen-space) and,
+            // like box_3d_esp/axis_3d_esp/snapline_esp just above, with no
+            // visibility pre-check: those already draw their 3D lines
+            // unconditionally and rely on the native to handle an off-screen or
+            // behind-camera endpoint. Learning that cheaply for a bone would mean
+            // projecting both endpoints - a native call this loop does not
+            // otherwise need - which is exactly the projection-invented-for-a-
+            // skip-rule this file avoids elsewhere.
             if (bones) {
                 const color_rgba c = ctx.m_skeleton_bones_color;
                 for (int i = 0; i < bone_count; i++) {
                     const int a = k_bones[i][0], b = k_bones[i][1];
-                    if (!on_screen[a] || !on_screen[b]) continue;
-                    menu::renderer::draw_line_2d({ screen[a].x, screen[a].y, 0.f },
-                                                 { screen[b].x, screen[b].y, 0.f }, c);
+                    menu::renderer::draw_line(world[a], world[b], c);
                 }
             }
 
             if (joints) {
                 const color_rgba c = ctx.m_skeleton_joints_color;
                 for (int i = 0; i < J_COUNT; i++) {
-                    if (!on_screen[i]) continue;   // off-screen joints cost nothing
+                    // A marker at an off-screen position is worth skipping, so
+                    // joints still project - unlike bones, projecting here costs
+                    // nothing extra: it is the one native this loop needs anyway.
+                    math::vector2<float> s;
+                    if (!project(world[i], &s)) continue;   // off-screen joints cost nothing
                     native::draw_marker(28, world[i].x, world[i].y, world[i].z,
                                         0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
                                         0.03f, 0.03f, 0.03f, c.r, c.g, c.b, c.a,

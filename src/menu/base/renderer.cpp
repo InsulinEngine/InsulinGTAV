@@ -342,6 +342,17 @@ namespace menu::renderer {
     void renderer::draw_line_2d(math::vector3<float> from, math::vector3<float> to, color_rgba color) {
         if (global::ui::g_stop_rendering) return;
 
+        // global::ui::m_line_2d is never allocated anywhere in this tree - it
+        // sits null in .bss for the whole process - and nothing ever reads
+        // g_line_2d_index or the buffer it indexes into, so filling it would
+        // still draw nothing. The facility needs a render hook this port does
+        // not have: Ozark's screen-space lines are consumed by a PC render
+        // hook (menu/hooks/render_script_texture.cpp), which has no PS4
+        // equivalent here. A caller that wants a line should call the 3D
+        // menu::renderer::draw_line instead - it calls a real native and needs
+        // no consumer.
+        if (!global::ui::m_line_2d) return;
+
         if (global::ui::g_line_2d_index < 5000) {
             line_2d& line = global::ui::m_line_2d[global::ui::g_line_2d_index++];
             line.m_from.x = from.x;
