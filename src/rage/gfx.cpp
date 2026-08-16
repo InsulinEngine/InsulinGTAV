@@ -120,17 +120,78 @@ namespace rage::gfx {
         return true;
     }
 
+    // ---- loaded-texture cache ------------------------------------------------
+    // This is the fix for the crash of 2026-08-16, and the reasoning matters more
+    // than the code. Every apply of a picture called the engine's texture factory
+    // again for a file that was already resident: one session made 44 textures
+    // out of 14 distinct files, and since add_texture frees nothing when it
+    // displaces the old one, video memory grew with the number of *changes*
+    // rather than the number of *pictures*. Both crashes died inside the factory
+    // call itself, both on background/BG2 - the largest file in the cache, which
+    // is exactly the allocation that fails first when memory runs out.
+    //
+    // Keying on the path makes a re-applied picture free: the texture is already
+    // there, so hand back the same pointer. Growth is now bounded by how many
+    // distinct pictures exist rather than by how long someone plays.
+    //
+    // No eviction, deliberately. Nothing in this codebase or the engine frees
+    // these textures (see add_texture), so an entry can never go stale - and a
+    // cache that dropped an entry would hand out a dangling pointer while the
+    // dictionary still referenced it. The cache therefore retains nothing that
+    // was not already retained; it only stops the duplication.
+    struct loaded_texture { char path[192]; void* tex; };
+    static loaded_texture g_loaded[64];
+    static int            g_loaded_count = 0;
+
+    static void* find_loaded(const char* path) {
+        for (int i = 0; i < g_loaded_count; i++)
+            if (!strcmp(g_loaded[i].path, path)) return g_loaded[i].tex;
+        return nullptr;
+    }
+
+    static void remember_loaded(const char* path, void* tex) {
+        if (!tex || g_loaded_count >= 64) return;
+        strncpy(g_loaded[g_loaded_count].path, path, sizeof(g_loaded[0].path) - 1);
+        g_loaded[g_loaded_count].path[sizeof(g_loaded[0].path) - 1] = 0;
+        g_loaded[g_loaded_count].tex = tex;
+        g_loaded_count++;
+    }
+
     void* create_texture_from_file(const char* path) {
         if (!rage::invoker::g_eboot_base) return nullptr;
+
+        if (void* cached = find_loaded(path)) {
+            platform::logf("gfx", "reusing \"%s\" -> %p (already loaded)", path, cached);
+            return cached;
+        }
+
         if (!is_dds_file(path)) return nullptr;
         void* factory = *(void**)at(RVA_FACTORY_SINGLETON);
         if (!factory) { LOG_ERROR("gfx: texture factory singleton is null (render device not up?)"); return nullptr; }
+
+        // Logged *before* the call, not just after. The crash of 2026-08-16 ended
+        // the log between "loading frames from <dir>" and the first Create line,
+        // which narrowed the death to this function but not to the statement; a
+        // marker on each side is what proved it was the factory call. Worth
+        // keeping - this is the one statement here that can take the game down,
+        // and the running count is the measurement if it ever does again.
+        static int s_created = 0;
+        platform::logf("gfx", "creating #%d \"%s\"", s_created + 1, path);
 
         // grcTextureGNM(filename) tolerates params == NULL (builds VIDEO/TILED
         // defaults) and does grcImage::Load + Create + Copy internally.
         typedef void* (*create_fn)(void* self, const char* filename, void* params);
         void* tex = as_fn<create_fn>(RVA_CREATE_FROM_FILE)(factory, path, nullptr);
-        platform::logf("gfx", "Create(\"%s\") -> %p", path, tex);
+        s_created++;
+        platform::logf("gfx", "Create(\"%s\") -> %p (#%d)", path, tex, s_created);
+
+        if (tex) {
+            remember_loaded(path, tex);
+            if (g_loaded_count >= 64)
+                LOG_WARN("gfx: loaded-texture cache is full (64 files); further "
+                         "pictures will be re-created on every change and video "
+                         "memory will grow again");
+        }
         return tex;
     }
 
@@ -393,6 +454,8 @@ namespace rage::gfx {
         if (m_committed) platform::logf("gfx", "\"%s\": custom textures loaded", m_dict);
         return m_committed;
     }
+
+    uint32_t watch_frame() { return g_watch_ticks; }
 
     void watch_store_slot() {
         if (g_watch_slot < 0 || !rage::invoker::g_eboot_base) return;

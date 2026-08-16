@@ -12,6 +12,8 @@
 #include "menu/base/options/break.h"
 #include "menu/base/util/notify.h"
 #include "global/ui_vars.h"
+#include "platform/log.h"
+#include "platform/fault_handler.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/natives_hash.h"
 
@@ -44,6 +46,26 @@ void misc_menu::load() {
 
     add_option(button_option("Clear Notifications")
         .add_click([] { native::thefeed_clear_frozen_post(); }));
+
+    // Diagnostics. This deliberately kills the game, which is the only honest way
+    // to find out whether the fault handler fires at all - a handler assumed to
+    // work and never tested is worth nothing at the moment it is needed. Two
+    // presses, because one misplaced button press should not cost a session.
+    add_option(break_option("Diagnostics").ref());
+
+    add_option(button_option("~r~Crash The Game (fault handler test)")
+        .add_tooltip("Deliberately faults, to prove the crash logger works. "
+                     "Press twice. The game WILL close - look for [FAULT] in the log.")
+        .add_click([] {
+            static bool armed = false;
+            if (!armed) {
+                armed = true;
+                menu::notify::stacked("Diagnostics", "Press again to crash on purpose");
+                return;
+            }
+            platform::logf("Boot", "fault handler test: faulting on purpose now");
+            platform::fault::trigger_test_fault();
+        }));
 }
 
 void misc_menu::feature_update() {
