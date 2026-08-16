@@ -170,9 +170,38 @@ caps captures at 64 bytes and this is the pattern that stays under it.
 
 ## Persistence
 
-Toggles and colours save through `add_savable(get_submenu_name_stack())` into
-`config.json`. **Not** into themes: a theme describes how the menu looks, and
-ESP is a setting about the world.
+**Not implemented in this version.** ESP settings do not survive a restart:
+`helper_esp_menu` builds fresh from `esp_context`'s compiled defaults every
+boot, and toggling an element writes nothing to disk.
+
+This was attempted and reverted. The obvious approach -
+`add_savable(get_submenu_name_stack())` on each toggle and number option,
+the same call every other savable option in this codebase uses - does not
+work here, and cannot be made to work without a different key. Its save key
+is `(get_submenu_name_stack(), option name)`: the menu's position in the
+tree, plus the option's own name. `helper_esp_menu` is not one menu with one
+state, though - it is a single shared editor, opened via `open_for()` for
+Session ESP, for each of up to 32 per-player `esp_context`s, and for Vehicle
+ESP in turn, editing whichever one is current. None of that - which
+consumer, which player slot - reaches the menu path or the option name, so
+the key cannot tell "Snapline" for the session apart from "Snapline" for
+player 7 or for vehicles: all of them would read and write the same one
+stored value. (Separately, and independently of that, `helper_esp_menu` also
+has no `set_parent<T>()` today, so its name stack is empty and
+`add_savable`'s own guard no-ops before any of this even applies - a second
+reason the naive call does nothing rather than something subtly wrong.)
+
+The real fix is its own task: serialise each `esp_context` directly through
+`util::config`, keyed by consumer identity rather than menu path - e.g.
+`"session"`, `"player-<slot>"`, `"vehicle"` - read at the point each
+consumer constructs its context and written wherever it changes, bypassing
+`add_savable` entirely. That needs its own design (where the per-slot key
+comes from, when it's safe to read/write relative to `menu::build()`) and is
+out of scope here.
+
+The one thing that does still hold: whatever the eventual key, ESP settings
+belong in `config.json`, not in themes - a theme describes how the menu
+looks, and ESP is a setting about the world.
 
 ## Failure modes
 
