@@ -24,6 +24,13 @@ namespace {
     // update_once() rebuilds for a (possibly new) target.
     bool g_rainbow_on = false;
 
+    // Direct-pointer mode: set by target(color_rgba*, const char*) for a
+    // colour that has no menu::theme registry entry. Non-null here means
+    // current() resolves to this pointer instead of the registry; cleared by
+    // target(int) so the two modes can never both be live.
+    color_rgba* g_direct       = nullptr;
+    const char* g_direct_title = "";
+
     // Filled in load(), not aggregate-initialised here: localization's
     // constructor is not constexpr, so a static initializer for "RGBA"/"HSVA"
     // would need .init_array, which GoldHEN never runs (see ui_vars.h). Every
@@ -31,7 +38,7 @@ namespace {
     // player.cpp's merryweather list, ...) follows the same pattern.
     scroll_struct<int> g_formats[2];
 
-    color_rgba* current() { return menu::theme::color_ptr(g_target); }
+    color_rgba* current() { return g_direct ? g_direct : menu::theme::color_ptr(g_target); }
 
     void preview() {
         if (!current()) return;
@@ -48,9 +55,16 @@ namespace {
 }
 
 void helper_color_menu::target(int registry_index) {
+    g_direct = nullptr;    // leave direct mode: the two can never both be live
     if (registry_index < 0 || registry_index >= menu::theme::color_count()) return;
     g_target = registry_index;
     g_built_format = -1;   // force a rebuild: the title and bindings changed
+}
+
+void helper_color_menu::target(color_rgba* colour, const char* title) {
+    g_direct       = colour;
+    g_direct_title = title ? title : "";
+    g_built_format = -1;   // force update_once() to rebuild for the new target
 }
 
 int         helper_color_menu::current_target() { return g_target; }
@@ -98,7 +112,7 @@ void helper_color_menu::update() {
 
 void helper_color_menu::update_once() {
     g_built_format = g_format;
-    set_name(menu::theme::color_display_name(g_target), false, false);
+    set_name(g_direct ? g_direct_title : menu::theme::color_display_name(g_target), false, false);
     // Refresh from the rainbow's actual membership before the options rebuild:
     // this runs on a target() switch too, and the toggle must reflect the new
     // target's state, not the previous one's.
