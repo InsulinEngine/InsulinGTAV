@@ -134,6 +134,72 @@ namespace menu::esp {
             const float fh = b.h * f;
             menu::renderer::draw_rect({ x, b.y + (b.h - fh) }, { w, fh }, ctx.m_healthbar_color);
         }
+
+        // Ozark's 3D box: the model's own bounds turned into eight world-space
+        // corners, joined by twelve edges and the spokes Ozark draws from the
+        // centre, which are what make it read as a solid at a distance.
+        void box_3d_esp(const esp_context& ctx, Entity entity,
+                        const math::vector3<float>& coords) {
+            math::vector3<float> lo, hi;
+            native::get_model_dimensions(native::get_entity_model(entity), &lo, &hi);
+
+            const float rx = (hi.x - lo.x) * 0.5f;
+            const float ry = (hi.y - lo.y) * 0.5f;
+            const float rz = (hi.z - lo.z) * 0.5f;
+            if (rx <= 0.f || ry <= 0.f || rz <= 0.f) return;   // no usable bounds
+
+            const color_rgba c = ctx.m_3d_box_color;
+            math::vector3<float> FUL = native::get_offset_from_entity_in_world_coords(entity, -rx,  ry,  rz);
+            math::vector3<float> FUR = native::get_offset_from_entity_in_world_coords(entity,  rx,  ry,  rz);
+            math::vector3<float> FBL = native::get_offset_from_entity_in_world_coords(entity, -rx,  ry, -rz);
+            math::vector3<float> FBR = native::get_offset_from_entity_in_world_coords(entity,  rx,  ry, -rz);
+            math::vector3<float> BUL = native::get_offset_from_entity_in_world_coords(entity, -rx, -ry,  rz);
+            math::vector3<float> BUR = native::get_offset_from_entity_in_world_coords(entity,  rx, -ry,  rz);
+            math::vector3<float> BBL = native::get_offset_from_entity_in_world_coords(entity, -rx, -ry, -rz);
+            math::vector3<float> BBR = native::get_offset_from_entity_in_world_coords(entity,  rx, -ry, -rz);
+
+            menu::renderer::draw_line(FBL, FUL, c);
+            menu::renderer::draw_line(FBR, FUR, c);
+            menu::renderer::draw_line(BBL, BUL, c);
+            menu::renderer::draw_line(BBR, BUR, c);
+            menu::renderer::draw_line(FUL, FUR, c);
+            menu::renderer::draw_line(FBL, FBR, c);
+            menu::renderer::draw_line(BUL, BUR, c);
+            menu::renderer::draw_line(BBL, BBR, c);
+            menu::renderer::draw_line(FUL, BUL, c);
+            menu::renderer::draw_line(FUR, BUR, c);
+            menu::renderer::draw_line(FBL, BBL, c);
+            menu::renderer::draw_line(FBR, BBR, c);
+
+            menu::renderer::draw_line(coords, FUL, c);
+            menu::renderer::draw_line(coords, FUR, c);
+            menu::renderer::draw_line(coords, FBL, c);
+            menu::renderer::draw_line(coords, FBR, c);
+            menu::renderer::draw_line(coords, BUL, c);
+            menu::renderer::draw_line(coords, BUR, c);
+            menu::renderer::draw_line(coords, BBL, c);
+            menu::renderer::draw_line(coords, BBR, c);
+        }
+
+        // Three long axes through the entity, coloured X red, Y green, Z blue.
+        // Ozark's fixed colours: they identify an axis, so they are not themeable.
+        void axis_3d_esp(Entity entity) {
+            math::vector3<float> lo, hi;
+            native::get_model_dimensions(native::get_entity_model(entity), &lo, &hi);
+            const float dx = (hi.x - lo.x) * 2.f;
+            const float dy = (hi.y - lo.y) * 2.f;
+
+            math::vector3<float> XL = native::get_offset_from_entity_in_world_coords(entity, -dx, 0.f, 0.f);
+            math::vector3<float> XR = native::get_offset_from_entity_in_world_coords(entity,  dx, 0.f, 0.f);
+            math::vector3<float> YF = native::get_offset_from_entity_in_world_coords(entity, 0.f,  dy, 0.f);
+            math::vector3<float> YB = native::get_offset_from_entity_in_world_coords(entity, 0.f, -dy, 0.f);
+            math::vector3<float> ZU = native::get_offset_from_entity_in_world_coords(entity, 0.f, 0.f,  500.f);
+            math::vector3<float> ZD = native::get_offset_from_entity_in_world_coords(entity, 0.f, 0.f, -500.f);
+
+            menu::renderer::draw_line(XL, XR, color_rgba(255, 0, 0, 255));
+            menu::renderer::draw_line(YF, YB, color_rgba(0, 255, 0, 255));
+            menu::renderer::draw_line(ZU, ZD, color_rgba(0, 0, 255, 255));
+        }
     }
 
     void begin_frame() {
@@ -190,6 +256,9 @@ namespace menu::esp {
                 if (ctx.m_healthbar)  healthbar_esp(ctx, entity, b);
             }
         }
+
+        if (ctx.m_3d_box)  box_3d_esp(ctx, entity, coords);
+        if (ctx.m_3d_axis) axis_3d_esp(entity);
 
         if (ctx.m_name) name_esp(ctx, entity, head, distance, name_override);
     }
