@@ -60,7 +60,9 @@ void network_players_menu::update_once() {
 
     add_option(submenu_option("ESP")
         .add_submenu<helper_esp_menu>()
-        .add_click([] { helper_esp_menu::open_for(&g_session_esp, "Session ESP"); })
+        .add_click([] {
+            helper_esp_menu::open_for<network_players_menu>(&g_session_esp, "Session ESP");
+        })
         .add_tooltip("Draws every other player in the session"));
 
     add_option(break_option("Players").ref());
@@ -173,7 +175,7 @@ void network_player_menu::load() {
             int id = network_players_selected();
             if (id < 0 || id >= game::players::MAX_PLAYERS) return;
             g_player_esp[id].m_ped = true;
-            helper_esp_menu::open_for(&g_player_esp[id], "Player ESP");
+            helper_esp_menu::open_for<network_player_menu>(&g_player_esp[id], "Player ESP");
         }));
 
     add_option(break_option("Info").ref());

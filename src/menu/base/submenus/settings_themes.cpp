@@ -64,7 +64,14 @@ void settings_themes_menu::load() {
     for (int i = 0; i < menu::theme::color_count(); i++) {
         add_option(submenu_option(menu::theme::color_display_name(i))
             .add_submenu<helper_color_menu>()
-            .add_click([i] { helper_color_menu::target(i); })
+            // Re-point the shared editor's parent as well as its target: the
+            // ESP colour editor opens the same menu and points it at itself, so
+            // whoever opens it last owns "back". Themes can no longer rely on
+            // the parent load() set, and neither can any future opener.
+            .add_click([i] {
+                helper_color_menu::get()->set_parent<settings_themes_menu>();
+                helper_color_menu::target(i);
+            })
             .add_hover([i] (submenu_option*) {
                 menu::renderer::render_color_preview(*menu::theme::color_ptr(i));
             }));

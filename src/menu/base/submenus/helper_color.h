@@ -12,6 +12,11 @@ public:
     void update() override;
     void update_once() override;
 
+    // Every opener must also re-point the parent -
+    // `helper_color_menu::get()->set_parent<my_menu>()` - in the same click
+    // handler, before this submenu is shown. This editor is shared, so the
+    // parent load() sets is only whoever happened to be the first opener, and
+    // "back" would otherwise leave the user somewhere they never were.
     static void        target(int registry_index);
     // Point the editor at a colour that is not in the theme registry. The
     // index form exists so the editor can title itself and find a default to

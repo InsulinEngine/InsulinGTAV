@@ -40,7 +40,14 @@ void helper_esp_settings_edit_menu::update_once() {
     add_option(submenu_option("Colour")
         .add_submenu<helper_color_menu>()
         .add_click([] {
-            if (g_color) helper_color_menu::target(g_color, g_title);
+            if (!g_color) return;
+            // helper_color_menu is shared, and its load() points its parent at
+            // Settings > Themes because Themes was its only opener. Its own
+            // header says so in writing: a second opener has to re-point it,
+            // or "back" out of an ESP colour lands in Themes. Themes re-points
+            // it the same way from its side.
+            helper_color_menu::get()->set_parent<helper_esp_settings_edit_menu>();
+            helper_color_menu::target(g_color, g_title);
         }));
 
     // Ozark gives every element its own animator object. This port already has
@@ -50,8 +57,17 @@ void helper_esp_settings_edit_menu::update_once() {
         .add_toggle(*g_rainbow)
         .add_click([] {
             if (!g_color || !g_rainbow) return;
-            if (*g_rainbow) menu::get_rainbow()->add(g_color);
-            else            menu::get_rainbow()->remove(g_color);
+            // toggle_option flips *g_rainbow before calling this handler, so act
+            // on its new value. m_enabled is what actually starts the animator -
+            // rainbow::run() early-returns without it - and it is off until
+            // something switches it on, so registering a colour without setting
+            // it reads as "on" and never cycles. Same as helper_color.cpp, down
+            // to leaving m_enabled alone on the way out: removing the last
+            // colour makes run() a no-op by itself (m_colors is empty), and
+            // clearing the flag would only make the next add() forget to set it.
+            menu::rainbow* rb = menu::get_rainbow();
+            if (*g_rainbow) { rb->add(g_color); rb->m_enabled = true; }
+            else              rb->remove(g_color);
         })
         .add_tooltip("Cycles this colour through the hue wheel"));
 }

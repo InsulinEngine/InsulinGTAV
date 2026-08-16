@@ -47,7 +47,9 @@ void world_local_entities_menu::load() {
 
     add_option(submenu_option("Vehicle ESP")
         .add_submenu<helper_esp_menu>()
-        .add_click([] { helper_esp_menu::open_for(&g_vehicle_esp, "Vehicle ESP"); }));
+        .add_click([] {
+            helper_esp_menu::open_for<world_local_entities_menu>(&g_vehicle_esp, "Vehicle ESP");
+        }));
 }
 
 void world_local_entities_menu::feature_update() {

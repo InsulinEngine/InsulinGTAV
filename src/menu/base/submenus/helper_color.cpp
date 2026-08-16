@@ -72,10 +72,10 @@ color_rgba* helper_color_menu::target_color()   { return current(); }
 
 void helper_color_menu::load() {
     set_name("Color");
-    // Themes is the only opener today. A shared editor opened from somewhere
-    // else later (e.g. a per-vehicle colour picker) needs the opener to
-    // re-point the parent via set_parent<T>() before showing this submenu,
-    // or "back" will return to Themes regardless of who opened it.
+    // A default only, and a fallback for a caller that forgets: every opener
+    // re-points the parent via set_parent<T>() in its click handler before
+    // showing this submenu, because "back" has to return to whoever opened it.
+    // Themes and the ESP colour editor both do; a third opener must too.
     set_parent<settings_themes_menu>();
 
     g_formats[0].m_name.set("RGBA"); g_formats[0].m_result = 0;
