@@ -25,6 +25,14 @@ namespace {
     // Walking the game's ped/object pools directly is separate RE work this
     // task does not do; this is a scoping decision, not an oversight.
     menu::esp::esp_context g_vehicle_esp;
+
+    // GET_ALL_VEHICLES takes no size and writes one handle per pooled
+    // vehicle, so the buffer must be sized for the pool rather than for what
+    // we intend to read. Static rather than on the stack: 4KB per frame is a
+    // lot on a game thread, and a POD array in .bss needs no constructor, so
+    // it adds no .init_array entry. 1024 is the size community scripts use
+    // for this native and is comfortably above GTA V's vehicle pool ceiling.
+    static Any g_vehicle_handles[1024];
 }
 
 void world_local_entities_menu::load() {
@@ -54,11 +62,12 @@ void world_local_entities_menu::feature_update() {
     }
 
     if (g_vehicle_esp.any()) {
-        Any handles[128];
-        int n = native::get_all_vehicles(handles);
-        if (n > 128) n = 128;
+        constexpr int cap = sizeof(g_vehicle_handles) / sizeof(g_vehicle_handles[0]);
+        int n = native::get_all_vehicles(g_vehicle_handles);
+        if (n > cap) n = cap;
+        if (n < 0) n = 0;
         for (int i = 0; i < n; i++)
-            menu::esp::draw_entity(g_vehicle_esp, (Entity)handles[i], nullptr);
+            menu::esp::draw_entity(g_vehicle_esp, (Entity)g_vehicle_handles[i], nullptr);
     }
 }
 
