@@ -66,6 +66,21 @@ namespace rage::gfx {
     static char g_managed[8][64];
     static int  g_managed_count = 0;
 
+    // ---- store-slot watcher --------------------------------------------------
+    // commit() hands the store a dictionary we fabricated by hand. This samples
+    // the slot every frame and says so if the engine ever swaps the pointer,
+    // nulls it or flips its flags -- and otherwise emits one heartbeat a minute.
+    //
+    // The heartbeat is the point, and it is cheap enough to keep permanently: the
+    // crash this was built for leaves no trace of its own, the log simply stops,
+    // and without a monotonic frame count in the file there is no way to tell a
+    // game that died from a session that ended. One line a minute buys that.
+    // Set by commit(), sampled by watch_store_slot(). -1 = nothing committed yet.
+    static int      g_watch_slot  = -1;
+    static void*    g_watch_dict  = nullptr;   // the dictionary commit() installed
+    static uint8_t  g_watch_flag  = 0;         // its store flag byte at commit time
+    static uint32_t g_watch_ticks = 0;
+
     bool is_custom_dict(const char* dict_name) {
         if (!dict_name) return false;
         for (int i = 0; i < g_managed_count; i++)
@@ -331,6 +346,15 @@ namespace rage::gfx {
                     donor = i;
                 }
             }
+            // Measured 2026-08-16, worth keeping written down: a canary vtable --
+            // our own 128-slot copy of this donor, every entry a thunk logging
+            // index and caller before chaining -- recorded **zero** virtual calls
+            // on this dictionary across 60+ commits, a PS-overlay cycle, a stress
+            // run and 13 minutes of idle. So the pass this whole block was written
+            // to survive does not appear to happen on this title. The adoption
+            // stays because it is nearly free and a NULL vtable is a guaranteed
+            // fault if it ever does; the canary was removed once it had answered,
+            // since a fabricated vtable is a risk that only pays while measuring.
             *(void**)(dict + 0x00) = vt;
             if (vt) platform::logf("gfx", "vtable %p adopted from slot %d (scanned %d)", vt, donor, total);
             else    LOG_WARN("gfx: no donor dict found in %d slots; vtable stays NULL - the "
@@ -351,11 +375,80 @@ namespace rage::gfx {
         platform::logf("gfx", "commit \"%s\": %d tex, slot %d, dict %p, GetPtr %p, rage=%d", m_dict, m, m_slot, (void*)dict, got, (int)rage_backed);
         platform::klogf("gfx commit \"%s\": %d tex, slot %d, dict %p, rage=%d", m_dict, m, m_slot, (void*)dict, (int)rage_backed);
         m_committed = (got == (void*)dict);
+        if (m_committed) {
+            // Hand the watcher the ground truth it compares against. Re-armed on
+            // every commit, because every commit installs a *new* dictionary.
+            g_watch_slot = m_slot;
+            g_watch_dict = dict;
+            g_watch_flag = flagarr ? flagarr[m_slot] : 0;
+            // The frame counter is deliberately NOT reset here. It was, and that
+            // quietly destroyed the only thing the heartbeat is for: every commit
+            // sent it back to 0, the "% 1800" fired immediately, and the log
+            // filled with one f=0 line per commit and never a single idle
+            // timestamp. A monotonic counter is what dates a fault.
+        }
         // Demoted from platform::notify: commit() runs on routine actions (e.g.
         // picking a menu image) that already raise their own notification, and
         // an unsolicited toast per commit was noise. Still visible in the log.
         if (m_committed) platform::logf("gfx", "\"%s\": custom textures loaded", m_dict);
         return m_committed;
+    }
+
+    void watch_store_slot() {
+        if (g_watch_slot < 0 || !rage::invoker::g_eboot_base) return;
+
+        void*    store    = at(RVA_TXDSTORE);
+        char*    slotbase = *(char**)((uint8_t*)store + STORE_SLOTBASE_OFF);
+        uint8_t* flagarr  = *(uint8_t**)((uint8_t*)store + STORE_FLAGARR_OFF);
+        uint32_t stride   = *(uint32_t*)((uint8_t*)store + STORE_STRIDE_OFF);
+        if (!slotbase || !stride) return;
+
+        void*   cur  = *(void**)(slotbase + (uint64_t)g_watch_slot * stride);
+        uint8_t flag = flagarr ? flagarr[g_watch_slot] : 0;
+
+        if (cur != g_watch_dict || flag != g_watch_flag) {
+            // The engine reached into our slot. This is the event the whole
+            // watcher exists for, so it goes out on both channels: the kernel
+            // log survives the fault, the file log survives a missing listener.
+            platform::logf("gfx", "WATCH slot %d CHANGED: dict %p -> %p, flag 0x%02X -> 0x%02X, after %u frames",
+                           g_watch_slot, g_watch_dict, cur, (unsigned)g_watch_flag, (unsigned)flag, g_watch_ticks);
+            g_watch_dict = cur;
+            g_watch_flag = flag;
+        }
+
+        // Heartbeat every 1800 frames, which is one minute -- this title runs at
+        // 30fps, measured, not assumed. Into the *file* log: port 3232 accepts a
+        // connection on this console and then delivers nothing, so a klog-only
+        // heartbeat is indistinguishable from a watcher that never ran. Two jobs:
+        // it dates the fault (the last heartbeat says how long the game idled),
+        // and it shows whether the dictionary's own fields are still intact,
+        // which a bare pointer comparison would miss.
+        //
+        // The dereference below is deliberately limited to the block we
+        // allocated ourselves: that memory is ours and stays mapped even if the
+        // engine has logically released it. Following a pointer the engine put
+        // there instead could fault inside the diagnostic and manufacture the
+        // very crash we are trying to observe.
+        // Loud at the start, then every ~30s. The early beats exist to prove the
+        // watcher is running at all within a second or two: a heartbeat that only
+        // speaks every 1800 frames is indistinguishable from one that never
+        // speaks, and that ambiguity already cost a test cycle -- a session whose
+        // log held a single f=0 line could not be told apart from a dead
+        // instrument until the frame counter was reasoned about.
+        const uint32_t n = g_watch_ticks;
+        if (n == 1 || n == 60 || n == 600 || (n % 1800) == 0) {
+            if (cur && cur == g_watch_dict) {
+                uint8_t* d = (uint8_t*)cur;
+                platform::logf("gfx", "WATCH alive f=%u slot=%d dict=%p vt=%p codes=%p n=%u ents=%p n=%u flag=0x%02X",
+                               g_watch_ticks, g_watch_slot, cur,
+                               *(void**)(d + 0x00), *(void**)(d + 0x20), (unsigned)*(uint16_t*)(d + 0x28),
+                               *(void**)(d + 0x30), (unsigned)*(uint16_t*)(d + 0x38), (unsigned)flag);
+            } else {
+                platform::logf("gfx", "WATCH alive f=%u slot=%d dict=%p (not ours, not inspected) flag=0x%02X",
+                               g_watch_ticks, g_watch_slot, cur, (unsigned)flag);
+            }
+        }
+        g_watch_ticks++;
     }
 
     // ---- menu-facing helpers -------------------------------------------------

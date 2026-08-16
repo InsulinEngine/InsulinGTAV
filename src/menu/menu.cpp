@@ -3,6 +3,7 @@
 #include "menu/base/submenu_handler.h"
 #include "menu/base/submenus/main.h"
 #include "rage/invoker/hash_natives.h"
+#include "rage/gfx.h"
 #include "menu/base/submenus/player.h"
 #include "menu/base/submenus/player_animation.h"
 #include "menu/base/submenus/player_animations.h"
@@ -324,6 +325,15 @@ namespace menu {
 #endif
 
         TICK_TRACE("enter");
+
+        // Deliberately *above* the overlay guard below, and ungated by
+        // player_valid(): this only reads memory and calls no native, and the
+        // window where the engine is most likely to reach into our fabricated
+        // dictionary is exactly the one the guard skips -- constrain time, with
+        // the overlay up. Sampling it only when the game has the screen back
+        // would leave the interesting minutes unobserved.
+        TICK_TRACE("gfxwatch");
+        rage::gfx::watch_store_slot();
 
         // PS-button guard: while the ShellUI overlay (XMB) is up the game is
         // constrained and our per-frame native work crashes it. Skip the whole

@@ -486,7 +486,11 @@ namespace menu::images {
         // exactly one texture rather than two.
         stage("loading frames from %s", dir);
 
-        if (!menu::animation::load_from_dir(anim_name, dir)) {
+        // commit_now = false: the alias added below needs a commit of its own a
+        // few lines further down, and each commit fabricates a new dictionary
+        // and orphans the previous one. Letting the frames ride along with that
+        // one commit halves the churn per picture change.
+        if (!menu::animation::load_from_dir(anim_name, dir, /*commit_now=*/false)) {
             return fail("Nothing loadable in the cache for \"%s\"", name);
         }
 
