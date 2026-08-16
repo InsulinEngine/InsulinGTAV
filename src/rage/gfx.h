@@ -71,6 +71,14 @@ namespace rage::gfx {
     // try to stream/request it (it lives only in memory).
     bool is_custom_dict(const char* dict_name);
 
+    // Sample the txd store slot the last commit() installed into: report any
+    // change the engine makes to it, and otherwise emit one heartbeat a minute
+    // carrying a monotonic frame count. Reads only -- no natives, no writes --
+    // so it is safe to call every frame from the game thread, and it is inert
+    // until something has been committed. The heartbeat is what dates a fault:
+    // this plugin's crashes end the log without a line of their own.
+    void watch_store_slot();
+
     // Convenience for the header: menu_textures() committed and holds "logo".
     bool banner_ready();
 }
