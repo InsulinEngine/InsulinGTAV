@@ -5,6 +5,7 @@
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "rage/invoker/hash_natives.h"
+#include "rage/ped_bones.h"
 #include "platform/log.h"
 
 #include <stdio.h>
@@ -200,6 +201,59 @@ namespace menu::esp {
             menu::renderer::draw_line(YF, YB, color_rgba(0, 255, 0, 255));
             menu::renderer::draw_line(ZU, ZD, color_rgba(0, 0, 255, 255));
         }
+
+        void draw_bone(Entity ped, int a, int b, color_rgba c) {
+            math::vector3<float> pa = native::get_ped_bone_coords(ped, a, 0.f, 0.f, 0.f);
+            math::vector3<float> pb = native::get_ped_bone_coords(ped, b, 0.f, 0.f, 0.f);
+            math::vector2<float> sa, sb;
+            if (!project(pa, &sa) || !project(pb, &sb)) return;
+            menu::renderer::draw_line_2d({ sa.x, sa.y, 0.f }, { sb.x, sb.y, 0.f }, c);
+        }
+
+        void draw_joint(Entity ped, int bone, color_rgba c) {
+            math::vector3<float> p = native::get_ped_bone_coords(ped, bone, 0.f, 0.f, 0.f);
+            math::vector2<float> s;
+            if (!project(p, &s)) return;   // off-screen joints cost nothing
+            native::draw_marker(28, p.x, p.y, p.z, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+                                0.03f, 0.03f, 0.03f, c.r, c.g, c.b, c.a,
+                                0, 0, 0, 0, nullptr, nullptr, 0);
+        }
+
+        void skeleton_esp(const esp_context& ctx, Entity ped, bool joints) {
+            using namespace rage::ped_bones;
+            static const int k_bones[][2] = {
+                { SKEL_R_Foot, MH_R_Knee }, { SKEL_R_Toe0, SKEL_R_Foot },
+                { SKEL_L_Toe0, SKEL_L_Foot }, { SKEL_L_Foot, MH_L_Knee },
+                { MH_R_Knee, SKEL_Pelvis }, { MH_L_Knee, SKEL_Pelvis },
+                { SKEL_Pelvis, SKEL_Neck_1 },
+                { SKEL_Neck_1, SKEL_R_UpperArm }, { SKEL_Neck_1, SKEL_L_UpperArm },
+                { SKEL_R_UpperArm, SKEL_R_Forearm }, { SKEL_L_UpperArm, SKEL_L_Forearm },
+                { SKEL_R_Forearm, SKEL_R_Hand }, { SKEL_L_Forearm, SKEL_L_Hand },
+                { SKEL_Neck_1, SKEL_Head },
+            };
+            const int count = (int)(sizeof(k_bones) / sizeof(k_bones[0]));
+
+            if (joints) {
+                for (int i = 0; i < count; i++)
+                    draw_joint(ped, k_bones[i][0], ctx.m_skeleton_joints_color);
+                draw_joint(ped, SKEL_Head, ctx.m_skeleton_joints_color);
+                return;
+            }
+            for (int i = 0; i < count; i++)
+                draw_bone(ped, k_bones[i][0], k_bones[i][1], ctx.m_skeleton_bones_color);
+        }
+
+        void weapon_esp(const esp_context& ctx, Entity ped) {
+            math::vector3<float> hand =
+                native::get_ped_bone_coords(ped, rage::ped_bones::SKEL_R_Hand, 0.f, 0.f, 0.f);
+            math::vector2<float> s;
+            if (!project(hand, &s)) return;
+            native::draw_marker(28, hand.x, hand.y, hand.z, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+                                0.05f, 0.05f, 0.05f,
+                                ctx.m_weapon_color.r, ctx.m_weapon_color.g,
+                                ctx.m_weapon_color.b, ctx.m_weapon_color.a,
+                                0, 0, 0, 0, nullptr, nullptr, 0);
+        }
     }
 
     void begin_frame() {
@@ -259,6 +313,20 @@ namespace menu::esp {
 
         if (ctx.m_3d_box)  box_3d_esp(ctx, entity, coords);
         if (ctx.m_3d_axis) axis_3d_esp(entity);
+
+        // Bones are 28 hash-native calls per ped per frame - the most expensive
+        // thing here by an order of magnitude - so they carry their own, much
+        // nearer radius, and they are skipped entirely until the hash table has
+        // been recovered rather than calling into an empty table.
+        const bool bones_possible = ctx.m_ped
+                                 && rage::hash_natives::usable()
+                                 && distance <= (float)ctx.m_skeleton_distance
+                                 && native::is_entity_a_ped(entity);
+        if (bones_possible) {
+            if (ctx.m_skeleton_bones)  skeleton_esp(ctx, entity, false);
+            if (ctx.m_skeleton_joints) skeleton_esp(ctx, entity, true);
+            if (ctx.m_weapon)          weapon_esp(ctx, entity);
+        }
 
         if (ctx.m_name) name_esp(ctx, entity, head, distance, name_override);
     }
