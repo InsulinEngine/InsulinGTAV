@@ -129,7 +129,7 @@ namespace menu {
             return out;
         }
 
-        animated_texture* load_from_dir(const char* name, const char* dir) {
+        animated_texture* load_from_dir(const char* name, const char* dir, bool commit_now) {
             if (!name || !name[0] || !dir || !dir[0]) return nullptr;
 
             // Frame list: the manifest if there is one, else the sorted directory.
@@ -205,8 +205,9 @@ namespace menu {
                 return nullptr;
             }
 
-            dict.commit();   // one commit for the whole sequence
-            platform::logf("anim", "\"%s\": %d frame(s) from %s, loop=%d", name, loaded, dir, (int)loop);
+            if (commit_now) dict.commit();   // one commit for the whole sequence
+            platform::logf("anim", "\"%s\": %d frame(s) from %s, loop=%d%s", name, loaded, dir, (int)loop,
+                           commit_now ? "" : " (commit deferred to caller)");
             return anim;
         }
 
