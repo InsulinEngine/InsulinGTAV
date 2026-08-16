@@ -74,6 +74,64 @@ namespace menu::esp {
                           const math::vector3<float>& coords) {
             menu::renderer::draw_line(local_coords, coords, ctx.m_snapline_color);
         }
+
+        // The box the whole feature is named for. Ozark left this unimplemented and
+        // its menu entries commented out; the recipe is 2take1's.
+        // head is already projected by draw_entity (it gates the frame budget on
+        // that same projection) and handed down; only the feet still need it.
+        bool entity_box(const math::vector2<float>& head, const math::vector3<float>& coords,
+                        esp_math::box2d* out) {
+            math::vector2<float> feet;
+            math::vector3<float> feet_world = { coords.x, coords.y, coords.z + k_feet_offset };
+            if (!project(feet_world, &feet)) return false;
+            *out = esp_math::box_from_projections(head.x, head.y, feet.y);
+            return true;
+        }
+
+        void box_2d_esp(const esp_context& ctx, const esp_math::box2d& b) {
+            // draw_outlined_rect already draws a fill plus a border and gets the
+            // corner maths right; a fully transparent fill turns it into a frame.
+            const float thickness = b.h * 0.006f;
+            menu::renderer::draw_outlined_rect({ b.x, b.y }, { b.w, b.h }, thickness,
+                                               color_rgba(0, 0, 0, 0), ctx.m_2d_box_color);
+        }
+
+        void corners_2d_esp(const esp_context& ctx, const esp_math::box2d& b) {
+            const float t   = b.h * 0.006f;          // line thickness
+            const float len_x = b.w * 0.30f;         // how far a corner reaches
+            const float len_y = b.h * 0.20f;
+            const color_rgba c = ctx.m_2d_corners_color;
+
+            const float l = b.x, r = b.x + b.w - t, top = b.y, bot = b.y + b.h - t;
+
+            // Each corner is one horizontal and one vertical stub.
+            menu::renderer::draw_rect({ l, top },             { len_x, t }, c);
+            menu::renderer::draw_rect({ l, top },             { t, len_y }, c);
+            menu::renderer::draw_rect({ r - len_x + t, top }, { len_x, t }, c);
+            menu::renderer::draw_rect({ r, top },             { t, len_y }, c);
+            menu::renderer::draw_rect({ l, bot },             { len_x, t }, c);
+            menu::renderer::draw_rect({ l, bot - len_y + t }, { t, len_y }, c);
+            menu::renderer::draw_rect({ r - len_x + t, bot }, { len_x, t }, c);
+            menu::renderer::draw_rect({ r, bot - len_y + t }, { t, len_y }, c);
+        }
+
+        void healthbar_esp(const esp_context& ctx, Entity entity,
+                           const esp_math::box2d& b) {
+            const int health = native::get_entity_health(entity);
+            const int max    = native::get_entity_max_health(entity);
+            const int armour = native::is_entity_a_ped(entity) ? native::get_ped_armour(entity) : 0;
+            const float f = esp_math::health_fraction(health, max, armour);
+
+            const float w   = b.w * 0.12f;
+            const float gap = b.w * 0.10f;
+            const float x   = b.x - gap - w;
+
+            // Background the full height, then the filled part growing from the
+            // bottom, so a draining bar shortens downward as players expect.
+            menu::renderer::draw_rect({ x, b.y }, { w, b.h }, color_rgba(0, 0, 0, 180));
+            const float fh = b.h * f;
+            menu::renderer::draw_rect({ x, b.y + (b.h - fh) }, { w, fh }, ctx.m_healthbar_color);
+        }
     }
 
     void begin_frame() {
@@ -121,6 +179,16 @@ namespace menu::esp {
         g_drawn++;
 
         if (ctx.m_snapline) snapline_esp(ctx, local_coords, coords);
-        if (ctx.m_name)     name_esp(ctx, entity, head, distance, name_override);
+
+        if (ctx.m_2d_box || ctx.m_2d_corners || ctx.m_healthbar) {
+            esp_math::box2d b;
+            if (entity_box(head, coords, &b)) {
+                if (ctx.m_2d_box)     box_2d_esp(ctx, b);
+                if (ctx.m_2d_corners) corners_2d_esp(ctx, b);
+                if (ctx.m_healthbar)  healthbar_esp(ctx, entity, b);
+            }
+        }
+
+        if (ctx.m_name) name_esp(ctx, entity, head, distance, name_override);
     }
 }
