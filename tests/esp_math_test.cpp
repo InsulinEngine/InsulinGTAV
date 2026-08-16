@@ -37,14 +37,25 @@ int main() {
     check_true("flipped width positive", flipped.w > 0.f);
 
     // Health bar: full health and full armour fills it; nothing empties it.
-    check_near("full", health_fraction(100, 100, 50), 1.0f);
-    check_near("empty", health_fraction(0, 100, 0), 0.0f);
-    check_near("half health no armour", health_fraction(75, 100, 0), 0.5f);
+    // A ped-shaped case throughout - armour_max is the 50 GTA V allows a ped.
+    check_near("full", health_fraction(100, 100, 50, 50), 1.0f);
+    check_near("empty", health_fraction(0, 100, 0, 50), 0.0f);
+    check_near("half health no armour", health_fraction(75, 100, 0, 50), 0.5f);
 
     // Health above max, or a zero max, must not escape [0,1] or divide by zero.
-    check_near("over-full clamps", health_fraction(500, 100, 500), 1.0f);
-    check_near("zero max is empty", health_fraction(50, 0, 0), 0.0f);
-    check_near("negative is empty", health_fraction(-20, 100, 0), 0.0f);
+    check_near("over-full clamps", health_fraction(500, 100, 500, 50), 1.0f);
+    check_near("zero max is empty", health_fraction(50, 0, 0, 50), 0.0f);
+    check_near("negative is empty", health_fraction(-20, 100, 0, 50), 0.0f);
+
+    // Non-ped path: no armour ceiling at all, so max_health alone is the
+    // denominator. 100/(100+0) = 1.0, 50/(100+0) = 0.5.
+    check_near("non-ped full", health_fraction(100, 100, 0, 0), 1.0f);
+    check_near("non-ped half", health_fraction(50, 100, 0, 0), 0.5f);
+
+    // A negative armour_max must clamp to 0, not shrink the denominator below
+    // max_health. If it were left unclamped, 50/(100-10) = 0.5556 instead of
+    // the 0.5 an un-armoured entity should read.
+    check_near("negative armour_max clamps to 0", health_fraction(50, 100, 0, -10), 0.5f);
 
     // Text shrinks with distance, between the two given bounds, and never
     // outside them however far away the target is.

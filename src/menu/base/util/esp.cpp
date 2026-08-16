@@ -117,10 +117,12 @@ namespace menu::esp {
 
         void healthbar_esp(const esp_context& ctx, Entity entity,
                            const esp_math::box2d& b) {
-            const int health = native::get_entity_health(entity);
-            const int max    = native::get_entity_max_health(entity);
-            const int armour = native::is_entity_a_ped(entity) ? native::get_ped_armour(entity) : 0;
-            const float f = esp_math::health_fraction(health, max, armour);
+            const int  health     = native::get_entity_health(entity);
+            const int  max        = native::get_entity_max_health(entity);
+            const bool is_ped     = native::is_entity_a_ped(entity);
+            const int  armour     = is_ped ? native::get_ped_armour(entity) : 0;
+            const int  armour_max = is_ped ? 50 : 0;
+            const float f = esp_math::health_fraction(health, max, armour, armour_max);
 
             const float w   = b.w * 0.12f;
             const float gap = b.w * 0.10f;

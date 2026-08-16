@@ -28,13 +28,18 @@ namespace menu::esp_math {
     }
 
     // Health and armour share one bar, as in 2take1: the denominator is max
-    // health plus the 50 armour GTA V allows, so a fully armoured player reads
-    // as full rather than as 200%.
-    inline float health_fraction(int health, int max_health, int armour) {
+    // health plus the armour ceiling, so a fully armoured entity reads as full
+    // rather than over 100%. The ceiling (50 for a ped in GTA V) is a ped
+    // concept, not a property of this function - this serves non-peds too
+    // (vehicles, objects), which have no armour, so the caller passes
+    // whatever ceiling applies to what it is measuring, 0 for anything that
+    // has none.
+    inline float health_fraction(int health, int max_health, int armour, int armour_max) {
         if (max_health <= 0) return 0.f;
         if (health < 0) health = 0;
         if (armour < 0) armour = 0;
-        float total = (float)max_health + 50.f;
+        if (armour_max < 0) armour_max = 0;
+        float total = (float)max_health + (float)armour_max;
         float have  = (float)health + (float)armour;
         float f = have / total;
         if (f < 0.f) f = 0.f;
