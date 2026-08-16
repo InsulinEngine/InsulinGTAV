@@ -298,6 +298,50 @@ namespace menu::esp {
             for (int i = 0; i < J_COUNT; i++)
                 world[i] = native::get_ped_bone_coords(ped, k_joints[i], 0.f, 0.f, 0.f);
 
+            // A coordinate that is not finite, or that is nowhere near the map,
+            // must never reach a graphics native: GTA V's world is roughly
+            // +/-10000 units, and feeding NaN or an astronomical float to a draw
+            // call can take the graphics pipeline down without ever producing a
+            // CPU signal - which is exactly what the skeleton did on 2026-08-16,
+            // crashing instantly with one player and leaving no [FAULT] line
+            // although the fault handler was installed and never displaced.
+            //
+            // Written without <cmath>, which this target does not have: a NaN is
+            // the only value that differs from itself.
+            bool usable[J_COUNT];
+            int  rejected = 0;
+            for (int i = 0; i < J_COUNT; i++) {
+                const float x = world[i].x, y = world[i].y, z = world[i].z;
+                const bool finite = (x == x) && (y == y) && (z == z)
+                                 && x > -1e30f && x < 1e30f
+                                 && y > -1e30f && y < 1e30f
+                                 && z > -1e30f && z < 1e30f;
+                const bool on_map = x > -100000.f && x < 100000.f
+                                 && y > -100000.f && y < 100000.f
+                                 && z > -100000.f && z < 100000.f;
+                usable[i] = finite && on_map;
+                if (!usable[i]) rejected++;
+            }
+
+            // Diagnostic, once per session: the fifteen positions as they came
+            // back, beside the same ped's position fetched through the
+            // hand-written wrapper in missing_natives.h. That wrapper is the
+            // path the working 2D box uses, so it is a known-good reference on
+            // the same ped - if the bone numbers are garbage next to a sane
+            // reference, the hash path's struct return is the culprit and the
+            // fix is a hand-written wrapper rather than anything in this file.
+            static bool s_dumped = false;
+            if (!s_dumped) {
+                s_dumped = true;
+                math::vector3<float> ref = native::get_entity_coords(ped, false);
+                platform::logf("esp", "BONEDUMP ped=%d reference(get_entity_coords)=%.3f %.3f %.3f rejected=%d/%d",
+                               (int)ped, ref.x, ref.y, ref.z, rejected, (int)J_COUNT);
+                for (int i = 0; i < J_COUNT; i++)
+                    platform::logf("esp", "BONEDUMP [%2d] id=0x%04X %s %.3f %.3f %.3f",
+                                   i, (unsigned)k_joints[i], usable[i] ? "ok " : "BAD",
+                                   world[i].x, world[i].y, world[i].z);
+            }
+
             // Bones first, then joints - the order draw_entity used when it
             // called this twice.
             //
@@ -314,6 +358,7 @@ namespace menu::esp {
                 const color_rgba c = ctx.m_skeleton_bones_color;
                 for (int i = 0; i < bone_count; i++) {
                     const int a = k_bones[i][0], b = k_bones[i][1];
+                    if (!usable[a] || !usable[b]) continue;   // never hand a draw call a bad float
                     menu::renderer::draw_line(world[a], world[b], c);
                 }
             }
@@ -321,6 +366,7 @@ namespace menu::esp {
             if (joints) {
                 const color_rgba c = ctx.m_skeleton_joints_color;
                 for (int i = 0; i < J_COUNT; i++) {
+                    if (!usable[i]) continue;               // same guard as the bones
                     // A marker at an off-screen position is worth skipping, so
                     // joints still project - unlike bones, projecting here costs
                     // nothing extra: it is the one native this loop needs anyway.
