@@ -30,12 +30,49 @@ namespace menu::esp {
                                                             &out->x, &out->y);
         }
 
-        float distance_to_local(const math::vector3<float>& coords) {
-            game::players::entry me = game::players::get(game::players::local_id());
-            if (!me.ped) return 0.f;
-            math::vector3<float> mine = native::get_entity_coords(me.ped, false);
-            float dx = coords.x - mine.x, dy = coords.y - mine.y, dz = coords.z - mine.z;
+        float distance_between(const math::vector3<float>& a, const math::vector3<float>& b) {
+            float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
             return sqrtf((dx * dx) + (dy * dy) + (dz * dz));
+        }
+
+        // head is already projected by the caller (draw_entity gates the frame
+        // budget on that same projection), so this never touches the screen
+        // conversion natives itself.
+        void name_esp(const esp_context& ctx, Entity entity,
+                     const math::vector2<float>& head, float distance,
+                     const char* name_override) {
+            char text[64];
+            if (name_override && name_override[0])
+                snprintf(text, sizeof(text), "%s", name_override);
+            else
+                snprintf(text, sizeof(text), "%08X", native::get_entity_model(entity));
+
+            const float scale = esp_math::distance_scale(distance, ctx.m_max_distance, 0.25f, 0.15f);
+            const float height = scale / 10.f;
+            const float pad = 0.002f;
+
+            float width = menu::renderer::calculate_string_width(text, 0, scale) + (pad * 2.f);
+            menu::renderer::draw_rect({ head.x - (width * 0.5f), head.y - height },
+                                      { width, height }, ctx.m_name_bg_color);
+            menu::renderer::draw_text(text, { head.x, head.y - height + pad }, scale, 0,
+                                      ctx.m_name_text_color, JUSTIFY_CENTER);
+
+            if (ctx.m_name_type == 1) {
+                char dist_text[32];
+                snprintf(dist_text, sizeof(dist_text), "%dm", (int)distance);
+                float dw = menu::renderer::calculate_string_width(dist_text, 0, scale) + (pad * 2.f);
+                float y = head.y - (height * 2.f);
+                menu::renderer::draw_rect({ head.x - (dw * 0.5f), y }, { dw, height }, ctx.m_name_bg_color);
+                menu::renderer::draw_text(dist_text, { head.x, y + pad }, scale, 0,
+                                          ctx.m_name_text_color, JUSTIFY_CENTER);
+            }
+        }
+
+        // local_coords is resolved once by draw_entity and handed down, rather
+        // than re-fetched here.
+        void snapline_esp(const esp_context& ctx, const math::vector3<float>& local_coords,
+                          const math::vector3<float>& coords) {
+            menu::renderer::draw_line(local_coords, coords, ctx.m_snapline_color);
         }
     }
 
@@ -46,56 +83,30 @@ namespace menu::esp {
     int drawn_this_frame() { return g_drawn; }
     int frame_cap()        { return k_frame_cap; }
 
-    static void name_esp(const esp_context& ctx, Entity entity,
-                         const math::vector3<float>& coords, float distance,
-                         const char* name_override) {
-        math::vector2<float> head;
-        math::vector3<float> head_world = { coords.x, coords.y, coords.z + k_head_offset };
-        if (!project(head_world, &head)) return;
-
-        char text[64];
-        if (name_override && name_override[0])
-            snprintf(text, sizeof(text), "%s", name_override);
-        else
-            snprintf(text, sizeof(text), "%08X", native::get_entity_model(entity));
-
-        const float scale = esp_math::distance_scale(distance, ctx.m_max_distance, 0.25f, 0.15f);
-        const float height = scale / 10.f;
-        const float pad = 0.002f;
-
-        float width = menu::renderer::calculate_string_width(text, 0, scale) + (pad * 2.f);
-        menu::renderer::draw_rect({ head.x - (width * 0.5f), head.y - height },
-                                  { width, height }, ctx.m_name_bg_color);
-        menu::renderer::draw_text(text, { head.x, head.y - height + pad }, scale, 0,
-                                  ctx.m_name_text_color, JUSTIFY_CENTER);
-
-        if (ctx.m_name_type == 1) {
-            char dist_text[32];
-            snprintf(dist_text, sizeof(dist_text), "%dm", (int)distance);
-            float dw = menu::renderer::calculate_string_width(dist_text, 0, scale) + (pad * 2.f);
-            float y = head.y - (height * 2.f);
-            menu::renderer::draw_rect({ head.x - (dw * 0.5f), y }, { dw, height }, ctx.m_name_bg_color);
-            menu::renderer::draw_text(dist_text, { head.x, y + pad }, scale, 0,
-                                      ctx.m_name_text_color, JUSTIFY_CENTER);
-        }
-    }
-
-    static void snapline_esp(const esp_context& ctx, const math::vector3<float>& coords) {
-        game::players::entry me = game::players::get(game::players::local_id());
-        if (!me.ped) return;
-        math::vector3<float> mine = native::get_entity_coords(me.ped, false);
-        menu::renderer::draw_line(mine, coords, ctx.m_snapline_color);
-    }
-
     void draw_entity(const esp_context& ctx, Entity entity, const char* name_override) {
         if (!ctx.any() || !entity) return;
         if (!native::does_entity_exist(entity)) return;
 
+        // Every element below is defined relative to the local player - there
+        // is nothing meaningful to draw without one. Resolved once here and
+        // passed down, rather than each element re-fetching it.
+        game::players::entry me = game::players::get(game::players::local_id());
+        if (!me.ped) return;
+        math::vector3<float> local_coords = native::get_entity_coords(me.ped, false);
+
         math::vector3<float> coords = native::get_entity_coords(entity, false);
         if (coords.x == 0.f && coords.y == 0.f && coords.z == 0.f) return;
 
-        const float distance = distance_to_local(coords);
+        const float distance = distance_between(coords, local_coords);
         if (distance > (float)ctx.m_max_distance) return;
+
+        // Gate the frame budget on the entity actually landing on screen: an
+        // entity that draws nothing costs no frame time and should not take a
+        // slot ahead of one that is visible. Computed once and reused by
+        // name_esp below rather than projected a second time.
+        math::vector2<float> head;
+        math::vector3<float> head_world = { coords.x, coords.y, coords.z + k_head_offset };
+        if (!project(head_world, &head)) return;
 
         if (g_drawn >= k_frame_cap) {
             // Say so once per session rather than per frame: a silent cap looks
@@ -109,7 +120,7 @@ namespace menu::esp {
         }
         g_drawn++;
 
-        if (ctx.m_snapline) snapline_esp(ctx, coords);
-        if (ctx.m_name)     name_esp(ctx, entity, coords, distance, name_override);
+        if (ctx.m_snapline) snapline_esp(ctx, local_coords, coords);
+        if (ctx.m_name)     name_esp(ctx, entity, head, distance, name_override);
     }
 }
