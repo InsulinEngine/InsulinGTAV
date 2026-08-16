@@ -40,6 +40,10 @@
 #include "menu/base/submenus/helper_color.h"
 #include "menu/base/submenus/helper_color_presets.h"
 #include "menu/base/submenus/helper_color_sync.h"
+#include "menu/base/submenus/helper_esp.h"
+#include "menu/base/submenus/helper_esp_settings.h"
+#include "menu/base/submenus/helper_esp_settings_edit.h"
+#include "menu/base/util/esp.h"
 #include "menu/base/submenus/weapon_give.h"
 #include "menu/base/submenus/weapon_disables.h"
 #include "menu/base/submenus/spawner.h"
@@ -186,6 +190,12 @@ namespace menu {
         menu::submenu::handler::add_submenu(helper_color_presets_menu::get());
         helper_color_sync_menu::get()->load();
         menu::submenu::handler::add_submenu(helper_color_sync_menu::get());
+        helper_esp_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_esp_menu::get());
+        helper_esp_settings_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_esp_settings_menu::get());
+        helper_esp_settings_edit_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_esp_settings_edit_menu::get());
         weapon_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_menu::get());
         weapon_give_menu::get()->load();
@@ -335,6 +345,10 @@ namespace menu {
         // would leave the interesting minutes unobserved.
         TICK_TRACE("gfxwatch");
         rage::gfx::watch_store_slot();
+
+        // Reset the per-frame ESP budget before any consumer draws. Ungated for
+        // the same reason as the watcher above: it only writes an int.
+        menu::esp::begin_frame();
 
         // The game boots after the plugin does, so a handler installed at load
         // time can be replaced by the game's own. Re-checked every ~20s rather
