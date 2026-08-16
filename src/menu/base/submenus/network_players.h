@@ -18,5 +18,6 @@ class network_player_menu : public menu::submenu::submenu {
 public:
     void load() override;
     void update_once() override;
+    void feature_update() override;
     static network_player_menu* get();
 };

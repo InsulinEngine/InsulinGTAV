@@ -28,6 +28,13 @@ namespace {
     // m_ped = true: every entity this context draws is a player ped, so the
     // skeleton and weapon elements are available from the start.
     menu::esp::esp_context g_session_esp = { true };
+
+    // One context per slot rather than one shared: the point of the per-player
+    // menu is that two players can be marked differently. esp_context is an
+    // aggregate of constant-initialisable members (color_rgba's constructors
+    // are constexpr - see ui_vars.h), so this array is constant-initialised
+    // and needs no .init_array entry to come up correctly.
+    menu::esp::esp_context g_player_esp[game::players::MAX_PLAYERS] = {};
 }
 
 // The selected player is shared with the per-player menu below.
@@ -160,6 +167,15 @@ void network_player_menu::load() {
             menu::notify::stacked("Player", g_spectating ? "Spectating" : "Stopped");
         }));
 
+    add_option(submenu_option("ESP")
+        .add_submenu<helper_esp_menu>()
+        .add_click([] {
+            int id = network_players_selected();
+            if (id < 0 || id >= game::players::MAX_PLAYERS) return;
+            g_player_esp[id].m_ped = true;
+            helper_esp_menu::open_for(&g_player_esp[id], "Player ESP");
+        }));
+
     add_option(break_option("Info").ref());
 
     add_option(button_option("Show Details")
@@ -176,6 +192,15 @@ void network_player_menu::load() {
 void network_player_menu::update_once() {
     game::players::entry e = game::players::get(g_selected);
     set_name(e.name && e.name[0] ? e.name : "Player");
+}
+
+void network_player_menu::feature_update() {
+    for (int i = 0; i < game::players::MAX_PLAYERS; i++) {
+        if (!g_player_esp[i].any() || !game::players::valid(i)) continue;
+        if (i == game::players::local_id()) continue;
+        game::players::entry e = game::players::get(i);
+        if (e.ped) menu::esp::draw_entity(g_player_esp[i], e.ped, e.name);
+    }
 }
 
 network_player_menu* network_player_menu::get() {
