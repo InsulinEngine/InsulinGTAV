@@ -231,15 +231,31 @@ namespace menu::esp {
                 { SKEL_R_Forearm, SKEL_R_Hand }, { SKEL_L_Forearm, SKEL_L_Hand },
                 { SKEL_Neck_1, SKEL_Head },
             };
-            const int count = (int)(sizeof(k_bones) / sizeof(k_bones[0]));
+            const int bone_count = (int)(sizeof(k_bones) / sizeof(k_bones[0]));
+
+            // Joints are enumerated from their own table rather than derived from
+            // k_bones's [0] endpoints: a bone shared by several pairs (SKEL_Neck_1
+            // is the [0] of three) would be drawn - and cost a bone-coord native
+            // call - more than once, while a bone that only ever appears as [1]
+            // (SKEL_L_Hand, SKEL_R_Hand) would never be drawn at all. Fifteen
+            // unique ids, each drawn exactly once.
+            static const int k_joints[] = {
+                SKEL_Head, SKEL_Neck_1, SKEL_Pelvis,
+                SKEL_L_UpperArm, SKEL_R_UpperArm,
+                SKEL_L_Forearm,  SKEL_R_Forearm,
+                SKEL_L_Hand,     SKEL_R_Hand,
+                MH_L_Knee,       MH_R_Knee,
+                SKEL_L_Foot,     SKEL_R_Foot,
+                SKEL_L_Toe0,     SKEL_R_Toe0,
+            };
+            const int joint_count = (int)(sizeof(k_joints) / sizeof(k_joints[0]));
 
             if (joints) {
-                for (int i = 0; i < count; i++)
-                    draw_joint(ped, k_bones[i][0], ctx.m_skeleton_joints_color);
-                draw_joint(ped, SKEL_Head, ctx.m_skeleton_joints_color);
+                for (int i = 0; i < joint_count; i++)
+                    draw_joint(ped, k_joints[i], ctx.m_skeleton_joints_color);
                 return;
             }
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < bone_count; i++)
                 draw_bone(ped, k_bones[i][0], k_bones[i][1], ctx.m_skeleton_bones_color);
         }
 
