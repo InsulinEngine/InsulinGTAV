@@ -1,9 +1,9 @@
 #include "menu/base/util/esp.h"
 #include "menu/base/util/esp_math.h"
 #include "menu/base/renderer.h"
-#include "game/player_list.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
+#include "rage/invoker/natives_hash.h"
 #include "rage/invoker/hash_natives.h"
 #include "rage/ped_bones.h"
 #include "platform/log.h"
@@ -32,6 +32,16 @@ namespace menu::esp {
         constexpr uint32_t k_cap_report_interval = 1800;   // ~1 minute at 30 fps
         bool           g_cap_reported     = false;
         uint32_t       g_cap_report_frame = 0;
+
+        // Local-player resolve failure, throttled the same way. A failed
+        // resolve means draw_entity skips every entity this frame with no
+        // other sign of life - indistinguishable from "the ESP does not work"
+        // unless something says so. Not one-shot, because a resolve that keeps
+        // failing (e.g. stuck on a cutscene or a respawn) deserves to still be
+        // in the log whenever someone thinks to look, not just the first time.
+        constexpr uint32_t k_resolve_report_interval = 1800;   // ~1 minute at 30 fps
+        bool           g_resolve_reported     = false;
+        uint32_t       g_resolve_report_frame = 0;
 
         // The local player, resolved once per frame by resolve_local_player()
         // rather than once per candidate entity. g_local_frame is the frame the
@@ -343,17 +353,32 @@ namespace menu::esp {
     }
 
     void resolve_local_player() {
-        // Five natives plus a coord fetch, once per frame. This used to run per
+        // Two natives plus a coord fetch, once per frame. This used to run per
         // candidate entity inside draw_entity - including for every entity the
         // distance cull discarded a line later, which on a 200-vehicle pool was
         // ~1,200 native calls a frame that drew nothing.
-        game::players::entry me = game::players::get(game::players::local_id());
-        if (!me.ped) {
+        //
+        // Deliberately not game::players::get(game::players::local_id()): that
+        // path gates on native::network_is_player_active(), a session concept.
+        // It is the right check for enumerating *other* players (see
+        // network_players.cpp) and the wrong one for "where is the local
+        // player" - Story Mode has no network session, so that gate never
+        // passes and this cache never fills, which is the bug this resolver
+        // exists to not have. get_player_ped(player_id()) asks the game
+        // directly for the local ped and needs no session at all.
+        Ped ped = native::get_player_ped(native::player_id());
+        if (!ped) {
             g_local_ped = 0;        // stamp left behind: draw_entity draws nothing
+            if (!g_resolve_reported || (g_frame - g_resolve_report_frame) >= k_resolve_report_interval) {
+                g_resolve_reported     = true;
+                g_resolve_report_frame = g_frame;
+                LOG_WARN("esp: could not resolve the local player ped "
+                         "(get_player_ped(player_id()) returned null); no ESP will be drawn");
+            }
             return;
         }
-        g_local_coords = native::get_entity_coords(me.ped, false);
-        g_local_ped    = me.ped;
+        g_local_coords = native::get_entity_coords(ped, false);
+        g_local_ped    = ped;
         g_local_frame  = g_frame;
     }
 
