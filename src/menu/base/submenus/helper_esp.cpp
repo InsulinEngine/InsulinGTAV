@@ -5,6 +5,7 @@
 #include "menu/base/options/submenu_option.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/break.h"
+#include "menu/base/util/rainbow.h"
 
 namespace {
     menu::esp::esp_context* g_current = nullptr;
@@ -40,21 +41,32 @@ void helper_esp_menu::update_once() {
 
     menu::esp::esp_context& c = *g_current;
 
-    add_option(toggle_option("Name").add_toggle(c.m_name));
+    add_option(toggle_option("Name").add_toggle(c.m_name)
+        .add_savable(get_submenu_name_stack()));
     add_option(number_option<int>(SCROLL, "Name Shows")
         .add_number(c.m_name_type, "%i", 1).add_min(0).add_max(1)
-        .add_tooltip("0 = name only, 1 = name and distance"));
-    add_option(toggle_option("Snapline").add_toggle(c.m_snapline));
-    add_option(toggle_option("2D Box").add_toggle(c.m_2d_box));
-    add_option(toggle_option("2D Corners").add_toggle(c.m_2d_corners));
-    add_option(toggle_option("Health Bar").add_toggle(c.m_healthbar));
-    add_option(toggle_option("3D Box").add_toggle(c.m_3d_box));
-    add_option(toggle_option("3D Axis").add_toggle(c.m_3d_axis));
+        .add_tooltip("0 = name only, 1 = name and distance")
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("Snapline").add_toggle(c.m_snapline)
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("2D Box").add_toggle(c.m_2d_box)
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("2D Corners").add_toggle(c.m_2d_corners)
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("Health Bar").add_toggle(c.m_healthbar)
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("3D Box").add_toggle(c.m_3d_box)
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("3D Axis").add_toggle(c.m_3d_axis)
+        .add_savable(get_submenu_name_stack()));
 
     add_option(break_option("Peds only").ref());
-    add_option(toggle_option("Skeleton - Bones").add_toggle(c.m_skeleton_bones));
-    add_option(toggle_option("Skeleton - Joints").add_toggle(c.m_skeleton_joints));
-    add_option(toggle_option("Weapon").add_toggle(c.m_weapon));
+    add_option(toggle_option("Skeleton - Bones").add_toggle(c.m_skeleton_bones)
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("Skeleton - Joints").add_toggle(c.m_skeleton_joints)
+        .add_savable(get_submenu_name_stack()));
+    add_option(toggle_option("Weapon").add_toggle(c.m_weapon)
+        .add_savable(get_submenu_name_stack()));
 
     add_option(break_option("Range").ref());
     // number_option, not scroll_option: scroll_option binds a scroll_struct
@@ -62,12 +74,31 @@ void helper_esp_menu::update_once() {
     // helper_color.cpp uses for its channels, so it is known to work.
     add_option(number_option<int>(SCROLL, "Max Distance")
         .add_number(c.m_max_distance, "%im", 25).add_min(25).add_max(1000)
-        .add_tooltip("Entities further away than this are not drawn at all"));
+        .add_tooltip("Entities further away than this are not drawn at all")
+        .add_savable(get_submenu_name_stack()));
     add_option(number_option<int>(SCROLL, "Skeleton Distance")
         .add_number(c.m_skeleton_distance, "%im", 5).add_min(10).add_max(200)
-        .add_tooltip("Bones are the most expensive element - keep this short"));
+        .add_tooltip("Bones are the most expensive element - keep this short")
+        .add_savable(get_submenu_name_stack()));
 
     add_option(submenu_option("Colours").add_submenu<helper_esp_settings_menu>());
+
+    // add_savable restores the value but deliberately does not run the click
+    // handler (a handler firing during build() is what took the game down
+    // historically). So a rainbow restored as `true` has a flag set and no
+    // registration; reconcile the two here, where no native is involved.
+    // rainbow::add() is idempotent (contains() guard - see rainbow.cpp), so
+    // calling it unconditionally on every rebuild is safe.
+    if (c.m_name_text_rainbow)       menu::get_rainbow()->add(&c.m_name_text_color);
+    if (c.m_name_bg_rainbow)         menu::get_rainbow()->add(&c.m_name_bg_color);
+    if (c.m_snapline_rainbow)        menu::get_rainbow()->add(&c.m_snapline_color);
+    if (c.m_2d_box_rainbow)          menu::get_rainbow()->add(&c.m_2d_box_color);
+    if (c.m_2d_corners_rainbow)      menu::get_rainbow()->add(&c.m_2d_corners_color);
+    if (c.m_healthbar_rainbow)       menu::get_rainbow()->add(&c.m_healthbar_color);
+    if (c.m_3d_box_rainbow)          menu::get_rainbow()->add(&c.m_3d_box_color);
+    if (c.m_skeleton_bones_rainbow)  menu::get_rainbow()->add(&c.m_skeleton_bones_color);
+    if (c.m_skeleton_joints_rainbow) menu::get_rainbow()->add(&c.m_skeleton_joints_color);
+    if (c.m_weapon_rainbow)          menu::get_rainbow()->add(&c.m_weapon_color);
 }
 
 void helper_esp_menu::update() {
