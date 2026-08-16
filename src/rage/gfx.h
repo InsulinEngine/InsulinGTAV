@@ -79,6 +79,11 @@ namespace rage::gfx {
     // this plugin's crashes end the log without a line of their own.
     void watch_store_slot();
 
+    // The watcher's monotonic frame count. Exposed so other per-frame work can
+    // pace itself off the same clock the log is timestamped with, which keeps a
+    // log line and the thing it describes on one timeline.
+    uint32_t watch_frame();
+
     // Convenience for the header: menu_textures() committed and holds "logo".
     bool banner_ready();
 }
