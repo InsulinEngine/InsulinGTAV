@@ -346,8 +346,12 @@ namespace menu {
         TICK_TRACE("gfxwatch");
         rage::gfx::watch_store_slot();
 
-        // Reset the per-frame ESP budget before any consumer draws. Ungated for
-        // the same reason as the watcher above: it only writes an int.
+        // Reset the per-frame ESP budget and advance its frame clock before any
+        // consumer draws. Ungated for the same reason as the watcher above: it
+        // only writes two ints. The half of the frame setup that does call
+        // natives - resolving the local player - is deliberately NOT here; it
+        // sits with feature_update below, under the overlay guard and the
+        // player_valid() gate.
         menu::esp::begin_frame();
 
         // The game boots after the plugin does, so a handler installed at load
@@ -401,8 +405,16 @@ namespace menu {
         }
 
         TICK_TRACE("feature_update");
-        if (game::player_valid())
+        if (game::player_valid()) {
+            // Every ESP element is defined relative to the local player, and
+            // every ESP consumer hangs off feature_update. Resolve it once,
+            // here, instead of once per candidate entity inside draw_entity;
+            // the cache is stamped with this frame, so a frame that skips this
+            // (overlay up, player not valid) draws no ESP at all rather than
+            // drawing against a stale origin.
+            menu::esp::resolve_local_player();
             menu::submenu::handler::feature_update();
+        }
 
         // Deferred image application. Gated and in tick rather than build(),
         // because applying a picture decodes it and injects a texture

@@ -18,7 +18,30 @@ namespace menu::esp {
         // first, so what gets dropped when the cap bites is the least useful.
         constexpr int  k_frame_cap        = 48;
         int            g_drawn            = 0;
+
+        // The ESP's own frame clock, advanced by begin_frame() and by nothing
+        // else. rage::gfx::watch_frame() would have done, except that it stops
+        // dead at 0 until a texture dictionary has been committed (gfx.cpp
+        // returns early while g_watch_slot < 0), so a boot with no menu image
+        // would leave every interval below permanently unexpired.
+        uint32_t       g_frame            = 0;
+
+        // Cap reporting, throttled rather than one-shot: a silent cap looks
+        // exactly like an ESP that does not work, and a cap that bites for the
+        // first time an hour into a session deserves to be said out loud again.
+        constexpr uint32_t k_cap_report_interval = 1800;   // ~1 minute at 30 fps
         bool           g_cap_reported     = false;
+        uint32_t       g_cap_report_frame = 0;
+
+        // The local player, resolved once per frame by resolve_local_player()
+        // rather than once per candidate entity. g_local_frame is the frame the
+        // cache was filled on: draw_entity refuses to use it on any other frame,
+        // so a frame where the resolve did not run (overlay up, no local player
+        // yet, a consumer called from outside the tick) draws nothing rather
+        // than drawing against last frame's origin.
+        Ped                  g_local_ped    = 0;
+        math::vector3<float> g_local_coords;
+        uint32_t             g_local_frame  = 0;
 
         // Vertical offsets for the two projections the 2D box is built from,
         // in metres relative to the entity origin. A ped's origin sits at its
@@ -136,19 +159,27 @@ namespace menu::esp {
             menu::renderer::draw_rect({ x, b.y + (b.h - fh) }, { w, fh }, ctx.m_healthbar_color);
         }
 
+        // The model's own half-extents, fetched once for whichever of the two
+        // world-space elements are on: both used to call get_entity_model plus
+        // get_model_dimensions for themselves, which is two natives paid twice
+        // for one answer when both are enabled. Returns false for degenerate
+        // bounds - a model with no usable dimensions draws neither element.
+        bool model_radii(Entity entity, float* rx, float* ry, float* rz) {
+            math::vector3<float> lo, hi;
+            native::get_model_dimensions(native::get_entity_model(entity), &lo, &hi);
+
+            *rx = (hi.x - lo.x) * 0.5f;
+            *ry = (hi.y - lo.y) * 0.5f;
+            *rz = (hi.z - lo.z) * 0.5f;
+            return *rx > 0.f && *ry > 0.f && *rz > 0.f;
+        }
+
         // Ozark's 3D box: the model's own bounds turned into eight world-space
         // corners, joined by twelve edges and the spokes Ozark draws from the
         // centre, which are what make it read as a solid at a distance.
         void box_3d_esp(const esp_context& ctx, Entity entity,
-                        const math::vector3<float>& coords) {
-            math::vector3<float> lo, hi;
-            native::get_model_dimensions(native::get_entity_model(entity), &lo, &hi);
-
-            const float rx = (hi.x - lo.x) * 0.5f;
-            const float ry = (hi.y - lo.y) * 0.5f;
-            const float rz = (hi.z - lo.z) * 0.5f;
-            if (rx <= 0.f || ry <= 0.f || rz <= 0.f) return;   // no usable bounds
-
+                        const math::vector3<float>& coords,
+                        float rx, float ry, float rz) {
             const color_rgba c = ctx.m_3d_box_color;
             math::vector3<float> FUL = native::get_offset_from_entity_in_world_coords(entity, -rx,  ry,  rz);
             math::vector3<float> FUR = native::get_offset_from_entity_in_world_coords(entity,  rx,  ry,  rz);
@@ -184,11 +215,12 @@ namespace menu::esp {
 
         // Three long axes through the entity, coloured X red, Y green, Z blue.
         // Ozark's fixed colours: they identify an axis, so they are not themeable.
-        void axis_3d_esp(Entity entity) {
-            math::vector3<float> lo, hi;
-            native::get_model_dimensions(native::get_entity_model(entity), &lo, &hi);
-            const float dx = (hi.x - lo.x) * 2.f;
-            const float dy = (hi.y - lo.y) * 2.f;
+        // Takes the half-extents model_radii() already validated, so - like the
+        // 3D box - a model with degenerate bounds draws nothing instead of three
+        // zero-length axes stacked on the entity's origin.
+        void axis_3d_esp(Entity entity, float rx, float ry) {
+            const float dx = rx * 4.f;   // == (hi.x - lo.x) * 2, exactly
+            const float dy = ry * 4.f;
 
             math::vector3<float> XL = native::get_offset_from_entity_in_world_coords(entity, -dx, 0.f, 0.f);
             math::vector3<float> XR = native::get_offset_from_entity_in_world_coords(entity,  dx, 0.f, 0.f);
@@ -202,44 +234,26 @@ namespace menu::esp {
             menu::renderer::draw_line(ZU, ZD, color_rgba(0, 0, 255, 255));
         }
 
-        void draw_bone(Entity ped, int a, int b, color_rgba c) {
-            math::vector3<float> pa = native::get_ped_bone_coords(ped, a, 0.f, 0.f, 0.f);
-            math::vector3<float> pb = native::get_ped_bone_coords(ped, b, 0.f, 0.f, 0.f);
-            math::vector2<float> sa, sb;
-            if (!project(pa, &sa) || !project(pb, &sb)) return;
-            menu::renderer::draw_line_2d({ sa.x, sa.y, 0.f }, { sb.x, sb.y, 0.f }, c);
-        }
+        // The fifteen unique joints the skeleton is built from. Everything below
+        // indexes this table rather than naming bone ids, so each joint is
+        // fetched exactly once per ped per frame however many bones share it and
+        // whichever of the two elements are on.
+        enum joint {
+            J_HEAD, J_NECK, J_PELVIS,
+            J_L_UPPERARM, J_R_UPPERARM,
+            J_L_FOREARM,  J_R_FOREARM,
+            J_L_HAND,     J_R_HAND,
+            J_L_KNEE,     J_R_KNEE,
+            J_L_FOOT,     J_R_FOOT,
+            J_L_TOE,      J_R_TOE,
+            J_COUNT
+        };
 
-        void draw_joint(Entity ped, int bone, color_rgba c) {
-            math::vector3<float> p = native::get_ped_bone_coords(ped, bone, 0.f, 0.f, 0.f);
-            math::vector2<float> s;
-            if (!project(p, &s)) return;   // off-screen joints cost nothing
-            native::draw_marker(28, p.x, p.y, p.z, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
-                                0.03f, 0.03f, 0.03f, c.r, c.g, c.b, c.a,
-                                0, 0, 0, 0, nullptr, nullptr, 0);
-        }
-
-        void skeleton_esp(const esp_context& ctx, Entity ped, bool joints) {
+        void skeleton_esp(const esp_context& ctx, Entity ped, bool bones, bool joints) {
             using namespace rage::ped_bones;
-            static const int k_bones[][2] = {
-                { SKEL_R_Foot, MH_R_Knee }, { SKEL_R_Toe0, SKEL_R_Foot },
-                { SKEL_L_Toe0, SKEL_L_Foot }, { SKEL_L_Foot, MH_L_Knee },
-                { MH_R_Knee, SKEL_Pelvis }, { MH_L_Knee, SKEL_Pelvis },
-                { SKEL_Pelvis, SKEL_Neck_1 },
-                { SKEL_Neck_1, SKEL_R_UpperArm }, { SKEL_Neck_1, SKEL_L_UpperArm },
-                { SKEL_R_UpperArm, SKEL_R_Forearm }, { SKEL_L_UpperArm, SKEL_L_Forearm },
-                { SKEL_R_Forearm, SKEL_R_Hand }, { SKEL_L_Forearm, SKEL_L_Hand },
-                { SKEL_Neck_1, SKEL_Head },
-            };
-            const int bone_count = (int)(sizeof(k_bones) / sizeof(k_bones[0]));
 
-            // Joints are enumerated from their own table rather than derived from
-            // k_bones's [0] endpoints: a bone shared by several pairs (SKEL_Neck_1
-            // is the [0] of three) would be drawn - and cost a bone-coord native
-            // call - more than once, while a bone that only ever appears as [1]
-            // (SKEL_L_Hand, SKEL_R_Hand) would never be drawn at all. Fifteen
-            // unique ids, each drawn exactly once.
-            static const int k_joints[] = {
+            // Same fifteen ids as before, in enum order.
+            static const int k_joints[J_COUNT] = {
                 SKEL_Head, SKEL_Neck_1, SKEL_Pelvis,
                 SKEL_L_UpperArm, SKEL_R_UpperArm,
                 SKEL_L_Forearm,  SKEL_R_Forearm,
@@ -248,15 +262,57 @@ namespace menu::esp {
                 SKEL_L_Foot,     SKEL_R_Foot,
                 SKEL_L_Toe0,     SKEL_R_Toe0,
             };
-            const int joint_count = (int)(sizeof(k_joints) / sizeof(k_joints[0]));
+
+            // Ozark's fourteen bones, as index pairs into k_joints. Ids would
+            // read more directly, but they are what made this fetch a shared
+            // joint once per pair it appears in: SKEL_Neck_1 is an endpoint of
+            // four bones, and was fetched four times.
+            static const unsigned char k_bones[][2] = {
+                { J_R_FOOT, J_R_KNEE }, { J_R_TOE, J_R_FOOT },
+                { J_L_TOE, J_L_FOOT },  { J_L_FOOT, J_L_KNEE },
+                { J_R_KNEE, J_PELVIS }, { J_L_KNEE, J_PELVIS },
+                { J_PELVIS, J_NECK },
+                { J_NECK, J_R_UPPERARM }, { J_NECK, J_L_UPPERARM },
+                { J_R_UPPERARM, J_R_FOREARM }, { J_L_UPPERARM, J_L_FOREARM },
+                { J_R_FOREARM, J_R_HAND }, { J_L_FOREARM, J_L_HAND },
+                { J_NECK, J_HEAD },
+            };
+            const int bone_count = (int)(sizeof(k_bones) / sizeof(k_bones[0]));
+
+            // Fifteen bone-coord natives and fifteen projections, once, up
+            // front. get_ped_bone_coords is a hash native and the most expensive
+            // call in this file; the projection of a world point is a pure
+            // function of that point, so sharing it changes no geometry.
+            math::vector3<float> world[J_COUNT];
+            math::vector2<float> screen[J_COUNT];
+            bool                 on_screen[J_COUNT];
+            for (int i = 0; i < J_COUNT; i++) {
+                world[i] = native::get_ped_bone_coords(ped, k_joints[i], 0.f, 0.f, 0.f);
+                on_screen[i] = project(world[i], &screen[i]);
+            }
+
+            // Bones first, then joints - the order draw_entity used when it
+            // called this twice.
+            if (bones) {
+                const color_rgba c = ctx.m_skeleton_bones_color;
+                for (int i = 0; i < bone_count; i++) {
+                    const int a = k_bones[i][0], b = k_bones[i][1];
+                    if (!on_screen[a] || !on_screen[b]) continue;
+                    menu::renderer::draw_line_2d({ screen[a].x, screen[a].y, 0.f },
+                                                 { screen[b].x, screen[b].y, 0.f }, c);
+                }
+            }
 
             if (joints) {
-                for (int i = 0; i < joint_count; i++)
-                    draw_joint(ped, k_joints[i], ctx.m_skeleton_joints_color);
-                return;
+                const color_rgba c = ctx.m_skeleton_joints_color;
+                for (int i = 0; i < J_COUNT; i++) {
+                    if (!on_screen[i]) continue;   // off-screen joints cost nothing
+                    native::draw_marker(28, world[i].x, world[i].y, world[i].z,
+                                        0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+                                        0.03f, 0.03f, 0.03f, c.r, c.g, c.b, c.a,
+                                        0, 0, 0, 0, nullptr, nullptr, 0);
+                }
             }
-            for (int i = 0; i < bone_count; i++)
-                draw_bone(ped, k_bones[i][0], k_bones[i][1], ctx.m_skeleton_bones_color);
         }
 
         void weapon_esp(const esp_context& ctx, Entity ped) {
@@ -273,7 +329,23 @@ namespace menu::esp {
     }
 
     void begin_frame() {
+        g_frame++;
         g_drawn = 0;
+    }
+
+    void resolve_local_player() {
+        // Five natives plus a coord fetch, once per frame. This used to run per
+        // candidate entity inside draw_entity - including for every entity the
+        // distance cull discarded a line later, which on a 200-vehicle pool was
+        // ~1,200 native calls a frame that drew nothing.
+        game::players::entry me = game::players::get(game::players::local_id());
+        if (!me.ped) {
+            g_local_ped = 0;        // stamp left behind: draw_entity draws nothing
+            return;
+        }
+        g_local_coords = native::get_entity_coords(me.ped, false);
+        g_local_ped    = me.ped;
+        g_local_frame  = g_frame;
     }
 
     int drawn_this_frame() { return g_drawn; }
@@ -281,14 +353,18 @@ namespace menu::esp {
 
     void draw_entity(const esp_context& ctx, Entity entity, const char* name_override) {
         if (!ctx.any() || !entity) return;
-        if (!native::does_entity_exist(entity)) return;
 
         // Every element below is defined relative to the local player - there
-        // is nothing meaningful to draw without one. Resolved once here and
-        // passed down, rather than each element re-fetching it.
-        game::players::entry me = game::players::get(game::players::local_id());
-        if (!me.ped) return;
-        math::vector3<float> local_coords = native::get_entity_coords(me.ped, false);
+        // is nothing meaningful to draw without one. Cached by
+        // resolve_local_player() at the top of this frame's feature pass; a
+        // stamp from any earlier frame means that pass did not run (the overlay
+        // is up, the local player is not valid yet, or this call came from
+        // outside the tick), and last frame's origin is not something to draw
+        // a snapline or a distance cull against.
+        if (!g_local_ped || g_local_frame != g_frame) return;
+        const math::vector3<float>& local_coords = g_local_coords;
+
+        if (!native::does_entity_exist(entity)) return;
 
         math::vector3<float> coords = native::get_entity_coords(entity, false);
         if (coords.x == 0.f && coords.y == 0.f && coords.z == 0.f) return;
@@ -305,10 +381,13 @@ namespace menu::esp {
         if (!project(head_world, &head)) return;
 
         if (g_drawn >= k_frame_cap) {
-            // Say so once per session rather than per frame: a silent cap looks
-            // exactly like an ESP that does not work.
-            if (!g_cap_reported) {
-                g_cap_reported = true;
+            // Throttled, not one-shot: a silent cap looks exactly like an ESP
+            // that does not work, and the first time it bites is not necessarily
+            // the only time worth hearing about - a lobby that fills an hour in
+            // would otherwise say nothing at all.
+            if (!g_cap_reported || (g_frame - g_cap_report_frame) >= k_cap_report_interval) {
+                g_cap_reported     = true;
+                g_cap_report_frame = g_frame;
                 LOG_WARN("esp: frame cap of %d entities reached; further entities "
                          "this frame are skipped", k_frame_cap);
             }
@@ -327,11 +406,19 @@ namespace menu::esp {
             }
         }
 
-        if (ctx.m_3d_box)  box_3d_esp(ctx, entity, coords);
-        if (ctx.m_3d_axis) axis_3d_esp(entity);
+        // One model lookup for both world-space elements, and one degenerate
+        // -bounds guard covering both: they are built from the same two natives
+        // and the same half-extents.
+        if (ctx.m_3d_box || ctx.m_3d_axis) {
+            float rx, ry, rz;
+            if (model_radii(entity, &rx, &ry, &rz)) {
+                if (ctx.m_3d_box)  box_3d_esp(ctx, entity, coords, rx, ry, rz);
+                if (ctx.m_3d_axis) axis_3d_esp(entity, rx, ry);
+            }
+        }
 
-        // Bones are 28 hash-native calls per ped per frame - the most expensive
-        // thing here by an order of magnitude - so they carry their own, much
+        // Bones are the most expensive thing here by an order of magnitude -
+        // fifteen hash natives per ped per frame - so they carry their own, much
         // nearer radius, and they are skipped entirely until the hash table has
         // been recovered rather than calling into an empty table.
         const bool bones_possible = ctx.m_ped
@@ -339,9 +426,11 @@ namespace menu::esp {
                                  && distance <= (float)ctx.m_skeleton_distance
                                  && native::is_entity_a_ped(entity);
         if (bones_possible) {
-            if (ctx.m_skeleton_bones)  skeleton_esp(ctx, entity, false);
-            if (ctx.m_skeleton_joints) skeleton_esp(ctx, entity, true);
-            if (ctx.m_weapon)          weapon_esp(ctx, entity);
+            // One call for both elements: the fifteen joints they share are
+            // fetched once whether one or both are on.
+            if (ctx.m_skeleton_bones || ctx.m_skeleton_joints)
+                skeleton_esp(ctx, entity, ctx.m_skeleton_bones, ctx.m_skeleton_joints);
+            if (ctx.m_weapon) weapon_esp(ctx, entity);
         }
 
         if (ctx.m_name) name_esp(ctx, entity, head, distance, name_override);

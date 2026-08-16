@@ -61,8 +61,18 @@ namespace menu::esp {
     };
 
     // Called once per frame, before any consumer draws. Resets the per-frame
-    // entity budget.
+    // entity budget and advances the ESP's frame clock. Touches no native, so
+    // it is safe at the top of the tick - above the ShellUI overlay guard and
+    // before the local player exists.
     void begin_frame();
+
+    // Caches the local player's ped and coordinates for this frame, which every
+    // element is defined relative to. Calls natives (five for the player entry
+    // plus a coord fetch), so unlike begin_frame() it must run below the overlay
+    // guard and only while game::player_valid() - immediately before the
+    // consumer sweep. Any frame this does not run, draw_entity draws nothing
+    // rather than reusing the previous frame's origin.
+    void resolve_local_player();
 
     // Draw one entity through one context. Re-checks the entity itself: an
     // entity can die between the loop that selected it and this call, and every
@@ -70,8 +80,12 @@ namespace menu::esp {
     // `name_override` may be null, in which case the model hash is shown.
     void draw_entity(const esp_context& ctx, Entity entity, const char* name_override);
 
-    // How many entities the current frame has already drawn, and the cap. For
-    // the diagnostics in Task 7.
+    // How many entities the current frame has already drawn, and the cap.
+    // `drawn_this_frame() >= frame_cap()` says the budget is spent, which a
+    // consumer that must enumerate before it can draw checks first: consumers
+    // run in registration order, so a full lobby can spend the whole budget
+    // before a later one is called, and enumerating the vehicle pool (~9
+    // natives per pooled vehicle) to draw nothing is pure waste.
     int  drawn_this_frame();
     int  frame_cap();
 }

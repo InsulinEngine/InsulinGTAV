@@ -63,7 +63,14 @@ void world_local_entities_menu::feature_update() {
         native::set_parked_vehicle_density_multiplier_this_frame(0.f);
     }
 
-    if (g_vehicle_esp.any()) {
+    // Budget check before the enumeration, not just inside draw_entity:
+    // consumers run in registration order and this one is late, so a full lobby
+    // can have spent all 48 slots before it is called. get_all_vehicles walks
+    // the pool and each handle then costs ~9 natives in draw_entity before the
+    // cap rejects it - work whose every result is discarded.
+    // (Ordering the whole sweep nearest-first is the real answer and is left
+    // for the hardware pass; this is the part that costs nothing to do now.)
+    if (g_vehicle_esp.any() && menu::esp::drawn_this_frame() < menu::esp::frame_cap()) {
         constexpr int cap = sizeof(g_vehicle_handles) / sizeof(g_vehicle_handles[0]);
         int n = native::get_all_vehicles(g_vehicle_handles);
         if (n > cap) n = cap;

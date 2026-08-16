@@ -197,6 +197,11 @@ void network_player_menu::update_once() {
 }
 
 void network_player_menu::feature_update() {
+    // Same gate as the parent menu's sweep: outside a session the per-slot
+    // contexts describe players who are not there, and every valid() call below
+    // is a native asked about a slot that cannot be occupied.
+    if (!game::players::in_session()) return;
+
     for (int i = 0; i < game::players::MAX_PLAYERS; i++) {
         if (!g_player_esp[i].any() || !game::players::valid(i)) continue;
         if (i == game::players::local_id()) continue;
