@@ -4,6 +4,7 @@
 #include "menu/base/submenus/main.h"
 #include "rage/invoker/hash_natives.h"
 #include "rage/gfx.h"
+#include "platform/fault_handler.h"
 #include "menu/base/submenus/player.h"
 #include "menu/base/submenus/player_animation.h"
 #include "menu/base/submenus/player_animations.h"
@@ -334,6 +335,14 @@ namespace menu {
         // would leave the interesting minutes unobserved.
         TICK_TRACE("gfxwatch");
         rage::gfx::watch_store_slot();
+
+        // The game boots after the plugin does, so a handler installed at load
+        // time can be replaced by the game's own. Re-checked every ~20s rather
+        // than once, in case it is reinstalled again on a session transition -
+        // a crash logger that is silently gone is worse than none, because its
+        // silence reads as "no fault happened".
+        if ((rage::gfx::watch_frame() % 600) == 0)
+            platform::fault::reinstall_if_stolen();
 
         // PS-button guard: while the ShellUI overlay (XMB) is up the game is
         // constrained and our per-frame native work crashes it. Skip the whole

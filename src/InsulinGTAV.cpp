@@ -12,6 +12,7 @@
 #include "game/game_thread.h"
 #include "menu/menu.h"
 #include "platform/log.h"
+#include "platform/fault_handler.h"
 #include "platform/paths.h"
 #include "platform/build_tag.h"
 #include "stl_smoke.h"
@@ -113,6 +114,12 @@ int module_start(size_t argc, const void *argp)
                     (unsigned long long)rage::invoker::g_eboot_base);
     platform::logf("Boot", "BUILD=" INSULIN_BUILD_TAG " " __DATE__ " " __TIME__ " base=0x%llx",
                    (unsigned long long)rage::invoker::g_eboot_base);
+
+    // Installed here, right after the base is known and before anything else can
+    // fault: the base is what turns a fault address into an IDB lookup, and every
+    // line below this point is code that could go down. Touches no natives.
+    bool fault_ok = platform::fault::install();
+    platform::logf("Boot", "fault handler %s", fault_ok ? "installed" : "FAILED - a crash will leave no line");
 
     // Page-resolver guard for the PS-button suspend crash (detours sub_195F870;
     // see rage/heap_guard.cpp). Installed early and independently of the menu so
