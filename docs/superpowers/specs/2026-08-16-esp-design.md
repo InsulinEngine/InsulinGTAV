@@ -79,7 +79,8 @@ struct esp_context {
     bool m_3d_box, m_3d_axis;
     bool m_skeleton_bones, m_skeleton_joints, m_weapon;
     int  m_name_type;           // 0 = name, 1 = name + distance
-    float m_max_distance;       // per-context cull, default 500 m
+    int  m_max_distance;        // per-context cull, default 500 m
+    int  m_skeleton_distance;   // bones and joints only, default 75 m
 
     color_rgba m_name_text_color, m_name_bg_color, m_snapline_color,
                m_2d_box_color, m_2d_corners_color, m_healthbar_color,
@@ -105,6 +106,13 @@ registry for exactly what it was built for.
 `m_max_distance` is new. Ozark had a single global draw distance; making it
 per-context lets world peds be culled hard while session players stay visible.
 
+**Corrected against what was built.** Both distances are `int` metres, not
+`float`: `number_option` and `scroll_option` bind `int&`, and a cull radius in
+whole metres loses nothing. And the skeleton radius named under "The per-frame
+budget" below is per-context (`m_skeleton_distance`, default 75 m and editable
+from the menu) rather than the single shared constant this section originally
+implied.
+
 ## Drawing
 
 `menu/base/util/esp.cpp`, named after Ozark's functions so the lineage stays
@@ -124,8 +132,11 @@ bone positions, or joint markers of type 28.
 ## The per-frame budget
 
 This is design, not tuning. Ozark ran on PC; this runs at 30 fps with up to 32
-players plus world entities, and the skeleton alone is 28 hash-native calls per
-ped per frame.
+players plus world entities, and the skeleton alone is a hash native per bone
+position per ped per frame. (As built, that is **15** — the fifteen unique
+joints, fetched once into a local array that the bones then index. Drawing the
+fourteen pairs from their endpoints would have been 28, plus 15 more when
+joints are on as well.)
 
 - Every context culls by `m_max_distance` before any other work.
 - A hard cap of **48 entities drawn per frame** across all contexts, nearest
@@ -133,7 +144,8 @@ ped per frame.
   48 covers a full 32-player session with headroom for world entities. When the
   cap bites, a throttled log line says so — silently dropping half the session
   reads as a bug in the ESP.
-- Skeleton and joints obey a second radius of **75 m**, being the most expensive
+- Skeleton and joints obey a second radius, `m_skeleton_distance`, defaulting to
+  **75 m** and per-context like the cull above: they are the most expensive
   elements by an order of magnitude and illegible past that anyway.
 
 Both numbers are first estimates to be corrected against step 4 of the test
@@ -186,10 +198,12 @@ ESP in turn, editing whichever one is current. None of that - which
 consumer, which player slot - reaches the menu path or the option name, so
 the key cannot tell "Snapline" for the session apart from "Snapline" for
 player 7 or for vehicles: all of them would read and write the same one
-stored value. (Separately, and independently of that, `helper_esp_menu` also
-has no `set_parent<T>()` today, so its name stack is empty and
-`add_savable`'s own guard no-ops before any of this even applies - a second
-reason the naive call does nothing rather than something subtly wrong.)
+stored value. (This used to be a no-op as well as wrong: `helper_esp_menu`
+had no parent, so its name stack was empty and `add_savable`'s own guard
+rejected it before any of the above applied. It now takes a parent per
+opening — `open_for<T>()`, so that "back" returns to whichever consumer
+opened it — and that second line of defence is gone. The key is still the
+wrong key.)
 
 The real fix is its own task: serialise each `esp_context` directly through
 `util::config`, keyed by consumer identity rather than menu path - e.g.
