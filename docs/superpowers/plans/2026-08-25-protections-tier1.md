@@ -995,10 +995,22 @@ Expected: build succeeds with no warnings about `protections/`.
 5. Press **Fire Self Test**.
    - Expect an on-screen notification: `Detected Self Test from player 3`.
    - Expect a klog line: `IGV prot would-block Self Test player=3 a=abcdef01 b=00000007`.
-6. Set **Self Test** to `Enforce`, fire again. The notification and klog line must now read `Blocked` / `prot BLOCK`.
+6. **Self Test cannot reach `Enforce`, and that is correct.** It has no detour,
+   so it blocks nothing; it ships `can_block = false` and its dropdown offers
+   only Off and Log. An earlier draft of this step had you flip it to Enforce
+   and expect `prot BLOCK` — that would have been the subsystem's log lying
+   about an action it never took, which is the exact defect the `can_block`
+   flag exists to prevent. The `BLOCK` label is first exercised for real when
+   you promote one of the eight Enforce-eligible guards. Everything the self
+   test is actually for — ring, coalescer, drain, klog, rate-limited
+   notification — is fully exercised in `Log`.
 7. Press Fire Self Test rapidly ten times. Expect ten klog lines but roughly one notification per second — that is the rate limit working.
 8. Press **Report Counters**; the reported total must match the number of times you fired.
-9. Set Self Test to `Off`, fire again: nothing should be reported. (The button calls `report()` directly, so `Off` is verified at drain time by the absence of a `BLOCK`; the record still logs as `would-block`. If that reads confusingly, that is a finding worth raising, not a bug to silently fix.)
+9. Set Self Test to `Off`, fire again. The button calls `report()` directly
+   rather than going through a hook, so the record is still pushed and still
+   drains — `Off` is not verified here by silence. What you are checking is
+   that the line reads `would-block` and never `BLOCK`. If that reads
+   confusingly, raise it; do not silently 'fix' it.
 10. Quit the game and relaunch. The Protections rows must come back with the modes you left them on — that is `add_savable` round-tripping through `config.json`.
 
 If the game closes itself at any point, capture the klog crash dump, compute `RVA = RIP - base` from the startup line, and look the RVA up in the IDB before changing anything.
