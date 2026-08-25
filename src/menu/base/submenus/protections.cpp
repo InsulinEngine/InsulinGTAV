@@ -1,9 +1,11 @@
 #include "menu/base/submenus/protections.h"
+#include "menu/base/submenus/protections_log.h"
 #include "menu/base/submenus/main.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/dropdown.h"
 #include "menu/base/options/toggle.h"
 #include "menu/base/options/break.h"
+#include "menu/base/options/submenu_option.h"
 #include "menu/base/util/notify.h"
 #include "protections/registry.h"
 #include "protections/report.h"
@@ -92,6 +94,10 @@ void protections_menu::load() {
                      (unsigned)protections::total_dropped());
             menu::notify::stacked("Protections", msg);
         }));
+
+    add_option(submenu_option("Report Log")
+        .add_submenu<protections_log_menu>()
+        .add_tooltip("The last 32 drained reports - filter, details, and how many more were coalesced into each one"));
 
     add_option(break_option("Local Self-Care").ref());
 

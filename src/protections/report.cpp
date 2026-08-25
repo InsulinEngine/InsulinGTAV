@@ -26,6 +26,16 @@ namespace {
     uint32_t g_last_notify_ms[64] = {};   // indexed by filter table position
 
     const uint32_t NOTIFY_INTERVAL_MS = 1000;
+
+    // Bounded history for the in-game log view (protections_log_menu). Written
+    // only from drain_reports() on the script thread and read only from the
+    // menu, also on the script thread - no atomics, unlike the ring above.
+    // Plain PODs zero-initialised via aggregate `= {}`, so this needs no
+    // .init_array entry.
+    struct recent_entry { record r; uint32_t suppressed; };
+    recent_entry g_recent[recent_capacity] = {};
+    int          g_recent_head  = 0;   // next write slot
+    int          g_recent_count = 0;
 }
 
 void report(filter_id id, int player_index, uint8_t flags,
@@ -95,6 +105,14 @@ void drain_reports()
                             (unsigned)r.detail_a, (unsigned)r.detail_b, extra);
         }
 
+        // Append to the in-game log history. `more` is the same coalesced
+        // count the klog line above just printed as "+N more" - the menu shows
+        // it as its own "+N" column instead of folding it into the row text.
+        g_recent[g_recent_head].r          = r;
+        g_recent[g_recent_head].suppressed = more;
+        g_recent_head = (g_recent_head + 1) % recent_capacity;
+        if (g_recent_count < recent_capacity) g_recent_count++;
+
         // Then the screen, rate-limited. A sound-spam attack produces hundreds
         // of these per second; a notification each would be its own denial of
         // service. Find the table slot so the rate limit is per filter.
@@ -121,4 +139,16 @@ void drain_reports()
 
 uint32_t total_reports() { return __atomic_load_n(&g_total, __ATOMIC_RELAXED); }
 uint32_t total_dropped() { return reports().dropped(); }
+
+int recent_count() { return g_recent_count; }
+
+bool recent_at(int index_from_newest, record* out, uint32_t* suppressed_out) {
+    if (!out || index_from_newest < 0 || index_from_newest >= g_recent_count)
+        return false;
+    int slot = g_recent_head - 1 - index_from_newest;
+    while (slot < 0) slot += recent_capacity;
+    *out = g_recent[slot].r;
+    if (suppressed_out) *suppressed_out = g_recent[slot].suppressed;
+    return true;
+}
 }

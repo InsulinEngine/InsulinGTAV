@@ -19,6 +19,7 @@
 #include "menu/base/submenus/network.h"
 #include "menu/base/submenus/network_players.h"
 #include "menu/base/submenus/protections.h"
+#include "menu/base/submenus/protections_log.h"
 #include "protections/report.h"
 #include "menu/base/submenus/teleport.h"
 #include "menu/base/submenus/teleport_directional.h"
@@ -136,6 +137,8 @@ namespace menu {
         menu::submenu::handler::add_submenu(network_player_menu::get());
         protections_menu::get()->load();
         menu::submenu::handler::add_submenu(protections_menu::get());
+        protections_log_menu::get()->load();
+        menu::submenu::handler::add_submenu(protections_log_menu::get());
         teleport_menu::get()->load();
         menu::submenu::handler::add_submenu(teleport_menu::get());
         teleport_directional_menu::get()->load();

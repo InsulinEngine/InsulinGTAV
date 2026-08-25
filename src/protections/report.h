@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "protections/registry.h"
+#include "protections/ring.h"   // for record, used by recent_at()
 
 // Reporting for protection filters.
 //
@@ -21,4 +22,14 @@ namespace protections {
 
     uint32_t total_reports();
     uint32_t total_dropped();
+
+    // A bounded history of what drain_reports() has emitted, for the in-game
+    // log view. Written and read on the script thread only - no atomics.
+    //
+    // Deliberately not the ring: the ring is drained destructively and this
+    // needs the last N to stay readable while the menu is open.
+    static const int recent_capacity = 32;
+
+    int  recent_count();
+    bool recent_at(int index_from_newest, record* out, uint32_t* suppressed_out);
 }
