@@ -62,8 +62,21 @@
 //     operand class this check exists to catch. Refused - and note that no
 //     whitelist addition can ever make such a target hookable, which is why it
 //     refuses with its own reason string.
-//   * 0xF0 LOCK, the A0..A3 moffs forms, and VEX/EVEX (0xC4/0xC5/0x62), which
-//     hde64 does not understand at all. All refused.
+//   * the A0..A3 moffs forms, and VEX/EVEX (0xC4/0xC5/0x62), which hde64 does
+//     not understand at all. All refused.
+//   * 0xF0 LOCK - and this one is a gap in THIS decoder, not in the SDK.
+//     hde64 carries a real lock-validity table (HDE64.c:127-150 walking
+//     Table64.h's DELTA_OP_LOCK_OK / DELTA_OP2_LOCK_OK) and measures locked
+//     forms correctly when the ModRM.reg field is permitted: one-byte
+//     00/08/10/18/20/28/30 (add/or/adc/sbb/and/sub/xor, both the Eb,Gb and
+//     Ev,Gv encodings, since the compare is on `op & -2`), 80/82 (grp1, /0../6),
+//     86 (xchg), F6 (/2,/3), FE (/0,/1); and two-byte AB, B0, B1, B3, BA (/5../7),
+//     BB, C0, C1, C7 (/1). Measured directly against the SDK: `lock add
+//     [rdi],eax` = 3 bytes, `lock xadd [rdi],eax` = 4, `lock cmpxchg` = 5, all
+//     with no error flag; only the mod=3 form errors, and that form is
+//     architecturally invalid anyway. So a LOCK-prefixed target may well be
+//     hookable, and its refusal says so - closing the gap means porting those
+//     tables, which is real work but not impossible.
 //
 // Scope: detect and refuse. This does NOT relocate anything. Relocating a
 // branch into the trampoline would unblock more targets and is recorded as a
@@ -244,13 +257,42 @@ namespace protections {
                 //   0F B8      popcnt (F3-prefixed)
                 //   0F 50      movmskps/movmskpd
                 //
-                // And one one-byte form: 0xF0 LOCK, which refuses as
-                // "unmeasurable" rather than "unrecognised" because modelling
-                // hde64's lock-validity table is a different job from adding an
-                // opcode.
+                // And one one-byte form: 0xF0 LOCK, which gets its own
+                // refusal class because it is neither a one-line whitelist
+                // entry nor an engine limit - hde64 measures locked forms
+                // correctly, so closing that gap means porting its
+                // lock-validity tables. See the file header.
                 default:   return unknown_form();
             }
         }
+
+        // Why a decode was refused. These are mutually exclusive by
+        // construction, and they are kept apart because each one tells whoever
+        // reads the log to do something DIFFERENT:
+        //
+        //   why_unknown_opcode - an opcode outside this file's whitelist. The
+        //     cheap case: add it to classify_1byte/classify_2byte and re-run the
+        //     hde64 differential.
+        //   why_lock - a 0xF0 LOCK prefix. NOT an engine limit: hde64 measures
+        //     locked forms correctly whenever its lock-validity table permits
+        //     the ModRM.reg field (see the file header for the measured list),
+        //     so such a target may well be hookable. Closing this gap means
+        //     porting those tables - real work, but possible.
+        //   why_engine_limit - hde64 itself cannot measure the encoding at all:
+        //     a 0x67 prefix (silently wrong length), a double REX, or a form
+        //     over 15 bytes. Detour_GetInstructionSize returns 0 or, worse, a
+        //     wrong boundary. No work in THIS file changes that.
+        //   why_truncated - ran out of inspection window mid-instruction.
+        //     Unreachable from install_detour, which always passes 32 bytes
+        //     (the longest possible steal is 13 + 15 = 28), but reachable from
+        //     a host test with a short buffer.
+        enum refusal {
+            why_none = 0,
+            why_unknown_opcode,
+            why_lock,
+            why_engine_limit,
+            why_truncated
+        };
 
         struct insn {
             uint32_t len;
@@ -258,23 +300,7 @@ namespace protections {
             bool     relative;  // rel8/rel32 operand - position dependent
             bool     riprel;    // mod=0, rm=5 - position dependent
             bool     terminal;  // ret / int3 / indirect jmp: the function ends
-
-            // Why `ok` is false, when the answer changes what a maintainer
-            // should DO about it:
-            //
-            //   unmeasurable - the SDK's own hde64 cannot measure this encoding
-            //     correctly (0x67, LOCK, a double REX, or an over-15-byte
-            //     form). No whitelist addition helps: the target is simply not
-            //     hookable by this detour engine.
-            //   truncated - we ran out of inspection window mid-instruction.
-            //     Unreachable from install_detour, which always passes 32 bytes
-            //     (the longest possible steal is 13 + 15 = 28), but reachable
-            //     from a host test with a short buffer.
-            //
-            // Neither set => an opcode outside the whitelist, which IS a
-            // one-line addition plus a differential re-run.
-            bool     unmeasurable;
-            bool     truncated;
+            refusal  why;       // set iff ok == false
         };
 
         // Decode exactly one instruction at `b`, reading at most `avail` bytes.
@@ -284,7 +310,7 @@ namespace protections {
             insn in;
             in.len = 0; in.ok = false; in.relative = false;
             in.riprel = false; in.terminal = false;
-            in.unmeasurable = false; in.truncated = false;
+            in.why = why_unknown_opcode;
 
             uint32_t i = 0;
             bool p66 = false;
@@ -295,7 +321,7 @@ namespace protections {
             // there are four groups); beyond that, refuse rather than keep
             // walking.
             for (uint32_t n = 0; n < 5; ++n) {
-                if (i >= avail) { in.truncated = true; return in; }
+                if (i >= avail) { in.why = why_truncated; return in; }
                 const uint8_t c = b[i];
                 if (c == 0x66) { p66 = true; ++i; continue; }
                 if (c == 0xF2 || c == 0xF3) { ++i; continue; }
@@ -303,12 +329,17 @@ namespace protections {
                     c == 0x64 || c == 0x65) { ++i; continue; }
                 break;
             }
-            if (i >= avail) { in.truncated = true; return in; }
-            if (b[i] == 0x66 || b[i] == 0xF2 || b[i] == 0xF3 || b[i] == 0x67 ||
-                b[i] == 0xF0) {
-                // Too many prefixes, or one whose length hde64 gets wrong
-                // (0x67) or whose validity table we decline to model (LOCK).
-                in.unmeasurable = true;
+            if (i >= avail) { in.why = why_truncated; return in; }
+            // LOCK and 0x67 both stop us here, for opposite reasons: hde64
+            // handles LOCK properly and we do not, while hde64 handles 0x67
+            // improperly and nobody can. Keep them apart.
+            if (b[i] == 0xF0) { in.why = why_lock; return in; }
+            if (b[i] == 0x67) { in.why = why_engine_limit; return in; }
+            if (b[i] == 0x66 || b[i] == 0xF2 || b[i] == 0xF3) {
+                // More prefixes than the loop above allows. hde64 would keep
+                // consuming (up to 16), so this is our limit, not the engine's -
+                // but no compiler emits it, so it stays an ordinary refusal.
+                in.why = why_unknown_opcode;
                 return in;
             }
 
@@ -316,18 +347,18 @@ namespace protections {
             if ((b[i] & 0xF0) == 0x40) {
                 rexw = (b[i] & 0x08) != 0;
                 ++i;
-                if (i >= avail) { in.truncated = true; return in; }
+                if (i >= avail) { in.why = why_truncated; return in; }
                 // hde64 raises F_ERROR on a second REX-range byte
                 // (HDE64.c:65-68), so the SDK cannot measure it either.
-                if ((b[i] & 0xF0) == 0x40) { in.unmeasurable = true; return in; }
+                if ((b[i] & 0xF0) == 0x40) { in.why = why_engine_limit; return in; }
             }
 
-            if (i >= avail) { in.truncated = true; return in; }
+            if (i >= avail) { in.why = why_truncated; return in; }
             uint8_t op = b[i++];
 
             bool two = false;
             if (op == 0x0F) {
-                if (i >= avail) { in.truncated = true; return in; }
+                if (i >= avail) { in.why = why_truncated; return in; }
                 op = b[i++];
                 two = true;
             }
@@ -338,7 +369,7 @@ namespace protections {
             imm_kind imm = f.imm;
 
             if (f.modrm) {
-                if (i >= avail) { in.truncated = true; return in; }
+                if (i >= avail) { in.why = why_truncated; return in; }
                 const uint8_t modrm = b[i++];
                 const uint8_t mod   = (uint8_t)(modrm >> 6);
                 const uint8_t reg   = (uint8_t)((modrm >> 3) & 7);
@@ -366,7 +397,7 @@ namespace protections {
                 }
 
                 if (mod != 3 && rm == 4) {
-                    if (i >= avail) { in.truncated = true; return in; }
+                    if (i >= avail) { in.why = why_truncated; return in; }
                     const uint8_t sib  = b[i++];
                     const uint8_t base = (uint8_t)(sib & 7);
                     // hde64: base==5 with an even mod forces disp32
@@ -375,7 +406,7 @@ namespace protections {
                     if (base == 5 && (mod & 1) == 0) disp = 4;
                 }
 
-                if (disp > avail - i) { in.truncated = true; return in; }
+                if (disp > avail - i) { in.why = why_truncated; return in; }
                 i += disp;
             }
 
@@ -389,16 +420,17 @@ namespace protections {
                 case rel_b:    immbytes = 1; in.relative = true; break;
                 case rel_z:    immbytes = p66 ? 2u : 4u; in.relative = true; break;
             }
-            if (immbytes > avail - i) { in.truncated = true; return in; }
+            if (immbytes > avail - i) { in.why = why_truncated; return in; }
             i += immbytes;
 
             // hde64 flags anything past 15 bytes as F_ERROR_LENGTH and clamps
             // (HDE64.c:317-320), so Detour_GetInstructionSize returns 0 and the
             // SDK cannot measure it at all. Refuse rather than model the clamp.
-            if (i == 0 || i > 15) { in.unmeasurable = true; return in; }
+            if (i == 0 || i > 15) { in.why = why_engine_limit; return in; }
 
             in.len = i;
             in.ok  = true;
+            in.why = why_none;
             if (f.terminal) in.terminal = true;
             return in;
         }
@@ -424,20 +456,33 @@ namespace protections {
         while (off < (uint32_t)k_jump_bytes) {
             const insn in = decode_one(bytes + off, len - off);
             if (!in.ok) {
-                // Three refusals, because they call for three different
-                // responses from whoever reads the log.
-                if (in.unmeasurable)
+                // Four refusals, because each one calls for a different
+                // response from whoever reads the log.
+                switch (in.why) {
+                case why_engine_limit:
                     v.reason = "prologue uses an encoding the SDK's own decoder "
-                               "mis-measures (0x67 / lock / double REX / "
-                               "over-long) - this target is not hookable by "
-                               "this detour engine, and no whitelist addition "
-                               "changes that";
-                else if (in.truncated)
+                               "cannot measure (0x67 address-size prefix, "
+                               "double REX, or an over-15-byte form) - this "
+                               "target is not hookable by this detour engine, "
+                               "and no work in branch_check.h changes that";
+                    break;
+                case why_lock:
+                    v.reason = "prologue carries a lock prefix, whose validity "
+                               "tables this decoder does not model - hde64 "
+                               "measures many locked forms correctly, so the "
+                               "target may well be hookable; closing this gap "
+                               "means porting HDE64.c's lock tables, not adding "
+                               "an opcode";
+                    break;
+                case why_truncated:
                     v.reason = "prologue runs past the inspected window before "
                                "a whole-instruction boundary reaches 14";
-                else
+                    break;
+                default:
                     v.reason = "unrecognised instruction in the prologue - "
                                "refusing to guess where the steal ends";
+                    break;
+                }
                 return v;
             }
             if (in.relative) {

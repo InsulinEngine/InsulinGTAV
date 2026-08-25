@@ -115,16 +115,28 @@ int main() {
     check_true("which is a different reason than an unknown opcode",
                a.reason && u.reason && strcmp(a.reason, u.reason) != 0);
 
-    // Same class: a lock prefix. hde64's lock-validity table is a different
-    // job from adding an opcode, so this must not read as "unrecognised".
+    // A lock prefix is a DIFFERENT refusal, and getting this wrong is the
+    // exact mistake the class split exists to prevent. hde64 carries a real
+    // lock-validity table (HDE64.c:127-150, walking Table64.h's
+    // DELTA_OP_LOCK_OK / DELTA_OP2_LOCK_OK) and measures locked forms
+    // correctly: measured against the SDK, `lock add [rdi],eax` = 3 bytes,
+    // `lock xadd [rdi],eax` = 4, `lock cmpxchg` = 5, all with no error flag.
+    // So the gap is OURS, the target may well be hookable, and the message
+    // must not claim otherwise.
     const uint8_t locked[] = {
-        0x55, 0x48,0x89,0xE5, 0xF0,0xFF,0x07, 0x53, 0x41,0x56,
+        0x55, 0x48,0x89,0xE5, 0xF0,0x01,0x07, 0x53, 0x41,0x56,
         0x48,0x83,0xEC,0x20, 0x90
     };
     prologue_verdict l = check_prologue(locked, sizeof(locked));
     check_true("a lock-prefixed prologue is refused", !l.safe);
-    check_true("and it lands in the unhookable class too",
-               l.reason && strstr(l.reason, "not hookable") != nullptr);
+    check_true("and the reason names the lock prefix",
+               l.reason && strstr(l.reason, "lock") != nullptr);
+    check_true("without claiming the target is unhookable",
+               l.reason && strstr(l.reason, "not hookable") == nullptr);
+    check_true("and it differs from the engine-limit reason",
+               l.reason && a.reason && strcmp(l.reason, a.reason) != 0);
+    check_true("and from the unknown-opcode reason",
+               l.reason && u.reason && strcmp(l.reason, u.reason) != 0);
 
     // Null and zero-length are refusals, not crashes.
     check_true("null is refused", !check_prologue(nullptr, 32).safe);
