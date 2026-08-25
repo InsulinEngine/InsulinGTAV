@@ -55,6 +55,11 @@ namespace protections {
     // when the filter is live (or needs no detour).
     bool ensure_installed(filter_id id);
 
+    // Guard installers. Each matches the registry's install field.
+    bool install_render_ped();
+    bool install_render_entity();
+    bool install_render_big_ped();
+
     // Installs every filter whose persisted mode is not Off.
     //
     // This exists because dropdown_option::add_savable restores the saved value
