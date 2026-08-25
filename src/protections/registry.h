@@ -63,6 +63,12 @@ namespace protections {
     bool install_task_parachute();
     bool install_invalid_decal();
     bool install_searchlight();
+    bool install_skeleton_extension();
+    // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
+    // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a
+    // 14-byte jump forces contains a rel8 branch that GoldHEN's stub does not
+    // relocate. Its registry entry keeps a null installer. See
+    // src/protections/hooks_counters.cpp.
 
     // Installs every filter whose persisted mode is not Off.
     //

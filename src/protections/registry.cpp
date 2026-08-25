@@ -7,7 +7,7 @@ namespace {
     filter* table(int* out_count) {
         static filter t[] = {
             { filter_id::self_test,          "Self Test",           1, (int)mode::log, (int)mode::log, false, nullptr },
-            { filter_id::skeleton_extension, "Skeleton Extension",  1, (int)mode::log, (int)mode::log, false, nullptr },
+            { filter_id::skeleton_extension, "Skeleton Extension",  1, (int)mode::log, (int)mode::log, false, &install_skeleton_extension },
             { filter_id::fragment_physics,   "Fragment Physics",    1, (int)mode::log, (int)mode::log, false, nullptr },
             { filter_id::invalid_decal,      "Invalid Decal",       1, (int)mode::log, (int)mode::log, false, &install_invalid_decal },
             { filter_id::searchlight,        "Searchlight",         1, (int)mode::log, (int)mode::log, false, &install_searchlight },
