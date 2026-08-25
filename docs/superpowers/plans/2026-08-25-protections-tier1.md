@@ -25,10 +25,21 @@
 
 ## Build, test and deploy commands
 
-Host unit test (from repo root):
+Host unit test (from repo root). Header-only units need only the test file;
+a unit split into `.h`/`.cpp` must have its `.cpp` on the command line too, or
+the test fails to **link** rather than failing an assertion — which breaks the
+red/green cycle:
 ```bash
+# header-only unit
 clang++ -std=c++17 -I src tests/<name>_test.cpp -o build/<name>_test.exe && ./build/<name>_test.exe
+# unit with a .cpp
+clang++ -std=c++17 -I src tests/<name>_test.cpp src/<path>/<unit>.cpp -o build/<name>_test.exe && ./build/<name>_test.exe
 ```
+These units are host-compilable because they depend on nothing from the PS4
+toolchain — `ring.h` includes only `<stdint.h>`, and `registry.cpp` includes
+only `registry.h` plus clang's `__atomic_*` builtins. Keep it that way: an
+include of anything under `platform/`, `rage/` or `stl/` makes them
+untestable on the host.
 
 Plugin build:
 ```bash
@@ -294,7 +305,7 @@ Create `tests/protections_registry_test.cpp`:
 ```cpp
 // Host unit tests for the protections filter registry.
 // Build + run (from repo root):
-//   clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe
+//   clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe
 //   ./build/protections_registry_test.exe
 // C headers only: MSVC's C++ stdlib rejects the installed clang (STL1000).
 #include "protections/registry.h"
@@ -358,6 +369,17 @@ int main() {
     for (int i = 0; i < count(); i++)
         check_true("defaults to log", at(i)->default_mode == (int)mode::log);
 
+    // install_enabled_filters() covers the gap left by add_savable restoring a
+    // mode without firing its change handler. With no install function set it
+    // must be a safe no-op, and it must be idempotent - it runs once per boot
+    // but nothing should break if it runs twice.
+    set_mode(probe, mode::enforce);
+    install_enabled_filters();
+    install_enabled_filters();
+    check_true("install_enabled_filters leaves mode alone", should_block(probe));
+    for (int i = 0; i < count(); i++)
+        check_true("no install fn means not installed", at(i)->install || !at(i)->installed);
+
     printf(g_failed ? "\n%d FAILED\n" : "\nall passed\n", g_failed);
     return g_failed != 0;
 }
@@ -365,8 +387,9 @@ int main() {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe`
-Expected: FAIL — `fatal error: 'protections/registry.h' file not found`
+Run: `clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe`
+Expected: FAIL — `no such file or directory: 'src/protections/registry.cpp'`
+(and, if you drop the `.cpp` from the line, `fatal error: 'protections/registry.h' file not found`). Either way the step is red before the implementation exists.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -429,6 +452,16 @@ namespace protections {
     // Installs the detour if it is not installed yet. Idempotent; returns true
     // when the filter is live (or needs no detour).
     bool ensure_installed(filter_id id);
+
+    // Installs every filter whose persisted mode is not Off.
+    //
+    // This exists because dropdown_option::add_savable restores the saved value
+    // but deliberately does NOT fire add_change - the same boot rule that stops
+    // toggle_option from invoking click handlers during menu::build(). Without
+    // this call a filter saved as Enforce comes back showing Enforce with its
+    // detour never installed: a protection that reads as on and does nothing.
+    // Idempotent; call it once the game is up, never from build().
+    void install_enabled_filters();
 }
 ```
 
@@ -518,12 +551,20 @@ bool ensure_installed(filter_id id) {
     f->installed = f->install();
     return f->installed;
 }
+
+void install_enabled_filters() {
+    int n = 0;
+    filter* t = table(&n);
+    for (int i = 0; i < n; i++)
+        if (mode_of(t[i].id) != mode::off)
+            ensure_installed(t[i].id);
+}
 }
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe`
+Run: `clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe`
 Expected: PASS — final line `all passed`, exit code 0
 
 - [ ] **Step 5: Commit**
@@ -817,7 +858,6 @@ Replace `src/menu/base/submenus/protections.cpp` with:
 #include "menu/base/util/notify.h"
 #include "protections/registry.h"
 #include "protections/report.h"
-#include "util/num_to_string.h"
 
 #include <stdio.h>
 
@@ -912,6 +952,26 @@ Read the surrounding function before editing to confirm the ordering; do not
 guess the insertion point. In particular, do **not** put the drain in the
 ungated prologue above `if (ov) { ... return; }` — that region is explicitly
 documented as memory-reads-only.
+
+Then find the `if (game::player_valid() && ...)` block further down the same
+function, and add this one-shot immediately **above** it:
+
+```cpp
+        // Detours for filters restored from config. add_savable puts the saved
+        // mode back but does not fire the change handler that installs the
+        // detour - so without this, a filter saved as Enforce comes back
+        // reading Enforce and doing nothing. Deferred to here rather than
+        // menu::build() so no detour lands while the game is still loading.
+        static bool s_filters_installed = false;
+        if (!s_filters_installed && game::player_valid()) {
+            protections::install_enabled_filters();
+            s_filters_installed = true;
+        }
+```
+
+A function-local `static bool` is the right tool here and does not break the
+no-`.init_array` rule: it is zero-initialised, so it needs no dynamic
+initialiser and no guard variable.
 
 - [ ] **Step 4: Bump the build tag**
 
@@ -1111,7 +1171,7 @@ pointers in the table with the matching function:
 
 Run:
 ```bash
-clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
+clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
 ```
 Expected: PASS. The registry test asserts every filter still defaults to `log`
 and that names stay unique, which is exactly what a table edit can break.
@@ -1256,7 +1316,7 @@ And in `src/protections/registry.cpp`, set the two install pointers:
 
 Run:
 ```bash
-clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
+clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
 ```
 Expected: PASS.
 
@@ -1416,7 +1476,7 @@ And set the three install pointers in `src/protections/registry.cpp`:
 
 Run:
 ```bash
-clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
+clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
 ```
 Expected: PASS.
 
@@ -1563,7 +1623,7 @@ And set the two install pointers in `src/protections/registry.cpp`:
 
 Run:
 ```bash
-clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
+clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
 ```
 Expected: PASS.
 
@@ -1689,7 +1749,7 @@ And set the install pointer in `src/protections/registry.cpp`:
 
 Run:
 ```bash
-clang++ -std=c++17 -I src tests/protections_registry_test.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
+clang++ -std=c++17 -I src tests/protections_registry_test.cpp src/protections/registry.cpp -o build/protections_registry_test.exe && ./build/protections_registry_test.exe
 ```
 Expected: PASS.
 
