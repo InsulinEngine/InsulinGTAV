@@ -61,6 +61,8 @@ namespace protections {
     bool install_render_big_ped();
     bool install_task_ambient_clips();
     bool install_task_parachute();
+    bool install_invalid_decal();
+    bool install_searchlight();
 
     // Installs every filter whose persisted mode is not Off.
     //

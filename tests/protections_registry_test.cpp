@@ -19,6 +19,8 @@ namespace protections {
     bool install_render_big_ped()     { return false; }
     bool install_task_ambient_clips() { return false; }
     bool install_task_parachute()     { return false; }
+    bool install_invalid_decal()      { return false; }
+    bool install_searchlight()        { return false; }
 }
 
 static int g_failed = 0;
