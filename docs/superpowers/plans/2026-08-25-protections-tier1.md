@@ -1327,8 +1327,24 @@ Set `INSULIN_BUILD_TAG` to `"prot-tasks-1"`, build, deploy.
 1. Set both filters to `Log`; confirm two `prot detour installed` klog lines.
 2. Play for ten minutes including a parachute jump and normal ped ambient
    behaviour in a crowd.
-3. **Expect zero reports.** Both guards fire only on a null the game should never
-   produce locally; a report during solo play means the offset is wrong.
+3. **Reports are expected here — this is the corrected expectation.** An earlier
+   draft of this step said "expect zero reports; a report means the offset is
+   wrong". That is wrong for both filters, and acting on it would back out a
+   verified anchor:
+
+   - **Task Ambient Clips WILL fire in ordinary play.** The game treats a null
+     anims group as legal — `CTaskAmbientClips::Start_OnUpdate` null-checks the
+     very field the guard tests. This is YimMenu's known imprecision, not a bad
+     offset. Keep it on `Log`; do **not** promote it to `Enforce` without a
+     deliberate test watching ped idle animations, because returning 0 from
+     `UpdateFSM` skips the whole switch, `TaskSetState` is never called, and the
+     ped is pinned in `State_Start` with no ambient clip ever chosen.
+   - **Task Parachute may fire benignly.** The guard trips when any of the three
+     links is null, but retail already null-checks links 2 and 3, so a null there
+     is a legal transient. Read the klog detail field: `a=00000000` means link 1
+     — the one retail never checks — was null, which is the fatal case the guard
+     exists to stop. `a=00000001` is the game's own transient and is **not**
+     grounds to back the anchor out.
 4. Flip both to `Enforce`, repeat the parachute jump, and confirm the jump still
    works normally — a guard that breaks the legitimate path is worse than the
    crash it prevents.
