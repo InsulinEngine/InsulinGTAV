@@ -5,7 +5,7 @@
 //
 // GoldHEN's Detour_GetInstructionSize accumulates whole instructions until it
 // reaches >= 14 (the size of its absolute jump), then memcpy's that range into
-// the trampoline WITHOUT relocating operands (Detour.c:127-129). Two things in
+// the trampoline WITHOUT relocating operands (Detour.c:125-126). Two things in
 // that range therefore break:
 //
 //   * a relative branch (jcc rel8/rel32, jmp rel8/rel32, call rel32) - the
@@ -26,7 +26,7 @@
 //
 // The thing that actually picks the steal length at runtime is hde64
 // (C:\PS4\GoldHEN_Plugins_SDK\source\HDE64.c), driven by
-// Detour_GetInstructionSize:
+// Detour_GetInstructionSize (Detour.c:26-41):
 //
 //     while (InstructionSize < MinSize) {
 //         uint32_t temp = hde64_disasm(Address + InstructionSize, &hs);
@@ -38,25 +38,30 @@
 // would be about a different byte range than the one that gets copied. What was
 // taken from hde64, verbatim in behaviour:
 //
-//   * prefix bytes are consumed first, then at most one REX; a second byte in
-//     0x40..0x4F right after a REX is an error (HDE64.c:64-67);
+//   * prefix bytes are consumed first (HDE64.c:20-52), then at most one REX;
+//     a second byte in 0x40..0x4F right after a REX is an error (HDE64.c:65-68);
 //   * disp sizing off ModRM.mod - mod=0 && rm=5 is disp32 (and, in long mode,
-//     RIP-relative); mod=1 is disp8; mod=2 is disp32 (HDE64.c:220-232);
+//     RIP-relative); mod=1 is disp8; mod=2 is disp32 (HDE64.c:230-243);
 //   * a SIB byte whenever mod != 3 && rm == 4, and base==5 with mod even
-//     forces disp32 (HDE64.c:234-240);
+//     forces disp32 (HDE64.c:245-252, the base==5 rule on :251);
 //   * 0x66 shrinks an "iz" immediate to 2 bytes, including the rel32 of
-//     E8/E9 (HDE64.c:257-262);
-//   * REX.W turns B8..BF into a 8-byte movabs immediate (HDE64.c:59);
-//   * F6/F7 carry an immediate only when ModRM.reg <= 1 (HDE64.c:213-217).
+//     E8/E9 (HDE64.c:272-292);
+//   * REX.W turns B8..BF into a 8-byte movabs immediate (HDE64.c:61);
+//   * F6/F7 carry an immediate only when ModRM.reg <= 1 (HDE64.c:223-228).
 //
 // What was deliberately NOT implemented, because refusing is always safe:
 //
 //   * hde64's opcode/group/lock/FPU validity tables. This file whitelists
-//     opcodes instead; anything outside the whitelist refuses.
+//     opcodes instead; anything outside the whitelist refuses. That refusal is
+//     the one a whitelist addition can fix, and it says so.
 //   * the 0x67 address-size prefix. hde64 decodes a 0x67-prefixed memory
-//     operand with 16-bit addressing rules (rm==6 => disp16), which is wrong in
-//     long mode - so our boundaries could disagree with the SDK's exactly where
-//     it matters. Refused instead.
+//     operand with 16-bit addressing rules (rm==6 => disp16, HDE64.c:232-233),
+//     which is wrong in long mode: measured against the SDK's own binary,
+//     `67 48 8B 05 <rel32>` comes back as length 4 for an 8-byte RIP-relative
+//     load, with NO error flag. A silently wrong boundary on exactly the
+//     operand class this check exists to catch. Refused - and note that no
+//     whitelist addition can ever make such a target hookable, which is why it
+//     refuses with its own reason string.
 //   * 0xF0 LOCK, the A0..A3 moffs forms, and VEX/EVEX (0xC4/0xC5/0x62), which
 //     hde64 does not understand at all. All refused.
 //
@@ -194,7 +199,7 @@ namespace protections {
             if (op >= 0xE0 && op <= 0xEF) return make_form(true, imm_none); // pavg*/psra*/pxor/...
             // 0xF6 and 0xF7 are deliberately absent from this range. hde64
             // applies its group-3 immediate patch on the SECOND opcode byte
-            // without checking opcode2 (HDE64.c:213-217), so for `0F F6 /0..1`
+            // without checking opcode2 (HDE64.c:223-228), so for `0F F6 /0..1`
             // and `0F F7 /0..1` it reports one byte too many. That length is not
             // an instruction boundary at all, so a steal ending there would
             // leave the stub's jump-back pointing into the middle of the next
@@ -226,6 +231,23 @@ namespace protections {
                 case 0xC3: return make_form(true,  imm_none);            // movnti
                 case 0xC4: case 0xC5: return make_form(true, imm_ib);    // pinsrw / pextrw
                 case 0xC6: return make_form(true,  imm_ib);              // shufps, ib
+
+                // Watch-list: two-byte forms that are absent today and could
+                // plausibly cost a future target a false refusal. Start here
+                // rather than rediscovering the list. Each needs the same
+                // treatment - add it, then re-run the hde64 differential.
+                //
+                //   0F AE      grp15: ldmxcsr/stmxcsr/fxsave/lfence/mfence
+                //              (mixed mem and reg-only forms - check both)
+                //   0F C7      grp9: cmpxchg8b/16b, rdrand, rdseed
+                //   0F C8..CF  bswap r32/r64 - register-encoded, NO ModRM
+                //   0F B8      popcnt (F3-prefixed)
+                //   0F 50      movmskps/movmskpd
+                //
+                // And one one-byte form: 0xF0 LOCK, which refuses as
+                // "unmeasurable" rather than "unrecognised" because modelling
+                // hde64's lock-validity table is a different job from adding an
+                // opcode.
                 default:   return unknown_form();
             }
         }
@@ -236,6 +258,23 @@ namespace protections {
             bool     relative;  // rel8/rel32 operand - position dependent
             bool     riprel;    // mod=0, rm=5 - position dependent
             bool     terminal;  // ret / int3 / indirect jmp: the function ends
+
+            // Why `ok` is false, when the answer changes what a maintainer
+            // should DO about it:
+            //
+            //   unmeasurable - the SDK's own hde64 cannot measure this encoding
+            //     correctly (0x67, LOCK, a double REX, or an over-15-byte
+            //     form). No whitelist addition helps: the target is simply not
+            //     hookable by this detour engine.
+            //   truncated - we ran out of inspection window mid-instruction.
+            //     Unreachable from install_detour, which always passes 32 bytes
+            //     (the longest possible steal is 13 + 15 = 28), but reachable
+            //     from a host test with a short buffer.
+            //
+            // Neither set => an opcode outside the whitelist, which IS a
+            // one-line addition plus a differential re-run.
+            bool     unmeasurable;
+            bool     truncated;
         };
 
         // Decode exactly one instruction at `b`, reading at most `avail` bytes.
@@ -245,15 +284,18 @@ namespace protections {
             insn in;
             in.len = 0; in.ok = false; in.relative = false;
             in.riprel = false; in.terminal = false;
+            in.unmeasurable = false; in.truncated = false;
 
             uint32_t i = 0;
             bool p66 = false;
 
             // Legacy prefixes. 0x67 and 0xF0 are refused on purpose - see the
-            // header comment. Four is already more than any real prologue byte
-            // sequence carries; beyond that, refuse rather than keep walking.
+            // header comment. Five is already more than any real prologue byte
+            // sequence carries (x86 allows at most one per prefix group, and
+            // there are four groups); beyond that, refuse rather than keep
+            // walking.
             for (uint32_t n = 0; n < 5; ++n) {
-                if (i >= avail) return in;
+                if (i >= avail) { in.truncated = true; return in; }
                 const uint8_t c = b[i];
                 if (c == 0x66) { p66 = true; ++i; continue; }
                 if (c == 0xF2 || c == 0xF3) { ++i; continue; }
@@ -261,26 +303,31 @@ namespace protections {
                     c == 0x64 || c == 0x65) { ++i; continue; }
                 break;
             }
-            if (i >= avail) return in;
+            if (i >= avail) { in.truncated = true; return in; }
             if (b[i] == 0x66 || b[i] == 0xF2 || b[i] == 0xF3 || b[i] == 0x67 ||
-                b[i] == 0xF0)
-                return in;  // too many prefixes, or one we refuse to model
+                b[i] == 0xF0) {
+                // Too many prefixes, or one whose length hde64 gets wrong
+                // (0x67) or whose validity table we decline to model (LOCK).
+                in.unmeasurable = true;
+                return in;
+            }
 
             bool rexw = false;
             if ((b[i] & 0xF0) == 0x40) {
                 rexw = (b[i] & 0x08) != 0;
                 ++i;
-                if (i >= avail) return in;
-                // hde64 raises F_ERROR on a second REX-range byte (HDE64.c:64).
-                if ((b[i] & 0xF0) == 0x40) return in;
+                if (i >= avail) { in.truncated = true; return in; }
+                // hde64 raises F_ERROR on a second REX-range byte
+                // (HDE64.c:65-68), so the SDK cannot measure it either.
+                if ((b[i] & 0xF0) == 0x40) { in.unmeasurable = true; return in; }
             }
 
-            if (i >= avail) return in;
+            if (i >= avail) { in.truncated = true; return in; }
             uint8_t op = b[i++];
 
             bool two = false;
             if (op == 0x0F) {
-                if (i >= avail) return in;
+                if (i >= avail) { in.truncated = true; return in; }
                 op = b[i++];
                 two = true;
             }
@@ -291,14 +338,14 @@ namespace protections {
             imm_kind imm = f.imm;
 
             if (f.modrm) {
-                if (i >= avail) return in;
+                if (i >= avail) { in.truncated = true; return in; }
                 const uint8_t modrm = b[i++];
                 const uint8_t mod   = (uint8_t)(modrm >> 6);
                 const uint8_t reg   = (uint8_t)((modrm >> 3) & 7);
                 const uint8_t rm    = (uint8_t)(modrm & 7);
 
                 // hde64 patches the group-3 immediate in from ModRM.reg
-                // (HDE64.c:213-217).
+                // (HDE64.c:223-228).
                 if (!two && reg <= 1) {
                     if (op == 0xF6)      imm = imm_ib;
                     else if (op == 0xF7) imm = imm_iz;
@@ -319,16 +366,16 @@ namespace protections {
                 }
 
                 if (mod != 3 && rm == 4) {
-                    if (i >= avail) return in;
+                    if (i >= avail) { in.truncated = true; return in; }
                     const uint8_t sib  = b[i++];
                     const uint8_t base = (uint8_t)(sib & 7);
                     // hde64: base==5 with an even mod forces disp32
-                    // (HDE64.c:239). That form is absolute-with-index, not
+                    // (HDE64.c:251). That form is absolute-with-index, not
                     // RIP-relative, so it needs no relocation.
                     if (base == 5 && (mod & 1) == 0) disp = 4;
                 }
 
-                if (disp > avail - i) return in;
+                if (disp > avail - i) { in.truncated = true; return in; }
                 i += disp;
             }
 
@@ -342,12 +389,13 @@ namespace protections {
                 case rel_b:    immbytes = 1; in.relative = true; break;
                 case rel_z:    immbytes = p66 ? 2u : 4u; in.relative = true; break;
             }
-            if (immbytes > avail - i) return in;
+            if (immbytes > avail - i) { in.truncated = true; return in; }
             i += immbytes;
 
             // hde64 flags anything past 15 bytes as F_ERROR_LENGTH and clamps
-            // (HDE64.c:296). Refuse rather than model the clamp.
-            if (i == 0 || i > 15) return in;
+            // (HDE64.c:317-320), so Detour_GetInstructionSize returns 0 and the
+            // SDK cannot measure it at all. Refuse rather than model the clamp.
+            if (i == 0 || i > 15) { in.unmeasurable = true; return in; }
 
             in.len = i;
             in.ok  = true;
@@ -376,8 +424,20 @@ namespace protections {
         while (off < (uint32_t)k_jump_bytes) {
             const insn in = decode_one(bytes + off, len - off);
             if (!in.ok) {
-                v.reason = "unrecognised instruction in the prologue - "
-                           "refusing to guess where the steal ends";
+                // Three refusals, because they call for three different
+                // responses from whoever reads the log.
+                if (in.unmeasurable)
+                    v.reason = "prologue uses an encoding the SDK's own decoder "
+                               "mis-measures (0x67 / lock / double REX / "
+                               "over-long) - this target is not hookable by "
+                               "this detour engine, and no whitelist addition "
+                               "changes that";
+                else if (in.truncated)
+                    v.reason = "prologue runs past the inspected window before "
+                               "a whole-instruction boundary reaches 14";
+                else
+                    v.reason = "unrecognised instruction in the prologue - "
+                               "refusing to guess where the steal ends";
                 return v;
             }
             if (in.relative) {

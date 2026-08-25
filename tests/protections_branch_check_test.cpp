@@ -37,9 +37,19 @@ int main() {
     // rage::fwBasePool::New @ 0x1EF6A00 - Tier 1 identified it and refused to
     // hook it. Byte 10 of the forced 15-byte steal is `jz rel8`, which the stub
     // would copy unrelocated. This is the case the whole check exists for.
+    // Bytes read out of eboot_named.i64 at 0x1EF6A00 (image base 0):
+    //   48 63 4F 18  movsxd rcx, [rdi+18h]   ; 4, off 0
+    //   31 C0        xor    eax, eax         ; 2, off 4
+    //   48 83 F9 FF  cmp    rcx, -1          ; 4, off 6
+    //   74 6E        jz     locret_1EF6A7A   ; 2, off 10  <- the rel8 branch
+    //   8B 47 14     mov    eax, [rdi+14h]   ; 3, off 12
+    //   0F AF C1     imul   eax, ecx         ; 3, off 15
+    //   48 63 D0     movsxd rdx, eax         ; 3, off 18
+    // Boundaries 0,4,6,10,12,15,18,21: the first at or past 14 is 15, so the
+    // SDK would steal 15 bytes and the jz at offset 10 rides along.
     const uint8_t pool_new[] = {
-        0x4C,0x8B,0xD1, 0x48,0x63,0x49,0x18, 0x83,0xF9,0xFF, 0x74,0x6E,
-        0x33,0xC0, 0xC3
+        0x48,0x63,0x4F,0x18, 0x31,0xC0, 0x48,0x83,0xF9,0xFF, 0x74,0x6E,
+        0x8B,0x47,0x14, 0x0F,0xAF,0xC1, 0x48,0x63,0xD0
     };
     prologue_verdict p = check_prologue(pool_new, sizeof(pool_new));
     check_true("fwBasePool::New is refused", !p.safe);
@@ -88,6 +98,33 @@ int main() {
     prologue_verdict u = check_prologue(unknown, sizeof(unknown));
     if (!u.safe) check_true("an unknown opcode refuses", true);
     else         check_true("an unknown opcode refuses", false);
+
+    // A 0x67 address-size prefix must refuse in its OWN class, not as an
+    // unknown opcode. hde64 measures a 0x67-prefixed operand with 16-bit
+    // addressing rules and silently reports 4 bytes for an 8-byte rip-relative
+    // load, so no whitelist addition can ever make such a target hookable -
+    // and the log line has to say that, because the advice differs.
+    const uint8_t addr32[] = {
+        0x55, 0x48,0x89,0xE5, 0x67,0x48,0x8B,0x05,0x11,0x22,0x33,0x44,
+        0x53, 0x41,0x56, 0x90
+    };
+    prologue_verdict a = check_prologue(addr32, sizeof(addr32));
+    check_true("an addr32-prefixed prologue is refused", !a.safe);
+    check_true("and it is called unhookable, not merely unrecognised",
+               a.reason && strstr(a.reason, "not hookable") != nullptr);
+    check_true("which is a different reason than an unknown opcode",
+               a.reason && u.reason && strcmp(a.reason, u.reason) != 0);
+
+    // Same class: a lock prefix. hde64's lock-validity table is a different
+    // job from adding an opcode, so this must not read as "unrecognised".
+    const uint8_t locked[] = {
+        0x55, 0x48,0x89,0xE5, 0xF0,0xFF,0x07, 0x53, 0x41,0x56,
+        0x48,0x83,0xEC,0x20, 0x90
+    };
+    prologue_verdict l = check_prologue(locked, sizeof(locked));
+    check_true("a lock-prefixed prologue is refused", !l.safe);
+    check_true("and it lands in the unhookable class too",
+               l.reason && strstr(l.reason, "not hookable") != nullptr);
 
     // Null and zero-length are refusals, not crashes.
     check_true("null is refused", !check_prologue(nullptr, 32).safe);
