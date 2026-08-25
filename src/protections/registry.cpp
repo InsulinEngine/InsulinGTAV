@@ -5,19 +5,23 @@ namespace {
     // Function-local static, not a namespace-scope object: this plugin has no
     // .init_array, so a global constructor would never run.
     filter* table(int* out_count) {
+        //                                                       tier  default         current         installed  install                        can_block
         static filter t[] = {
-            { filter_id::self_test,          "Self Test",           1, (int)mode::log, (int)mode::log, false, nullptr },
-            { filter_id::skeleton_extension, "Skeleton Extension",  1, (int)mode::log, (int)mode::log, false, &install_skeleton_extension },
-            { filter_id::fragment_physics,   "Fragment Physics",    1, (int)mode::log, (int)mode::log, false, nullptr },
-            { filter_id::invalid_decal,      "Invalid Decal",       1, (int)mode::log, (int)mode::log, false, &install_invalid_decal },
-            { filter_id::searchlight,        "Searchlight",         1, (int)mode::log, (int)mode::log, false, &install_searchlight },
-            { filter_id::task_ambient_clips, "Task Ambient Clips",  1, (int)mode::log, (int)mode::log, false, &install_task_ambient_clips },
-            { filter_id::task_parachute,     "Task Parachute",      1, (int)mode::log, (int)mode::log, false, &install_task_parachute },
-            { filter_id::render_ped,         "Render Ped",          1, (int)mode::log, (int)mode::log, false, &install_render_ped },
-            { filter_id::render_entity,      "Render Entity",       1, (int)mode::log, (int)mode::log, false, &install_render_entity },
-            { filter_id::render_big_ped,     "Render Big Ped",      1, (int)mode::log, (int)mode::log, false, &install_render_big_ped },
-            { filter_id::pool_exhaustion,    "Pool Exhaustion",     1, (int)mode::log, (int)mode::log, false, nullptr },
-            { filter_id::reliable_alloc,     "Reliable Allocator",  1, (int)mode::log, (int)mode::log, false, &install_reliable_alloc },
+            { filter_id::self_test,          "Self Test",           1, (int)mode::log, (int)mode::log, false, nullptr,                     false },
+            { filter_id::skeleton_extension, "Skeleton Extension",  1, (int)mode::log, (int)mode::log, false, &install_skeleton_extension, true  },
+            { filter_id::fragment_physics,   "Fragment Physics",    1, (int)mode::log, (int)mode::log, false, nullptr,                     false },
+            { filter_id::invalid_decal,      "Invalid Decal",       1, (int)mode::log, (int)mode::log, false, &install_invalid_decal,      true  },
+            { filter_id::searchlight,        "Searchlight",         1, (int)mode::log, (int)mode::log, false, &install_searchlight,        true  },
+            { filter_id::task_ambient_clips, "Task Ambient Clips",  1, (int)mode::log, (int)mode::log, false, &install_task_ambient_clips, true  },
+            { filter_id::task_parachute,     "Task Parachute",      1, (int)mode::log, (int)mode::log, false, &install_task_parachute,     true  },
+            { filter_id::render_ped,         "Render Ped",          1, (int)mode::log, (int)mode::log, false, &install_render_ped,         true  },
+            { filter_id::render_entity,      "Render Entity",       1, (int)mode::log, (int)mode::log, false, &install_render_entity,      true  },
+            { filter_id::render_big_ped,     "Render Big Ped",      1, (int)mode::log, (int)mode::log, false, &install_render_big_ped,     true  },
+            { filter_id::pool_exhaustion,    "Pool Exhaustion",     1, (int)mode::log, (int)mode::log, false, nullptr,                     false },
+            // Has a detour, but the hook never calls should_block(): retail
+            // null-checks every AllocCritical return, so there is nothing to
+            // refuse. Detection only until a recovery exists.
+            { filter_id::reliable_alloc,     "Reliable Allocator",  1, (int)mode::log, (int)mode::log, false, &install_reliable_alloc,     false },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;

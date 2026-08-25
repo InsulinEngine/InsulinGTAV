@@ -38,6 +38,15 @@ proof) that keep a state from sticking. Those are not protections in the
 YimMenu sense and this design does not build on them; they move to `Player >
 Proofs`, where they belong, and the Protections submenu is rebuilt.
 
+**Amended after implementation, so the spec matches the code:** the three
+toggles **stayed** in the Protections submenu, under a `Local Self-Care`
+heading below the filter list, rather than moving to `Player > Proofs`.
+`stop_entity_fire` has no other caller anywhere in the menu, so moving Anti Fire
+without first giving it a home there would have silently dropped a working
+feature. The separation the move was meant to express is achieved by the
+heading instead. This is recorded here because a later reader would otherwise
+"fix" the code to match the spec and lose the toggle.
+
 What *is* available and verified:
 
 | Need | Where | Note |

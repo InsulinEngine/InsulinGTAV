@@ -61,8 +61,18 @@ void drain_reports()
     // legitimate needs more than a ring's worth in one pass.
     for (uint32_t guard = 0; guard < ring::capacity && reports().pop(&r); guard++) {
         const filter_id id   = (filter_id)r.filter_id;
-        const char*     name = name_of(id);
-        const bool      blocked = (mode_of(id) == mode::enforce);
+        const filter*   f    = find(id);
+        const char*     name = f ? f->name : "<unknown>";
+
+        // "BLOCK" is a claim about what the hook DID, not about the mode it was
+        // in. Four filters cannot block anything - self_test, fragment_physics
+        // and pool_exhaustion have no detour at all, and reliable_alloc never
+        // calls should_block() - so Enforce on any of them must still print
+        // "would-block". Deriving the label from the mode alone made "Self Test
+        // -> Enforce, Fire Self Test" write `prot BLOCK Self Test` into the
+        // kernel log, which is the one artefact this subsystem exists to
+        // produce and the one place it must not lie.
+        const bool      blocked = f && f->can_block && mode_of(id) == mode::enforce;
 
         // Reopen the filter immediately and pick up however many occurrences
         // were folded into this record.

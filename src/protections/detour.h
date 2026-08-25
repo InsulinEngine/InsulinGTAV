@@ -7,10 +7,26 @@
 // never removed.
 namespace protections {
 
+    // The flags carry default member initialisers even though every instance is
+    // a namespace-scope static (zero-initialised, so correct today). This makes
+    // it correct by construction rather than by where it happens to be
+    // declared - a stack or heap detour_slot would otherwise start with garbage
+    // flags and install_detour() would skip the construct or the install.
+    //
+    // `d` MUST carry `{}` alongside them, and that is not cosmetic. The
+    // implicitly-defined default constructor is only constexpr if EVERY
+    // non-static member is initialised; leaving `Detour d;` bare while the two
+    // bools have initialisers makes it non-constexpr, which demotes each
+    // namespace-scope slot from constant initialisation to DYNAMIC
+    // initialisation - an .init_array entry per translation unit. This plugin
+    // has no .init_array: those entries never run. Measured, not reasoned
+    // about: `Detour d;` + `= false` grew .init_array from 0x320 to 0x348 (one
+    // dead entry per hooks_*.cpp). With `Detour d{}` it is back to 0x320 and
+    // every slot is constant-initialised straight into .bss.
     struct detour_slot {
-        Detour d;
-        bool   constructed;
-        bool   installed;
+        Detour d{};
+        bool   constructed = false;
+        bool   installed   = false;
     };
 
     // Resolves `rva` against g_eboot_base and detours it to `hook`.

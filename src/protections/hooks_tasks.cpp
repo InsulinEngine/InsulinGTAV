@@ -20,11 +20,38 @@
 // Every PC offset in the reference was re-derived here and all of them held;
 // see the per-hook comments. That is not the same as assuming they would - the
 // draw-list guard in hooks_render.cpp found a PC constant that did NOT port.
+//
+// ---------------------------------------------------------------------------
+// REPORT LEGEND for this file. The drain prints `a=%08x b=%08x` with no key.
+//
+//   Task Ambient Clips   a = iState the FSM was called with
+//                        b = iEvent (0 = OnEnter, 1 = OnUpdate, 2 = OnExit)
+//
+//   Task Parachute       a = 1 if *(this + 0x10) was non-null, else 0
+//                        b = 1 if the anim director was non-null, else 0
+//                        (the filter only fires on iState==1, iEvent==1, so
+//                         a=1 b=1 means the move object was the null link)
+// ---------------------------------------------------------------------------
 namespace protections {
 namespace {
     // eboot RVAs, CUSA00411 v1.57, imagebase 0.
     const uint64_t RVA_TASK_AMBIENT_CLIPS = 0xD08A90;  // CTaskAmbientClips::UpdateFSM
     const uint64_t RVA_TASK_PARACHUTE     = 0xE40A20;  // CTaskParachuteObject::UpdateFSM
+
+    // CTaskAmbientClips: the conditional anims group the task plays from.
+    // Derived, not ported - see the hook comment below.
+    const uint64_t AMBIENT_ANIMS_GROUP  = 0x100;   // 256
+
+    // The CTaskParachuteObject::Stream_OnUpdate chain, in the order the
+    // original walks it: task -> object -> anim director -> move object.
+    const uint64_t PARACHUTE_OBJECT     = 0x10;    // 16,  GetObject()
+    const uint64_t OBJ_ANIM_DIRECTOR    = 0x50;    // 80
+    const uint64_t DIR_MOVE_OBJECT      = 0x40;    // 64
+
+    // FSM arguments the parachute guard keys on. OnUpdate = 1 was read out of
+    // sub_E40A20's own dispatch, not assumed - see the file header.
+    const int      PARACHUTE_STATE_STREAM = 1;     // State_Stream
+    const int      FSM_EVENT_ON_UPDATE    = 1;     // OnUpdate
 
     typedef int (*task_update_fn)(uint64_t, int, int);
 
@@ -54,7 +81,7 @@ namespace {
     // imply a wrong offset, and this filter should stay on Log.
     int task_ambient_clips_hook(uint64_t self, int a2, int a3) {
         if (should_report(filter_id::task_ambient_clips) &&
-            *(uint64_t*)(self + 0x100) == 0) {
+            *(uint64_t*)(self + AMBIENT_ANIMS_GROUP) == 0) {
             report(filter_id::task_ambient_clips, -1, 0, (uint32_t)a2, (uint32_t)a3);
             if (should_block(filter_id::task_ambient_clips))
                 return 0;
@@ -85,10 +112,11 @@ namespace {
     // FSM_Continue, so a blocked frame is indistinguishable from a frame where
     // streaming had not finished yet.
     int task_parachute_hook(uint64_t self, int a2, int a3) {
-        if (a2 == 1 && a3 == 1 && should_report(filter_id::task_parachute)) {
-            uint64_t p1 = *(uint64_t*)(self + 0x10);
-            uint64_t p2 = p1 ? *(uint64_t*)(p1 + 0x50) : 0;
-            uint64_t p3 = p2 ? *(uint64_t*)(p2 + 0x40) : 0;
+        if (a2 == PARACHUTE_STATE_STREAM && a3 == FSM_EVENT_ON_UPDATE &&
+            should_report(filter_id::task_parachute)) {
+            uint64_t p1 = *(uint64_t*)(self + PARACHUTE_OBJECT);
+            uint64_t p2 = p1 ? *(uint64_t*)(p1 + OBJ_ANIM_DIRECTOR) : 0;
+            uint64_t p3 = p2 ? *(uint64_t*)(p2 + DIR_MOVE_OBJECT) : 0;
             if (!p3) {
                 report(filter_id::task_parachute, -1, 0, (uint32_t)(p1 != 0), (uint32_t)(p2 != 0));
                 if (should_block(filter_id::task_parachute))

@@ -82,6 +82,41 @@ int main() {
     for (int i = 0; i < count(); i++)
         check_true("defaults to log", at(i)->default_mode == (int)mode::log);
 
+    // The honesty invariant. A filter with no detour has no call to refuse, so
+    // it cannot block - and if the table ever claimed otherwise the drain would
+    // print "prot BLOCK <name>" into the kernel log for something that was
+    // never blocked, which is the one artefact the console phase reads. This is
+    // the rule that keeps the table honest as filters are added; a new row that
+    // forgets can_block fails here rather than on console.
+    //
+    // Only this direction is an invariant. reliable_alloc has an installer and
+    // still cannot block (its hook never calls should_block), so
+    // install != nullptr does NOT imply can_block.
+    for (int i = 0; i < count(); i++)
+        check_true("no install fn means cannot block", at(i)->install || !at(i)->can_block);
+
+    // ...and the field is not vacuously false everywhere, which would satisfy
+    // the invariant while disabling Enforce across the whole subsystem.
+    int blockers = 0;
+    for (int i = 0; i < count(); i++)
+        if (at(i)->can_block) blockers++;
+    check_true("some filters can block", blockers > 0);
+
+    // The four filters that cannot block are named rather than counted, so that
+    // flipping one of them on has to be a deliberate edit to this test too.
+    check_true("self_test cannot block",        !find(filter_id::self_test)->can_block);
+    check_true("fragment_physics cannot block", !find(filter_id::fragment_physics)->can_block);
+    check_true("pool_exhaustion cannot block",  !find(filter_id::pool_exhaustion)->can_block);
+    check_true("reliable_alloc cannot block",   !find(filter_id::reliable_alloc)->can_block);
+
+    // should_block() is deliberately NOT gated on can_block: it is the hook's
+    // mode gate and the hooks that cannot block simply never call it. The
+    // distinction is applied where it is read - in the drain's label and in the
+    // menu's item list.
+    set_mode(filter_id::self_test, mode::enforce);
+    check_true("should_block still follows the mode alone", should_block(filter_id::self_test));
+    set_mode(filter_id::self_test, mode::log);
+
     // install_enabled_filters() covers the gap left by add_savable restoring a
     // mode without firing its change handler. With no install function set it
     // must be a safe no-op, and it must be idempotent - it runs once per boot

@@ -1801,8 +1801,59 @@ cd /e/Projects/IDA/PS4/GTA5 && git add analysis/PROTECTIONS_ANCHORS.md && \
 
 From the spec's success criteria, the ones this tier owns:
 
-1. The framework installs and the game runs normally with every landed guard in
-   `Enforce`. No crash, no measurable frame cost.
+1. The framework installs and the game runs normally with the **Enforce-eligible**
+   guards in `Enforce`. No crash, no measurable frame cost.
+
+   Amended after the final whole-branch review. The original wording was "with
+   all guards in `Enforce`", which the landed subsystem cannot satisfy - not
+   because it fell short, but because four of the twelve rows were never going
+   to have a meaningful `Enforce`, and saying otherwise would make the criterion
+   unpassable-by-construction and therefore useless as a gate.
+
+   **Enforce-eligible (7)** - these are what criterion 1 covers:
+
+   | filter | why it can enforce |
+   |---|---|
+   | `skeleton_extension` | the sole caller already null-tests the return |
+   | `invalid_decal` | retail's own null check skips the body on that branch anyway |
+   | `searchlight` | a report means the call would have faulted |
+   | `task_parachute` | returns `FSM_Continue`, the original's own value on that path |
+   | `render_ped` | bails 13 slots early, costs one entity for one frame |
+   | `render_entity` | writes the sentinel the caller expects for "no entry produced" |
+   | `render_big_ped` | same shape - but see below |
+
+   **Not Enforce-eligible (5)**, each for a different reason:
+
+   - `self_test` - no detour. It is the report path's own end-to-end probe;
+     there is no call to refuse.
+   - `fragment_physics` - the PS4 twin of `fragment_physics_crash_2` was not
+     identified, so there is nothing to hook (anchors §10).
+   - `pool_exhaustion` - `rage::fwBasePool::New` is identified at `0x1EF6A00`
+     but cannot be detoured safely: the 15-byte steal contains a `jz rel8` that
+     GoldHEN's stub does not relocate (anchors §12).
+   - `reliable_alloc` - has a detour, but retail null-checks every
+     `AllocCritical` return, so there is nothing to block. The hook never calls
+     `should_block()`; the recovery is deliberately unwritten.
+   - `task_ambient_clips` - hookable and blocking, but it **must stay on `Log`**.
+     The game itself treats a null anims group as legal (`Start_OnUpdate`
+     null-checks the same field), so the filter is expected to fire in ordinary
+     play. YimMenu says of its own version that it does not block the crash
+     completely. Enforcing it would drop legitimate task updates.
+
+   The first four carry `can_block = false` in the registry, which is what makes
+   the menu offer them `Off`/`Log` only and stops the drain printing `BLOCK` for
+   something nothing blocked. `task_ambient_clips` is the one row where the
+   restraint is a documented judgement rather than a table field: it *can*
+   block, and must not be asked to.
+
+   One caveat inside the eligible set: **`render_big_ped`'s `Enforce` should be
+   the last one flipped.** Its block path writes only the index sentinel
+   (`*(a4 + 4) = -2`) and returns `a4 + 0x14`, leaving the rest of the
+   out-buffer (`+0`, `+2`, `+12`, `+16`, `+17`) as the caller left it, whereas
+   `render_entity` reproduces its target's `!v8` exit field for field. Nothing
+   says that is wrong - the caller is documented as reading the index at `+4` -
+   but it is the one enforcement path on the branch that was not matched
+   store-for-store against the original's own early exit.
 2. The self-test filter demonstrates the full report path: ring → drain → klog →
    rate-limited notification.
 3. Every filter's mode persists across a game restart.

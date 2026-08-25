@@ -17,7 +17,19 @@
 //
 // Because there is nothing to block, this filter never calls should_block() and
 // never alters the return value. Enforce is meaningless for it today; the mode
-// only decides whether the occurrence is reported.
+// only decides whether the occurrence is reported. That is why its registry row
+// carries `can_block = false`: the menu offers it Off/Log only, and the drain
+// prints "would-block" for it even in Enforce.
+//
+// ---------------------------------------------------------------------------
+// REPORT LEGEND for this file. The drain prints `a=%08x b=%08x` with no key.
+//
+//   Reliable Allocator   a = the allocation size that failed, in bytes
+//                            (0x50 = OutFrame, 0x58 = InFrame, or a payload)
+//                        b = netConnection::m_NumFailedAllocs after the
+//                            failure - 1 means this is the first failure on
+//                            this connection, a large value means it is dying
+// ---------------------------------------------------------------------------
 namespace protections {
 namespace {
     // eboot RVA, CUSA00411 v1.57, imagebase 0.

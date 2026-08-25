@@ -15,6 +15,31 @@
 // The third target of this group, fragment_physics_crash_2(float*, float*), was
 // NOT identified on PS4 and is deliberately not hooked; its registry entry keeps
 // a null installer. See the report for what was tried.
+//
+// ---------------------------------------------------------------------------
+// REPORT LEGEND for this file. The drain prints `a=%08x b=%08x` with no key,
+// and the two hooks below do NOT use a and b for the same kinds of thing -
+// which is exactly why this block exists. The fields are deliberately left as
+// they are rather than renumbered: the numbering is already in the console
+// baseline, and moving it would invalidate log lines that have been read.
+//
+//   Invalid Decal   a = component index (0-11; PV_COMP_HAIR = 2, PV_COMP_DECL = 10)
+//                   b = which link of the chain was bad:
+//                         1 = ped pointer itself null
+//                         2 = *(ped + 0x48)  draw handler null
+//                         3 = *(vardata + 0x2C8) palette set null
+//
+//   Searchlight     a = which link of the chain was bad:
+//                         1 = ped null
+//                         2 = *(ped + 0x14B0)  no vehicle
+//                         3 = *(veh + 0xC50)   no weapon manager
+//                         4 = weapon count outside [1, 6]
+//                         5 = no CSearchLight among the weapons
+//                   b = the weapon count that was read (0 when not reached)
+//
+// So `a` is the bad-link code for Searchlight and the component for Invalid
+// Decal. Read this block before reading a log line from this file.
+// ---------------------------------------------------------------------------
 namespace protections {
 namespace {
     // eboot RVAs, CUSA00411 v1.57, imagebase 0.
@@ -82,11 +107,24 @@ namespace {
     //                           store land at 8*component + 184 - a near-null
     //                           write, which is the crash.
     //
-    // YimMenu keys on component == 2 with link 3 null. That is kept: which of
-    // the two branches runs is decided by a call we cannot cheaply predict, so
-    // the report can be a false positive when the guarded branch would have run
-    // - but blocking still loses nothing, because on that branch a null link 3
-    // means the whole body is skipped anyway.
+    // WIDENED from YimMenu, deliberately. YimMenu keys link 3 on
+    // component == 2, which on this build is PV_COMP_HAIR - one of twelve
+    // components (PV_COMP_DECL, the one the filter is named for, is 10). The
+    // crash it guards is component-INDEPENDENT: the store that faults is
+    // `*(link3 + 8*component + 184)`, and a null link 3 puts it near null for
+    // every component, not just 2. Watching one twelfth of the surface would
+    // have made the console phase record "no reports, therefore clean" for
+    // eleven components nobody ever looked at, and that baseline is what every
+    // later Enforce decision defers to. So the component test is gone and the
+    // guard covers all of them; the component is still reported in detail_a, so
+    // the log distinguishes them.
+    //
+    // Widening cannot over-block, and this is the file's own argument applied
+    // to the other eleven components rather than a new claim: which of the two
+    // branches runs is decided by a call we cannot cheaply predict, but on the
+    // crew-emblem branch retail's own `if (v29)` skips the entire body when
+    // link 3 is null - for every component, that branch included. So a refusal
+    // on a null link 3 can only ever skip work retail would also have skipped.
     //
     // A null link 1 is reported for every component, not just 2: the
     // dereference that faults happens before the component is looked at, so the
@@ -106,7 +144,8 @@ namespace {
                     bad = 2;
                 } else {
                     const uint64_t p2 = *(uint64_t*)(p1 + DH_VAR_DATA);
-                    if (p2 && a2 == 2 && *(uint64_t*)(p2 + VAR_PALETTE_SET) == 0)
+                    // No component test here - see the widening note above.
+                    if (p2 && *(uint64_t*)(p2 + VAR_PALETTE_SET) == 0)
                         bad = 3;
                 }
             }

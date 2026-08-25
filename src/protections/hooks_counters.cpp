@@ -34,6 +34,16 @@
 // observe - so the guard would convert the degradation it is meant to report
 // into a jump into garbage. Not hooked; `install` stays nullptr in the registry.
 // See the task report for the two routes that could still crack it.
+//
+// ---------------------------------------------------------------------------
+// REPORT LEGEND for this file. The drain prints `a=%08x b=%08x` with no key.
+//
+//   Skeleton Extension   a = the m_Count that was read (>= 32, or negative,
+//                            which can only come from a stomp on the dword)
+//                        b = 0 (unused)
+//
+//   Pool Exhaustion      never reports - no detour, see above.
+// ---------------------------------------------------------------------------
 namespace protections {
 namespace {
     // eboot RVA, CUSA00411 v1.57, imagebase 0.
@@ -84,10 +94,17 @@ namespace {
     // What retail leaves unchecked: the count. `atFixedArray::Append()` guards
     // itself with TrapGE(m_Count, _MaxCount), and that trap is compiled out of
     // this build - the disassembly above increments and stores with no compare
-    // at all. At n == 32 the entity pointer is written to base+0xA08 and the
-    // 64-byte identity matrix to base+0xA10..0xA4F, i.e. straight over the .bss
-    // that follows the count, which on this build is another extension class's
-    // autoid and its own fixed array. Every further call walks further out.
+    // at all. At n == 32 the entity pointer is written to base+0xA08
+    // (0x3E11158) and the 64-byte identity matrix to base+0xA10..0xA4F
+    // (0x3E11160..0x3E1119F), i.e. straight over the .bss that follows the
+    // count. The immediate victim is `unk_3E11168`, another extension class's
+    // object, which takes 56 of those 64 bytes; the leading 8 land in whatever
+    // .bss precedes it. The other class's autoid at `dword_3E11214` is NOT hit
+    // here - the count has to reach 34 for that, and 35 to land inside its
+    // fixed array at `unk_3E11240`. Every further call walks 80 bytes further
+    // out. (Full per-count blast-radius table in section 11 of the anchors
+    // document; naming the row-34 victim as the row-32 victim is a mistake that
+    // document records having made.)
     //
     // The refusal is safe because the sole caller already handles it:
     //   8c4fbd  call sub_1E27300

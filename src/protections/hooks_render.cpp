@@ -27,6 +27,21 @@
 // smaller (0x149D0 vs 0x149E0) and every field from the array on is shifted
 // down by 16. Using YimMenu's PC constant here would read the object's tail
 // instead of the counter.
+//
+// ---------------------------------------------------------------------------
+// REPORT LEGEND for this file. The drain prints `a=%08x b=%08x` with no key,
+// so what a and b carry is documented here rather than only at the call site.
+//
+//   Render Ped        a = draw-list command count at the time of the refusal
+//                     b = 0 (unused)
+//   Render Entity     a = draw-list command count
+//                     b = 0 (unused)
+//   Render Big Ped    a = draw-list command count
+//                     b = 0 (unused)
+//
+// All three are compared against CAPACITY (512); Render Ped bails PED_HEADROOM
+// (13) slots early, so an `a` in [499, 511] is that guard and only that guard.
+// ---------------------------------------------------------------------------
 namespace protections {
 namespace {
     // eboot RVAs, CUSA00411 v1.57, imagebase 0.
@@ -39,7 +54,16 @@ namespace {
     const int      PED_HEADROOM         = 13;        // YimMenu bails at 499 of 512
 
     typedef void* (*render_ped_fn)(void*, void*, void*, void*);
-    typedef void  (*render_entity_fn)(void*, void*, int, bool);
+    // The fourth argument is `unsigned char`, NOT `bool`, and that is load
+    // bearing - do not "tidy" it back. Clang lowers a `bool` parameter to
+    // `i1 zeroext`, so the hook would see only bit 0 of CL and PROT_CHAIN would
+    // re-extend it to 0 or 1 before handing it to the original. The game's
+    // caller (sub_7E2690) forwards its own caller's byte unchanged via `movzx`,
+    // so a byte with bit 0 clear but other bits set would reach the original as
+    // a DIFFERENT value than it would have received with no hook installed.
+    // That breaks the one property Log mode has to have: observational
+    // inertness. `unsigned char` is passed through byte for byte.
+    typedef void  (*render_entity_fn)(void*, void*, int, unsigned char);
     typedef void* (*render_big_ped_fn)(void*, void*, void*, void*);
 
     detour_slot g_ped;
@@ -66,7 +90,10 @@ namespace {
         return PROT_CHAIN(g_ped, render_ped_fn, renderer, ped, a3, a4);
     }
 
-    void render_entity_hook(void* renderer, void* entity, int unk, bool a4) {
+    // a4 is `unsigned char` for the reason spelled out at render_entity_fn: a
+    // `bool` here would truncate the byte to its low bit on the way back out to
+    // the original, which Log mode is not allowed to do.
+    void render_entity_hook(void* renderer, void* entity, int unk, unsigned char a4) {
         if (should_report(filter_id::render_entity)) {
             const int count = draw_list_count();
             if (count >= CAPACITY) {

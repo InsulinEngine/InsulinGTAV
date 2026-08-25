@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "protections/ring.h"   // for the id_ceiling <= ring::capacity assert
 
 // Per-filter push-side coalescing for the report ring.
 //
@@ -31,6 +32,18 @@ namespace protections {
         // ceiling is not coalesced at all - it simply behaves the way the ring
         // did before, which is the safe direction to fail in.
         static const uint16_t id_ceiling = 64;
+
+        // Coalescing guarantees at most one in-flight record per filter, so the
+        // ring can never be starved by a noisy filter - PROVIDED the ring has
+        // room for one record per coalesced id. If id_ceiling ever exceeded
+        // ring::capacity, a filter's record could be dropped by ring overflow
+        // while its pending flag stayed set, and release() is only ever called
+        // from the drain of a popped record - so that filter would be silenced
+        // permanently, not just for a burst. Unreachable today (12 filters, 64
+        // slots), but the failure mode is bad enough to pin.
+        static_assert(id_ceiling <= ring::capacity,
+                      "coalescer::id_ceiling must not exceed ring::capacity - a dropped "
+                      "record would leave its filter's pending flag set forever");
 
         // Producer side. Returns true when the caller should push a record,
         // false when one is already queued for this filter - in which case the

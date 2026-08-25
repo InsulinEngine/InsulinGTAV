@@ -43,12 +43,29 @@ void protections_menu::load() {
     for (int i = 0; i < protections::count(); i++) {
         protections::filter* f = protections::at(i);
 
-        add_option(dropdown_option(f->name)
-            .add_index(*mode_ref(i))
-            .add_item("Off")
-            .add_item("Log")
-            .add_item("Enforce")
-            .add_tooltip("Off ignores. Log detects and reports without blocking. Enforce blocks.")
+        // A filter that cannot block gets a two-item dropdown. Offering Enforce
+        // on one of them would be a control that changes nothing while claiming
+        // to drop hostile traffic - and the drain would still, correctly, log
+        // "would-block". Rendering the truth in the menu is cheaper than
+        // explaining the discrepancy later.
+        //
+        // A config saved before this change may hold 2 (Enforce) for such a
+        // filter; add_savable() clamps to the last item, so it comes back as
+        // Log. That is the intended landing, not a silent downgrade of a
+        // protection - Enforce never did anything for these.
+        dropdown_option row(f->name);
+        row.add_index(*mode_ref(i))
+           .add_item("Off")
+           .add_item("Log");
+
+        if (f->can_block) {
+            row.add_item("Enforce")
+               .add_tooltip("Off ignores. Log detects and reports without blocking. Enforce blocks.");
+        } else {
+            row.add_tooltip("Off ignores. Log detects and reports. This filter has nothing to block, so there is no Enforce.");
+        }
+
+        add_option(row
             .add_change([i](int value) {
                 // Installing on demand keeps a filter's detour out of the
                 // process until it is actually wanted. Idempotent.
@@ -92,11 +109,6 @@ void protections_menu::load() {
         .add_toggle(g_anti_explosion)
         .add_tooltip("The explosion bit of SET_ENTITY_PROOFS, kept applied")
         .add_savable(get_submenu_name_stack()));
-}
-
-void protections_menu::update() {
-    // Nothing per-frame here. Reports are drained from menu::tick so they keep
-    // flowing with the menu closed, which is when an attack actually arrives.
 }
 
 void protections_menu::feature_update() {

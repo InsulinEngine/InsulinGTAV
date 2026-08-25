@@ -37,6 +37,20 @@ namespace protections {
         int         current;       // bound to a dropdown_option by reference
         bool        installed;
         bool      (*install)();    // nullptr for filters with no detour
+        // Whether Enforce can actually refuse anything for this filter.
+        //
+        // False for a filter with no detour (there is no call to refuse) and
+        // for reliable_alloc, whose hook deliberately never calls
+        // should_block() because retail null-checks every allocation return and
+        // there is nothing to block. Two things read it: the drain, which must
+        // not print BLOCK for a filter that blocked nothing, and the menu,
+        // which must not offer an Enforce that does nothing.
+        //
+        // INVARIANT, asserted in tests/protections_registry_test.cpp:
+        //   install == nullptr  =>  can_block == false.
+        // The converse does not hold - reliable_alloc has an installer and
+        // still cannot block.
+        bool        can_block;
     };
 
     int     count();

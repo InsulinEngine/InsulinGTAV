@@ -14,8 +14,10 @@
 // rendered separately, below the filter list. See protections.cpp.
 class protections_menu : public menu::submenu::submenu {
 public:
+    // No update() override: reports are drained from menu::tick, so they keep
+    // flowing with the menu closed - which is when an attack actually arrives.
+    // The base class default is what this submenu wants.
     void load() override;
-    void update() override;
     void feature_update() override;
     static protections_menu* get();
 };

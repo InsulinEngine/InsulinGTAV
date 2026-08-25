@@ -27,6 +27,10 @@ namespace protections {
     class ring {
     public:
         static const uint32_t capacity = 64;   // must stay a power of two
+        // The index masking below is `& (capacity - 1)`, which is only a modulo
+        // for a power of two. A comment is not enough to enforce that.
+        static_assert((capacity & (capacity - 1)) == 0,
+                      "ring::capacity must be a power of two - the index masking depends on it");
 
         void push(const record& r) {
             uint32_t claim;
@@ -67,7 +71,9 @@ namespace protections {
 
         uint32_t dropped() const { return __atomic_load_n(&m_dropped, __ATOMIC_RELAXED); }
 
-        // Not thread-safe. Test-only, and for a deliberate clear from the menu.
+        // Not thread-safe. Test-only - there is no menu control that clears the
+        // ring, and adding one would need a story for the network threads that
+        // may be inside push() at the time.
         void reset() {
             m_head = 0;
             m_tail = 0;
