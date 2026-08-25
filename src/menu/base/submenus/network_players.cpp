@@ -25,6 +25,7 @@ namespace {
     Blip g_blips[game::players::MAX_PLAYERS] = {};
     bool g_show_blips = false;
     bool g_spectating = false;
+    bool g_block_net_events = false;   // mirror of player_blocks() for the selected player
 
     // m_ped = true: every entity this context draws is a player ped, so the
     // skeleton and weapon elements are available from the start.
@@ -180,14 +181,23 @@ void network_player_menu::load() {
         }));
 
     add_option(toggle_option("Block Net Events")
+        .add_toggle(g_block_net_events)
         .add_tooltip("Drop network events from this player. Their sync and "
                      "your view of them are unaffected.")
-        .add_click([](){
+        .add_update([](toggle_option*, int) {
+            int idx = network_players_selected();
+            if (idx < 0 || idx >= game::players::MAX_PLAYERS) {
+                g_block_net_events = false;
+                return;
+            }
+            using namespace protections;
+            g_block_net_events = player_blocks().is_blocked(block_kind::net_events, idx);
+        })
+        .add_click([]() {
             int idx = network_players_selected();
             if (idx < 0 || idx >= game::players::MAX_PLAYERS) return;
             using namespace protections;
-            const bool now = player_blocks().is_blocked(block_kind::net_events, idx);
-            player_blocks().set_blocked(block_kind::net_events, idx, !now);
+            player_blocks().set_blocked(block_kind::net_events, idx, g_block_net_events);
         }));
 
     add_option(break_option("Info").ref());
