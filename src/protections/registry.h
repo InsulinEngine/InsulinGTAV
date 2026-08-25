@@ -59,6 +59,8 @@ namespace protections {
     bool install_render_ped();
     bool install_render_entity();
     bool install_render_big_ped();
+    bool install_task_ambient_clips();
+    bool install_task_parachute();
 
     // Installs every filter whose persisted mode is not Off.
     //

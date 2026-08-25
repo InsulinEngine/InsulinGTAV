@@ -8,15 +8,17 @@
 #include <string.h>
 
 // Host stubs for the detour installers the table now points at. Their real
-// definitions live in src/protections/hooks_render.cpp, which pulls in the
-// GoldHEN detour API and the eboot base and therefore cannot be built on the
-// host. install_enabled_filters() does call them, so they must exist and must
+// definitions live in src/protections/hooks_*.cpp, which pull in the GoldHEN
+// detour API and the eboot base and therefore cannot be built on the host.
+// install_enabled_filters() does call them, so they must exist and must
 // report "not installed" - the table invariants are what this test guards, not
 // the hooking.
 namespace protections {
-    bool install_render_ped()     { return false; }
-    bool install_render_entity()  { return false; }
-    bool install_render_big_ped() { return false; }
+    bool install_render_ped()         { return false; }
+    bool install_render_entity()      { return false; }
+    bool install_render_big_ped()     { return false; }
+    bool install_task_ambient_clips() { return false; }
+    bool install_task_parachute()     { return false; }
 }
 
 static int g_failed = 0;
