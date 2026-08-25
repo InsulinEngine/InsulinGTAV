@@ -13,7 +13,6 @@ namespace global::ui {
     bool g_stop_rendering;
     bool g_rendering_color;
     bool g_render_tooltip = true;
-    bool g_render_globe = true;
     bool g_disable_title = false;
     bool g_scroll_lerp = true;
     bool g_input_open;
@@ -38,8 +37,6 @@ namespace global::ui {
     math::vector2<float> g_submenu_arrow_scale = { 0.007f, 0.013f };
     math::vector2<float> g_toggle_position = { 0.221f, 0.016f };
     math::vector2<float> g_toggle_scale = { 0.007f, 0.011f };
-    math::vector2<float> g_globe_position = { 0.4405f, 0.328f };
-    math::vector2<float> g_globe_scale = { 0.978f, 0.906f };
     math::vector2<float> g_stacked_display_scale = { 0.15f, 0.015f };
     math::vector2<float> g_stacked_display_position = { 0.845f, 0.01f };
 
@@ -75,7 +72,6 @@ namespace global::ui {
     color_rgba g_color_grid_background = color_rgba(0, 0, 0, 180);
     color_rgba g_hotkey_input = color_rgba(40, 40, 40, 200);
     color_rgba g_instructional_background = color_rgba(0, 0, 0, 255);
-    color_rgba g_globe = color_rgba(255, 255, 255, 255);
 
     // Zero-initialised (a valid empty texture); colour pointers + sprite are
     // bound in init() since they cannot be constant-initialised.

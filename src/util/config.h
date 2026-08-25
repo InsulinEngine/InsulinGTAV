@@ -4,7 +4,7 @@
 #include "util/math.h"
 
 // Ozark's config API, backed by the Mini-JSON (util/json.h) and persisted to
-// /data/InsulinGTAV/config.json. The transformed option files call these exactly
+// /data/Ozark/config.json. The transformed option files call these exactly
 // as the PC source did (name_stack = submenu path, additional_stacks = category
 // like {"Values"} / {"Color"}, key = option name).
 namespace util::config {
@@ -32,6 +32,10 @@ namespace util::config {
     config* get_config();
 
     inline void load() { get_config()->load(); }
+    // Defer persistence until the outermost end_batch(). Re-entrant.
+    void begin_batch();
+    void end_batch();
+
     inline stl::string read_string(stl::stack<stl::string> ns, stl::string k, stl::string d = "", stl::vector<stl::string> a = {}) { return get_config()->read_string(ns, k, d, a); }
     inline int read_int(stl::stack<stl::string> ns, stl::string k, int d = 0, stl::vector<stl::string> a = {}) { return get_config()->read_int(ns, k, d, a); }
     inline uint64_t read_uint64(stl::stack<stl::string> ns, stl::string k, uint64_t d = 0, stl::vector<stl::string> a = {}) { return get_config()->read_uint64(ns, k, d, a); }

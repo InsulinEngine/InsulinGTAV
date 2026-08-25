@@ -17,13 +17,3 @@ public:
     {}
 };
 
-class demo_child : public menu::submenu::submenu {
-public:
-    static demo_child* get();
-
-    void load() override;
-
-    demo_child()
-        : menu::submenu::submenu()
-    {}
-};

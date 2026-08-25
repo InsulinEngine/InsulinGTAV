@@ -3,6 +3,8 @@
 #include "menu/base/submenu_handler.h"
 #include "menu/base/submenus/main.h"
 #include "rage/invoker/hash_natives.h"
+#include "rage/gfx.h"
+#include "platform/fault_handler.h"
 #include "menu/base/submenus/player.h"
 #include "menu/base/submenus/player_animation.h"
 #include "menu/base/submenus/player_animations.h"
@@ -17,6 +19,7 @@
 #include "menu/base/submenus/network.h"
 #include "menu/base/submenus/network_players.h"
 #include "menu/base/submenus/protections.h"
+#include "protections/report.h"
 #include "menu/base/submenus/teleport.h"
 #include "menu/base/submenus/teleport_directional.h"
 #include "menu/base/submenus/teleport_ipl.h"
@@ -34,8 +37,15 @@
 #include "menu/base/submenus/vehicle_neon.h"
 #include "menu/base/submenus/vehicle_plate.h"
 #include "menu/base/submenus/settings_themes.h"
+#include "menu/base/submenus/settings_images.h"
+#include "menu/base/submenus/helper_color.h"
+#include "menu/base/submenus/helper_color_presets.h"
+#include "menu/base/submenus/helper_color_sync.h"
+#include "menu/base/submenus/helper_esp.h"
+#include "menu/base/submenus/helper_esp_settings.h"
+#include "menu/base/submenus/helper_esp_settings_edit.h"
+#include "menu/base/util/esp.h"
 #include "menu/base/submenus/weapon_give.h"
-#include "menu/base/submenus/weapon_aimbot.h"
 #include "menu/base/submenus/weapon_disables.h"
 #include "menu/base/submenus/spawner.h"
 #include "menu/base/submenus/world.h"
@@ -47,6 +57,7 @@
 #include "menu/base/submenus/world_ocean.h"
 #include "menu/base/submenus/spawner_peds.h"
 #include "menu/base/submenus/misc.h"
+#include "menu/base/submenus/misc_panels.h"
 #include "menu/base/submenus/player_movement.h"
 #include "menu/base/submenus/player_appearance.h"
 #include "menu/base/submenus/vehicle.h"
@@ -82,7 +93,11 @@
 #include "menu/base/util/notify.h"
 #include "menu/base/util/stacked_display.h"
 #include "menu/base/util/panels.h"
+#include "menu/panels/builtin_panels.h"
 #include "menu/base/util/animated_texture.h"
+#include "menu/base/util/rainbow.h"
+#include "menu/base/util/textures.h"
+#include "menu/base/util/menu_images.h"
 #include "util/config.h"
 #include "global/ui_vars.h"
 #include "platform/system_ui.h"
@@ -90,7 +105,7 @@
 #include "rage/invoker/natives.h"
 
 // Crash-tracing: while the menu is open, write one line per tick phase to
-// /data/insulingtav.log. The last line on disk before a crash localises it:
+// /data/Ozark/insulingtav.log. The last line on disk before a crash localises it:
 //   - "overlaid-return" as the last line  -> guard fired; crash is OUTSIDE our
 //     tick (the game touching our injected state) -> need the klog RIP.
 //   - a phase name (input/base/render/...) as the last line -> crash is INSIDE
@@ -99,34 +114,6 @@
 #define INSULIN_TICK_TRACE 0
 
 namespace menu {
-    // Demo side-panel render callback (m_update is a plain function pointer).
-    static math::vector2<float> demo_panel_update(menu::panels::panel_child& child) {
-        menu::panels::panel p(child, global::ui::g_panel_bar);
-        p.item("Health", "100");
-        p.item("Armor", "50");
-        p.item_full("Session", "Story Mode");
-        return p.get_render_scale();
-    }
-
-    static void register_demo_panel() {
-        panels::panel_parent* parent = new panels::panel_parent();
-        parent->m_render = true;
-        parent->m_id = "demo";
-        parent->m_name = "Demo";
-
-        panels::panel_child child{};
-        child.m_parent = parent;
-        child.m_render = true;
-        child.m_id = "info";
-        child.m_double_sided = true;
-        child.m_panel_option_count_left = 3;
-        child.m_panel_option_count_right = 0;
-        child.m_update = demo_panel_update;
-
-        parent->m_children_panels.push_back(child);
-        panels::get_panels().push_back(parent);
-    }
-
     void build() {
         // Bind the string/pointer-bearing texture globals (skipped by the absent
         // .init_array), load the config file, then set up the submenu tree and
@@ -134,9 +121,9 @@ namespace menu {
         // add_savable() reads the persisted value.
         global::ui::init();
         util::config::load();
+        menu::textures::load();           // reads /data/Ozark/images only - no natives, safe here
         menu::submenu::handler::load();   // m_current = main_menu::get()
         main_menu::get()->load();
-        demo_child::get()->load();
 
         // Feature submenus: load + register so their feature_update runs each frame.
         player_menu::get()->load();
@@ -181,12 +168,39 @@ namespace menu {
         menu::submenu::handler::add_submenu(vehicle_plate_menu::get());
         settings_themes_menu::get()->load();
         menu::submenu::handler::add_submenu(settings_themes_menu::get());
+        settings_images_menu::get()->load();
+        menu::submenu::handler::add_submenu(settings_images_menu::get());
+
+        // Re-apply the last saved theme now: util::config::load() has already
+        // run (above) so the "LastTheme" key is in memory, and
+        // settings_themes_menu::load() has just run so its name stack (parent
+        // chain via set_parent<settings_menu>()) is populated - both are
+        // required for get_submenu_name_stack() to resolve to the right config
+        // path. Placed as early as both conditions allow, so every submenu
+        // loaded afterward sees the restored colours rather than the compiled
+        // defaults. Legal here: load_file only touches files and logf, no
+        // natives (see theme.cpp). A saved theme's pictures are only recorded
+        // here (menu::images::request()) - the actual decode + texture
+        // dictionary injection is deliberately deferred to menu::images::update(),
+        // wired into tick() below, so it never runs inside build().
+        settings_themes_menu::apply_last_theme();
+
+        helper_color_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_menu::get());
+        helper_color_presets_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_presets_menu::get());
+        helper_color_sync_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_color_sync_menu::get());
+        helper_esp_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_esp_menu::get());
+        helper_esp_settings_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_esp_settings_menu::get());
+        helper_esp_settings_edit_menu::get()->load();
+        menu::submenu::handler::add_submenu(helper_esp_settings_edit_menu::get());
         weapon_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_menu::get());
         weapon_give_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_give_menu::get());
-        weapon_aimbot_menu::get()->load();
-        menu::submenu::handler::add_submenu(weapon_aimbot_menu::get());
         weapon_disables_menu::get()->load();
         menu::submenu::handler::add_submenu(weapon_disables_menu::get());
         spawner_menu::get()->load();
@@ -290,7 +304,11 @@ namespace menu {
         language_menu::get()->load();
         menu::submenu::handler::add_submenu(language_menu::get());
 
-        register_demo_panel();
+        menu::panels::register_builtin_panels();
+
+        // Panels registered above so this load() has children to read from.
+        misc_panels_menu::get()->load();
+        menu::submenu::handler::add_submenu(misc_panels_menu::get());
 
         // Kept: one line, once, and it is the proof that the whole tree got
         // built without taking the game down. Paired with the BUILD= line it
@@ -307,7 +325,7 @@ namespace menu {
 
 #if INSULIN_TICK_TRACE
     // Dual sink so we capture the crash window no matter what: klog shows up live
-    // in `nc <ip> 3232` (no FTP), and /data/insulingtav.log is the guaranteed
+    // in `nc <ip> 3232` (no FTP), and /data/Ozark/insulingtav.log is the guaranteed
     // backup if plugin klog output doesn't reach the broadcast. Only while the
     // menu is open (the sole crash condition), so the volume stays bounded.
     #define TICK_TRACE(p) do { if (open) { \
@@ -320,6 +338,31 @@ namespace menu {
 
         TICK_TRACE("enter");
 
+        // Deliberately *above* the overlay guard below, and ungated by
+        // player_valid(): this only reads memory and calls no native, and the
+        // window where the engine is most likely to reach into our fabricated
+        // dictionary is exactly the one the guard skips -- constrain time, with
+        // the overlay up. Sampling it only when the game has the screen back
+        // would leave the interesting minutes unobserved.
+        TICK_TRACE("gfxwatch");
+        rage::gfx::watch_store_slot();
+
+        // Reset the per-frame ESP budget and advance its frame clock before any
+        // consumer draws. Ungated for the same reason as the watcher above: it
+        // only writes two ints. The half of the frame setup that does call
+        // natives - resolving the local player - is deliberately NOT here; it
+        // sits with feature_update below, under the overlay guard and the
+        // player_valid() gate.
+        menu::esp::begin_frame();
+
+        // The game boots after the plugin does, so a handler installed at load
+        // time can be replaced by the game's own. Re-checked every ~20s rather
+        // than once, in case it is reinstalled again on a session transition -
+        // a crash logger that is silently gone is worse than none, because its
+        // silence reads as "no fault happened".
+        if ((rage::gfx::watch_frame() % 600) == 0)
+            platform::fault::reinstall_if_stolen();
+
         // PS-button guard: while the ShellUI overlay (XMB) is up the game is
         // constrained and our per-frame native work crashes it. Skip the whole
         // tick - not just rendering - so no native is touched until the game
@@ -329,6 +372,14 @@ namespace menu {
 
         // g_delta drives the scroller lerp; refresh it from the frame time.
         global::ui::g_delta = native::get_frame_time();
+
+        // Placement matters twice over. It sits BELOW the overlay guard because
+        // it calls a native (the timer) and the whole point of that guard is
+        // that native work crashes the game while the ShellUI overlay is up.
+        // It sits ABOVE the player_valid() gate because it touches nothing that
+        // needs a player - and a protection can fire during loading, when the
+        // gate is still closed. Records simply wait in the ring until here.
+        protections::drain_reports();
 
         // Step every loaded animation before anything draws, so update and render
         // stay separate and the renderer keeps no side effects.
@@ -355,6 +406,18 @@ namespace menu {
         // here instead, once the game is actually up. Retried a few times because
         // "the player exists" and "every native is registered" are not the same
         // moment; each attempt is a cheap walk of 256 buckets.
+
+        // Detours for filters restored from config. add_savable puts the saved
+        // mode back but does not fire the change handler that installs the
+        // detour - so without this, a filter saved as Enforce comes back
+        // reading Enforce and doing nothing. Deferred to here rather than
+        // menu::build() so no detour lands while the game is still loading.
+        static bool s_filters_installed = false;
+        if (!s_filters_installed && game::player_valid()) {
+            protections::install_enabled_filters();
+            s_filters_installed = true;
+        }
+
         if (game::player_valid() && !rage::hash_natives::usable() && g_hash_tries < 10) {
             if ((native::get_frame_count() % 120) == 0) {
                 g_hash_tries++;
@@ -363,19 +426,46 @@ namespace menu {
         }
 
         TICK_TRACE("feature_update");
-        if (game::player_valid())
+        if (game::player_valid()) {
+            // Every ESP element is defined relative to the local player, and
+            // every ESP consumer hangs off feature_update. Resolve it once,
+            // here, instead of once per candidate entity inside draw_entity;
+            // the cache is stamped with this frame, so a frame that skips this
+            // (overlay up, player not valid) draws no ESP at all rather than
+            // drawing against a stale origin.
+            menu::esp::resolve_local_player();
             menu::submenu::handler::feature_update();
+        }
+
+        // Deferred image application. Gated and in tick rather than build(),
+        // because applying a picture decodes it and injects a texture
+        // dictionary - neither of which belongs in the boot window. tick is
+        // only wired as the frame callback after build() returns, so this is
+        // structurally outside the boot window as well as gated.
+        if (game::player_valid())
+            menu::images::update();
+
         TICK_TRACE("control");
         menu::control::update();
 
-        // Notifications + stacked display + side panels render every frame
-        // (panels::update no-ops while the menu is closed).
+        // No player_valid() gate: this reads and writes plain memory and calls
+        // no natives. It cannot run during build() either, because tick is only
+        // wired as the frame callback after build() returns.
+        menu::get_rainbow()->run();
+
+        // Notifications + stacked display render every frame.
         TICK_TRACE("notify");
         menu::notify::update();
         TICK_TRACE("display");
         menu::display::render();
+
         TICK_TRACE("panels");
-        menu::panels::update();
+        // Gated like feature_update: panel callbacks call natives, and before the
+        // local player exists those dereference a player that is not there. The
+        // gate lives here rather than in each callback so it also covers every
+        // panel written from now on.
+        if (game::player_valid())
+            menu::panels::update();
         TICK_TRACE("done");
 
 #undef TICK_TRACE

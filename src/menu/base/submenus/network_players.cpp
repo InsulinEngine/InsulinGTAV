@@ -5,6 +5,8 @@
 #include "menu/base/options/break.h"
 #include "menu/base/options/submenu_option.h"
 #include "menu/base/util/notify.h"
+#include "menu/base/util/esp.h"
+#include "menu/base/submenus/helper_esp.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "rage/invoker/natives_hash.h"
@@ -22,6 +24,17 @@ namespace {
     Blip g_blips[game::players::MAX_PLAYERS] = {};
     bool g_show_blips = false;
     bool g_spectating = false;
+
+    // m_ped = true: every entity this context draws is a player ped, so the
+    // skeleton and weapon elements are available from the start.
+    menu::esp::esp_context g_session_esp = { true };
+
+    // One context per slot rather than one shared: the point of the per-player
+    // menu is that two players can be marked differently. esp_context is an
+    // aggregate of constant-initialisable members (color_rgba's constructors
+    // are constexpr - see ui_vars.h), so this array is constant-initialised
+    // and needs no .init_array entry to come up correctly.
+    menu::esp::esp_context g_player_esp[game::players::MAX_PLAYERS] = {};
 }
 
 // The selected player is shared with the per-player menu below.
@@ -45,6 +58,13 @@ void network_players_menu::update_once() {
         .add_toggle(g_show_blips)
         .add_tooltip("Marks every other player on the map"));
 
+    add_option(submenu_option("ESP")
+        .add_submenu<helper_esp_menu>()
+        .add_click([] {
+            helper_esp_menu::open_for<network_players_menu>(&g_session_esp, "Session ESP");
+        })
+        .add_tooltip("Draws every other player in the session"));
+
     add_option(break_option("Players").ref());
 
     int shown = 0;
@@ -66,6 +86,18 @@ void network_players_menu::update_once() {
 }
 
 void network_players_menu::feature_update() {
+    // Drawn from feature_update rather than update, so the ESP stays up with
+    // the menu closed - which is the only time it is useful.
+    if (g_session_esp.any() && game::players::in_session()) {
+        const int me = game::players::local_id();
+        for (int i = 0; i < game::players::MAX_PLAYERS; i++) {
+            if (i == me || !game::players::valid(i)) continue;
+            game::players::entry e = game::players::get(i);
+            if (!e.ped) continue;
+            menu::esp::draw_entity(g_session_esp, e.ped, e.name);
+        }
+    }
+
     // Blips are created once per player and removed when the toggle goes off or
     // the player leaves - recreating them every frame would stack thousands.
     for (int i = 0; i < game::players::MAX_PLAYERS; i++) {
@@ -137,6 +169,15 @@ void network_player_menu::load() {
             menu::notify::stacked("Player", g_spectating ? "Spectating" : "Stopped");
         }));
 
+    add_option(submenu_option("ESP")
+        .add_submenu<helper_esp_menu>()
+        .add_click([] {
+            int id = network_players_selected();
+            if (id < 0 || id >= game::players::MAX_PLAYERS) return;
+            g_player_esp[id].m_ped = true;
+            helper_esp_menu::open_for<network_player_menu>(&g_player_esp[id], "Player ESP");
+        }));
+
     add_option(break_option("Info").ref());
 
     add_option(button_option("Show Details")
@@ -153,6 +194,20 @@ void network_player_menu::load() {
 void network_player_menu::update_once() {
     game::players::entry e = game::players::get(g_selected);
     set_name(e.name && e.name[0] ? e.name : "Player");
+}
+
+void network_player_menu::feature_update() {
+    // Same gate as the parent menu's sweep: outside a session the per-slot
+    // contexts describe players who are not there, and every valid() call below
+    // is a native asked about a slot that cannot be occupied.
+    if (!game::players::in_session()) return;
+
+    for (int i = 0; i < game::players::MAX_PLAYERS; i++) {
+        if (!g_player_esp[i].any() || !game::players::valid(i)) continue;
+        if (i == game::players::local_id()) continue;
+        game::players::entry e = game::players::get(i);
+        if (e.ped) menu::esp::draw_entity(g_player_esp[i], e.ped, e.name);
+    }
 }
 
 network_player_menu* network_player_menu::get() {

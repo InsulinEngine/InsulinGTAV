@@ -1,9 +1,9 @@
 #pragma once
 #include "menu/base/submenu.h"
 
-// Settings submenu: theme controls. "Save Theme" (on-screen keyboard) + "Reset to
-// Default" are fixed; the saved themes in /data/insulin/themes are listed below
-// and applied on click. Rebuilt each time the submenu is entered (update_once).
+// Settings submenu: entry points to Themes, Streamer Mode and Language. The
+// theme controls (Save Theme / Reset to Default / theme picker) live in
+// settings_themes_menu now; see settings_themes.h.
 class settings_menu : public menu::submenu::submenu {
 public:
     void load() override;
@@ -12,7 +12,7 @@ public:
     static settings_menu* get();
 };
 
-// Language submenu: "English (Default)" reset + the /data/insulin/lang/*.json
+// Language submenu: "English (Default)" reset + the /data/Ozark/lang/*.json
 // languages, applied on click. Rebuilt each time it is entered.
 class language_menu : public menu::submenu::submenu {
 public:

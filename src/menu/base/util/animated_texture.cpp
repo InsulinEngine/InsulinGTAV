@@ -1,4 +1,5 @@
 #include "menu/base/util/animated_texture.h"
+#include "platform/paths.h"
 #include "menu/base/util/frame_clock.h"
 #include "platform/log.h"
 #include "rage/gfx.h"
@@ -128,7 +129,7 @@ namespace menu {
             return out;
         }
 
-        animated_texture* load_from_dir(const char* name, const char* dir) {
+        animated_texture* load_from_dir(const char* name, const char* dir, bool commit_now) {
             if (!name || !name[0] || !dir || !dir[0]) return nullptr;
 
             // Frame list: the manifest if there is one, else the sorted directory.
@@ -204,13 +205,14 @@ namespace menu {
                 return nullptr;
             }
 
-            dict.commit();   // one commit for the whole sequence
-            platform::logf("anim", "\"%s\": %d frame(s) from %s, loop=%d", name, loaded, dir, (int)loop);
+            if (commit_now) dict.commit();   // one commit for the whole sequence
+            platform::logf("anim", "\"%s\": %d frame(s) from %s, loop=%d%s", name, loaded, dir, (int)loop,
+                           commit_now ? "" : " (commit deferred to caller)");
             return anim;
         }
 
         animated_texture* load_banner() {
-            return load_from_dir("banner", "/data/insulin/anim/banner");
+            return load_from_dir("banner", OZARK_BANNER);
         }
 
         void update(float dt_seconds) {
@@ -222,6 +224,17 @@ namespace menu {
             animated_texture* banner = get("banner");
             if (banner && banner->ready()) return banner->current();
             return stl::make_pair(stl::string("insulin"), stl::string("logo"));
+        }
+
+        stl::pair<stl::string, stl::string> slot_asset(const char* anim_name,
+                                                        const stl::string& still_name) {
+            animated_texture* anim = get(anim_name);
+            if (anim && anim->ready()) return anim->current();
+            // Named rather than make_pair'd: still_name is a const reference, and
+            // stl::decay strips references but not cv, so deducing from it here
+            // would yield pair<string, const string>, which does not convert to
+            // the return type (see animated_texture::current() above).
+            return stl::pair<stl::string, stl::string>(stl::string("insulin"), still_name);
         }
     }
 }

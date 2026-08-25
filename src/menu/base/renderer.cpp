@@ -8,6 +8,7 @@
 #include "menu/base/util/menu_input.h"
 #include "menu/base/util/animated_texture.h"
 #include "menu/base/submenus/main.h"
+#include "menu/base/util/color_math.h"
 #include "rage/gfx.h"
 #include <math.h>
 
@@ -17,14 +18,11 @@ namespace menu::renderer {
     stl::pair<stl::string, stl::string> renderer::get_texture(menu_texture texture) {
         if (texture.m_texture != "sa7anisafaggot") {
             if (texture.m_enabled) {
-                stl::vector<menu::textures::texture_context> list = menu::textures::get_list();
+                stl::vector<menu::textures::texture_context>& list = menu::textures::get_list();
 
-                int texture_index = texture.m_context.m_selected;
-                if (texture_index < (int)list.size()) {
-                    auto vit = stl::find_if(list.begin(), list.end(), [=](menu::textures::texture_context& context) { return context.m_name == texture.m_texture; });
-                    if (vit != list.end()) {
-                        return { "ozarktextures", vit->m_name };
-                    }
+                auto vit = stl::find_if(list.begin(), list.end(), [=](menu::textures::texture_context& context) { return context.m_name == texture.m_texture; });
+                if (vit != list.end()) {
+                    return { "insulin", vit->m_name };
                 }
             }
         }
@@ -47,38 +45,43 @@ namespace menu::renderer {
         // it into the txd store as "insulin"/"logo"; draw it at full colour.
         // Otherwise fall back to the sentinel / game header texture.
         stl::pair<stl::string, stl::string> texture = get_texture(global::ui::m_header);
-        // Header source, in order: the "banner" animation's current frame, the
-        // static custom logo, then the game/sentinel texture below.
+        // Header source, in order: the "slot_header" animation's current frame,
+        // the "banner" animation's current frame, the static custom logo, then
+        // the game/sentinel texture below.
+        menu::animated_texture* slot_anim = menu::animation::get("slot_header");
         menu::animated_texture* banner_anim = menu::animation::get("banner");
-        if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
+        if (slot_anim && slot_anim->ready()) {
+            draw_sprite_aligned(menu::animation::slot_asset("slot_header", global::ui::m_header.m_texture), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
+        } else if ((banner_anim && banner_anim->ready()) || rage::gfx::banner_ready()) {
             draw_sprite_aligned(menu::animation::header_asset(), { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, { 255, 255, 255, 255 });
         } else {
-            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, global::ui::g_main_header);
-        }
-
-        // globe
-        if (global::ui::g_render_globe) {
-            if (!native::has_scaleform_movie_loaded(m_globe_handle)) {
-                m_globe_handle = native::request_scaleform_movie("MP_MENU_GLARE");
-            } else {
-                float rotation = native::get_gameplay_cam_rot(2).z;
-                rotation -= roundf(rotation / 360.0f) * 360.0f;
-                if (rotation < 0.f) {
-                    rotation += 360.0f;
-                }
-
-                native::push_scaleform_movie_function(m_globe_handle, "SET_DATA_SLOT");
-                native::push_scaleform_movie_function_parameter_float(rotation);
-                native::pop_scaleform_movie_function_void();
-            }
-
-            native::draw_scaleform_movie(m_globe_handle, global::ui::g_position.x + global::ui::g_globe_position.x, global::ui::g_position.y + global::ui::g_globe_position.y, global::ui::g_globe_scale.x, global::ui::g_globe_scale.y, global::ui::g_globe.r, global::ui::g_globe.g, global::ui::g_globe.b, global::ui::g_globe.a, 0);
+            // A picture applied but its animation not ready (e.g. still-only)
+            // resolves here to {"insulin", <stem>}. g_main_header defaults to
+            // opaque black, which would paint the user's picture as a black
+            // rectangle - tint only the sentinel / game-texture paths, which are
+            // meant to be tinted, and draw a custom-dictionary texture at full
+            // colour.
+            color_rgba header_color = rage::gfx::is_custom_dict(texture.first.c_str()) ? color_rgba(255, 255, 255, 255) : global::ui::g_main_header;
+            draw_sprite_aligned(texture, { global::ui::g_position.x, global::ui::g_position.y - 0.08f }, { global::ui::g_scale.x, 0.08f }, 0.f, header_color);
         }
 
         // background
         texture = get_texture(global::ui::m_background);
-        if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
-        draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale }, 0.f, global::ui::g_background);
+        menu::animated_texture* bg_anim = menu::animation::get("slot_background");
+        if (bg_anim && bg_anim->ready()) {
+            draw_sprite_aligned(menu::animation::slot_asset("slot_background", global::ui::m_background.m_texture),
+                                global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale },
+                                0.f, { 255, 255, 255, 255 });
+        } else {
+            if (texture.first == "randomha") texture = { "commonmenu", "gradient_bgd" };
+            // Same reasoning as the header fallback above: draw a custom
+            // background picture at full colour instead of through g_background
+            // (opaque black by default), and keep the tint for the sentinel's
+            // gradient_bgd substitute and any game texture.
+            color_rgba bg_color = rage::gfx::is_custom_dict(texture.first.c_str()) ? color_rgba(255, 255, 255, 255) : global::ui::g_background;
+            draw_sprite_aligned(texture, global::ui::g_position, { global::ui::g_scale.x, option_count * global::ui::g_option_scale },
+                                0.f, bg_color);
+        }
 
         // scroller
         if (global::ui::g_scroll_lerp) {
@@ -128,10 +131,18 @@ namespace menu::renderer {
         }
 
         if (menu::submenu::handler::get_current() == main_menu::get()) {
-            // A loaded custom banner IS the branding -- drop the øZARK title text
-            // so it doesn't overlap the header image.
+            menu::animated_texture* slot_anim  = menu::animation::get("slot_header");
             menu::animated_texture* title_anim = menu::animation::get("banner");
-            if (!rage::gfx::banner_ready() && !(title_anim && title_anim->ready())) {
+            // Any picture in the header is the branding, whether it came from the
+            // banner button or from the image picker, and whether it animates or
+            // not. m_enabled covers the still-only case, where a picture is applied
+            // but its animation is not ready.
+            const bool header_shows_a_picture =
+                (slot_anim && slot_anim->ready()) ||
+                (title_anim && title_anim->ready()) ||
+                rage::gfx::banner_ready() ||
+                global::ui::m_header.m_enabled;
+            if (!header_shows_a_picture) {
                 draw_text("~s~&#248;ZARK " VERSION_TYPE, { global::ui::g_position.x + 0.005f, global::ui::g_position.y - 0.061f }, 0.77f, global::ui::g_header_font, global::ui::g_title, JUSTIFY_LEFT);
             }
         } else {
@@ -302,7 +313,7 @@ namespace menu::renderer {
         // the header/scroller/footer bars show as solid colour without any PNG.
         if (asset.first == "randomha") { draw_rect_unaligned(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 
@@ -315,7 +326,7 @@ namespace menu::renderer {
         // See draw_sprite: sentinel -> solid colour quad (aligned).
         if (asset.first == "randomha") { draw_rect(position, scale, color); return; }
 
-        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && asset.first != "ozarktextures" && !rage::gfx::is_custom_dict(asset.first.c_str())) {
+        if (!native::has_streamed_texture_dict_loaded(asset.first.c_str()) && !rage::gfx::is_custom_dict(asset.first.c_str())) {
             native::request_streamed_texture_dict(asset.first.c_str(), true);
         }
 
@@ -330,6 +341,17 @@ namespace menu::renderer {
 
     void renderer::draw_line_2d(math::vector3<float> from, math::vector3<float> to, color_rgba color) {
         if (global::ui::g_stop_rendering) return;
+
+        // global::ui::m_line_2d is never allocated anywhere in this tree - it
+        // sits null in .bss for the whole process - and nothing ever reads
+        // g_line_2d_index or the buffer it indexes into, so filling it would
+        // still draw nothing. The facility needs a render hook this port does
+        // not have: Ozark's screen-space lines are consumed by a PC render
+        // hook (menu/hooks/render_script_texture.cpp), which has no PS4
+        // equivalent here. A caller that wants a line should call the 3D
+        // menu::renderer::draw_line instead - it calls a real native and needs
+        // no consumer.
+        if (!global::ui::m_line_2d) return;
 
         if (global::ui::g_line_2d_index < 5000) {
             line_2d& line = global::ui::m_line_2d[global::ui::g_line_2d_index++];
@@ -346,74 +368,14 @@ namespace menu::renderer {
     }
 
     color_rgba renderer::hsv_to_rgb(float h, float s, float v, int original_alpha) {
-        double r = 0.f, g = 0.f, b = 0.f;
-
-        if (s == 0.f) {
-            r = v; g = v; b = v;
-        } else {
-            int i;
-            double f, p, q, t;
-
-            if (h == 360.f) {
-                h = 0.f;
-            } else h = h / 60.f;
-
-            i = (int)trunc(h);
-            f = h - i;
-
-            p = v * (1.f - s);
-            q = v * (1.f - (s * f));
-            t = v * (1.f - (s * (1.f - f)));
-
-            switch (i) {
-                case 0: r = v; g = t; b = p; break;
-                case 1: r = q; g = v; b = p; break;
-                case 2: r = p; g = v; b = t; break;
-                case 3: r = p; g = q; b = v; break;
-                case 4: r = t; g = p; b = v; break;
-                default: r = v; g = p; b = q; break;
-            }
-        }
-
-        return color_rgba((int)(r * 255.f), (int)(g * 255.f), (int)(b * 255.f), original_alpha);
+        int r = 0, g = 0, b = 0;
+        menu::color_math::hsv_to_rgb(h, s, v, &r, &g, &b);
+        return color_rgba(r, g, b, original_alpha);
     }
 
     color_hsv renderer::rgb_to_hsv(color_rgba in) {
-        color_hsv out;
-
-        float r = in.r / 255.0f;
-        float g = in.g / 255.0f;
-        float b = in.b / 255.0f;
-
-        float h, s, v;
-
-        float max = fmaxf(r, fmaxf(g, b));
-        float min = fminf(r, fminf(g, b));
-
-        v = max;
-
-        if (max == 0.0f) {
-            s = 0; h = 0;
-        } else if (max - min == 0.0f) {
-            s = 0; h = 0;
-        } else {
-            s = (max - min) / max;
-
-            if (max == r) {
-                h = 60 * ((g - b) / (max - min)) + 0;
-            } else if (max == g) {
-                h = 60 * ((b - r) / (max - min)) + 120;
-            } else {
-                h = 60 * ((r - g) / (max - min)) + 240;
-            }
-        }
-
-        if (h < 0) h += 360.0f;
-
-        out.h = h;
-        out.s = s;
-        out.v = v;
-
+        menu::color_math::hsv h = menu::color_math::rgb_to_hsv(in.r, in.g, in.b);
+        color_hsv out; out.h = h.h; out.s = h.s; out.v = h.v;
         return out;
     }
 

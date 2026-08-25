@@ -30,7 +30,10 @@ namespace rage::gfx {
     static constexpr uint64_t STORE_SLOTBASE_OFF = 0x38;
     static constexpr uint64_t STORE_FLAGARR_OFF  = 0x40;
     static constexpr uint64_t STORE_STRIDE_OFF   = 0x4C;
-    static constexpr uint64_t STORE_COUNT_OFF    = 0x88; // slot count (donor-vtable scan bound)
+    // (There was a STORE_COUNT_OFF = 0x88 here, used as the donor-vtable scan
+    // bound. It is gone: the donor scan now walks up to our own slot index,
+    // which the store hands us and is in bounds by construction. Whatever 0x88
+    // holds, it never passed the sanity check it was guarded with.)
 
     template<typename Fn> static inline Fn as_fn(uint64_t rva) { return (Fn)(rage::invoker::g_eboot_base + rva); }
     static inline void* at(uint64_t rva) { return (void*)(rage::invoker::g_eboot_base + rva); }
@@ -62,6 +65,21 @@ namespace rage::gfx {
     // ---- managed-dict registry (renderer bypass) -----------------------------
     static char g_managed[8][64];
     static int  g_managed_count = 0;
+
+    // ---- store-slot watcher --------------------------------------------------
+    // commit() hands the store a dictionary we fabricated by hand. This samples
+    // the slot every frame and says so if the engine ever swaps the pointer,
+    // nulls it or flips its flags -- and otherwise emits one heartbeat a minute.
+    //
+    // The heartbeat is the point, and it is cheap enough to keep permanently: the
+    // crash this was built for leaves no trace of its own, the log simply stops,
+    // and without a monotonic frame count in the file there is no way to tell a
+    // game that died from a session that ended. One line a minute buys that.
+    // Set by commit(), sampled by watch_store_slot(). -1 = nothing committed yet.
+    static int      g_watch_slot  = -1;
+    static void*    g_watch_dict  = nullptr;   // the dictionary commit() installed
+    static uint8_t  g_watch_flag  = 0;         // its store flag byte at commit time
+    static uint32_t g_watch_ticks = 0;
 
     bool is_custom_dict(const char* dict_name) {
         if (!dict_name) return false;
@@ -102,17 +120,78 @@ namespace rage::gfx {
         return true;
     }
 
+    // ---- loaded-texture cache ------------------------------------------------
+    // This is the fix for the crash of 2026-08-16, and the reasoning matters more
+    // than the code. Every apply of a picture called the engine's texture factory
+    // again for a file that was already resident: one session made 44 textures
+    // out of 14 distinct files, and since add_texture frees nothing when it
+    // displaces the old one, video memory grew with the number of *changes*
+    // rather than the number of *pictures*. Both crashes died inside the factory
+    // call itself, both on background/BG2 - the largest file in the cache, which
+    // is exactly the allocation that fails first when memory runs out.
+    //
+    // Keying on the path makes a re-applied picture free: the texture is already
+    // there, so hand back the same pointer. Growth is now bounded by how many
+    // distinct pictures exist rather than by how long someone plays.
+    //
+    // No eviction, deliberately. Nothing in this codebase or the engine frees
+    // these textures (see add_texture), so an entry can never go stale - and a
+    // cache that dropped an entry would hand out a dangling pointer while the
+    // dictionary still referenced it. The cache therefore retains nothing that
+    // was not already retained; it only stops the duplication.
+    struct loaded_texture { char path[192]; void* tex; };
+    static loaded_texture g_loaded[64];
+    static int            g_loaded_count = 0;
+
+    static void* find_loaded(const char* path) {
+        for (int i = 0; i < g_loaded_count; i++)
+            if (!strcmp(g_loaded[i].path, path)) return g_loaded[i].tex;
+        return nullptr;
+    }
+
+    static void remember_loaded(const char* path, void* tex) {
+        if (!tex || g_loaded_count >= 64) return;
+        strncpy(g_loaded[g_loaded_count].path, path, sizeof(g_loaded[0].path) - 1);
+        g_loaded[g_loaded_count].path[sizeof(g_loaded[0].path) - 1] = 0;
+        g_loaded[g_loaded_count].tex = tex;
+        g_loaded_count++;
+    }
+
     void* create_texture_from_file(const char* path) {
         if (!rage::invoker::g_eboot_base) return nullptr;
+
+        if (void* cached = find_loaded(path)) {
+            platform::logf("gfx", "reusing \"%s\" -> %p (already loaded)", path, cached);
+            return cached;
+        }
+
         if (!is_dds_file(path)) return nullptr;
         void* factory = *(void**)at(RVA_FACTORY_SINGLETON);
         if (!factory) { LOG_ERROR("gfx: texture factory singleton is null (render device not up?)"); return nullptr; }
+
+        // Logged *before* the call, not just after. The crash of 2026-08-16 ended
+        // the log between "loading frames from <dir>" and the first Create line,
+        // which narrowed the death to this function but not to the statement; a
+        // marker on each side is what proved it was the factory call. Worth
+        // keeping - this is the one statement here that can take the game down,
+        // and the running count is the measurement if it ever does again.
+        static int s_created = 0;
+        platform::logf("gfx", "creating #%d \"%s\"", s_created + 1, path);
 
         // grcTextureGNM(filename) tolerates params == NULL (builds VIDEO/TILED
         // defaults) and does grcImage::Load + Create + Copy internally.
         typedef void* (*create_fn)(void* self, const char* filename, void* params);
         void* tex = as_fn<create_fn>(RVA_CREATE_FROM_FILE)(factory, path, nullptr);
-        platform::logf("gfx", "Create(\"%s\") -> %p", path, tex);
+        s_created++;
+        platform::logf("gfx", "Create(\"%s\") -> %p (#%d)", path, tex, s_created);
+
+        if (tex) {
+            remember_loaded(path, tex);
+            if (g_loaded_count >= 64)
+                LOG_WARN("gfx: loaded-texture cache is full (64 files); further "
+                         "pictures will be re-created on every change and video "
+                         "memory will grow again");
+        }
         return tex;
     }
 
@@ -142,11 +221,25 @@ namespace rage::gfx {
         return false;
     }
 
+    void* texture_dictionary::get(const char* tex_name) const {
+        if (!tex_name || !tex_name[0]) return nullptr;
+        char q[64]; copy_name(q, tex_name);
+        for (size_t i = 0; i < m_entries.size(); i++)
+            if (!strcmp(m_entries[i].name, q)) return m_entries[i].tex;
+        return nullptr;
+    }
+
     bool texture_dictionary::add_texture(const char* tex_name, void* tex) {
         if (!tex || !tex_name || !tex_name[0]) return false;
         char nm[64]; copy_name(nm, tex_name);
 
-        // Replace an existing entry with the same name (supports reload).
+        // Replace an existing entry with the same name (supports reload). This
+        // drops the displaced grcTexture* on the floor: nothing in this codebase
+        // reverses the engine's texture destructor (rage_alloc above has no
+        // matching free), so a proper release would mean reimplementing that
+        // destructor - real work with real crash risk, and not undertaken here.
+        // Every replace strands the old texture's video memory; the one caller
+        // that replaces routinely (menu::images::apply) logs when it happens.
         for (size_t i = 0; i < m_entries.size(); i++) {
             if (!strcmp(m_entries[i].name, nm)) { m_entries[i].tex = tex; return true; }
         }
@@ -287,8 +380,19 @@ namespace rage::gfx {
         // real class; stealing a resident dict's vtable replicates that. The
         // donor's first qword must point into the eboot image to be accepted.
         {
-            int total = *(int*)((uint8_t*)store + STORE_COUNT_OFF);
-            if (total < 0 || total > 65535) total = 0;
+            // Scan up to our own slot index. m_slot was just handed to us by
+            // FindSlot/AddSlot, so every index below it is in bounds by
+            // construction - no separate count field has to be trusted to walk
+            // the array safely.
+            //
+            // This used to read a count from STORE_COUNT_OFF and reject anything
+            // over 65535 as garbage. In this title that bound is far too tight:
+            // our own slot came back as 78146, so a correct count was thrown
+            // away as nonsense on every single commit, `total` became 0, the
+            // loop below never ran once, and the dictionary shipped with the
+            // NULL vtable this whole block exists to avoid. The warning was in
+            // every log we ever collected and read as background noise.
+            const int total = m_slot;
             void* vt = nullptr;
             int donor = -1;
             for (int i = 0; i < total && !vt; i++) {
@@ -303,9 +407,20 @@ namespace rage::gfx {
                     donor = i;
                 }
             }
+            // Measured 2026-08-16, worth keeping written down: a canary vtable --
+            // our own 128-slot copy of this donor, every entry a thunk logging
+            // index and caller before chaining -- recorded **zero** virtual calls
+            // on this dictionary across 60+ commits, a PS-overlay cycle, a stress
+            // run and 13 minutes of idle. So the pass this whole block was written
+            // to survive does not appear to happen on this title. The adoption
+            // stays because it is nearly free and a NULL vtable is a guaranteed
+            // fault if it ever does; the canary was removed once it had answered,
+            // since a fabricated vtable is a risk that only pays while measuring.
             *(void**)(dict + 0x00) = vt;
-            if (vt) platform::logf("gfx", "vtable %p adopted from slot %d", vt, donor);
-            else    LOG_WARN("gfx: no donor dict found; vtable stays NULL");
+            if (vt) platform::logf("gfx", "vtable %p adopted from slot %d (scanned %d)", vt, donor, total);
+            else    LOG_WARN("gfx: no donor dict found in %d slots; vtable stays NULL - the "
+                             "engine will fault if it ever makes a virtual call on this "
+                             "dictionary", total);
         }
 
         void** slot = (void**)(slotbase + (uint64_t)m_slot * stride);
@@ -321,8 +436,82 @@ namespace rage::gfx {
         platform::logf("gfx", "commit \"%s\": %d tex, slot %d, dict %p, GetPtr %p, rage=%d", m_dict, m, m_slot, (void*)dict, got, (int)rage_backed);
         platform::klogf("gfx commit \"%s\": %d tex, slot %d, dict %p, rage=%d", m_dict, m, m_slot, (void*)dict, (int)rage_backed);
         m_committed = (got == (void*)dict);
-        if (m_committed) platform::notify("Custom textures loaded");
+        if (m_committed) {
+            // Hand the watcher the ground truth it compares against. Re-armed on
+            // every commit, because every commit installs a *new* dictionary.
+            g_watch_slot = m_slot;
+            g_watch_dict = dict;
+            g_watch_flag = flagarr ? flagarr[m_slot] : 0;
+            // The frame counter is deliberately NOT reset here. It was, and that
+            // quietly destroyed the only thing the heartbeat is for: every commit
+            // sent it back to 0, the "% 1800" fired immediately, and the log
+            // filled with one f=0 line per commit and never a single idle
+            // timestamp. A monotonic counter is what dates a fault.
+        }
+        // Demoted from platform::notify: commit() runs on routine actions (e.g.
+        // picking a menu image) that already raise their own notification, and
+        // an unsolicited toast per commit was noise. Still visible in the log.
+        if (m_committed) platform::logf("gfx", "\"%s\": custom textures loaded", m_dict);
         return m_committed;
+    }
+
+    uint32_t watch_frame() { return g_watch_ticks; }
+
+    void watch_store_slot() {
+        if (g_watch_slot < 0 || !rage::invoker::g_eboot_base) return;
+
+        void*    store    = at(RVA_TXDSTORE);
+        char*    slotbase = *(char**)((uint8_t*)store + STORE_SLOTBASE_OFF);
+        uint8_t* flagarr  = *(uint8_t**)((uint8_t*)store + STORE_FLAGARR_OFF);
+        uint32_t stride   = *(uint32_t*)((uint8_t*)store + STORE_STRIDE_OFF);
+        if (!slotbase || !stride) return;
+
+        void*   cur  = *(void**)(slotbase + (uint64_t)g_watch_slot * stride);
+        uint8_t flag = flagarr ? flagarr[g_watch_slot] : 0;
+
+        if (cur != g_watch_dict || flag != g_watch_flag) {
+            // The engine reached into our slot. This is the event the whole
+            // watcher exists for, so it goes out on both channels: the kernel
+            // log survives the fault, the file log survives a missing listener.
+            platform::logf("gfx", "WATCH slot %d CHANGED: dict %p -> %p, flag 0x%02X -> 0x%02X, after %u frames",
+                           g_watch_slot, g_watch_dict, cur, (unsigned)g_watch_flag, (unsigned)flag, g_watch_ticks);
+            g_watch_dict = cur;
+            g_watch_flag = flag;
+        }
+
+        // Heartbeat every 1800 frames, which is one minute -- this title runs at
+        // 30fps, measured, not assumed. Into the *file* log: port 3232 accepts a
+        // connection on this console and then delivers nothing, so a klog-only
+        // heartbeat is indistinguishable from a watcher that never ran. Two jobs:
+        // it dates the fault (the last heartbeat says how long the game idled),
+        // and it shows whether the dictionary's own fields are still intact,
+        // which a bare pointer comparison would miss.
+        //
+        // The dereference below is deliberately limited to the block we
+        // allocated ourselves: that memory is ours and stays mapped even if the
+        // engine has logically released it. Following a pointer the engine put
+        // there instead could fault inside the diagnostic and manufacture the
+        // very crash we are trying to observe.
+        // Loud at the start, then every ~30s. The early beats exist to prove the
+        // watcher is running at all within a second or two: a heartbeat that only
+        // speaks every 1800 frames is indistinguishable from one that never
+        // speaks, and that ambiguity already cost a test cycle -- a session whose
+        // log held a single f=0 line could not be told apart from a dead
+        // instrument until the frame counter was reasoned about.
+        const uint32_t n = g_watch_ticks;
+        if (n == 1 || n == 60 || n == 600 || (n % 1800) == 0) {
+            if (cur && cur == g_watch_dict) {
+                uint8_t* d = (uint8_t*)cur;
+                platform::logf("gfx", "WATCH alive f=%u slot=%d dict=%p vt=%p codes=%p n=%u ents=%p n=%u flag=0x%02X",
+                               g_watch_ticks, g_watch_slot, cur,
+                               *(void**)(d + 0x00), *(void**)(d + 0x20), (unsigned)*(uint16_t*)(d + 0x28),
+                               *(void**)(d + 0x30), (unsigned)*(uint16_t*)(d + 0x38), (unsigned)flag);
+            } else {
+                platform::logf("gfx", "WATCH alive f=%u slot=%d dict=%p (not ours, not inspected) flag=0x%02X",
+                               g_watch_ticks, g_watch_slot, cur, (unsigned)flag);
+            }
+        }
+        g_watch_ticks++;
     }
 
     // ---- menu-facing helpers -------------------------------------------------

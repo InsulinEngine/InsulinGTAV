@@ -68,9 +68,14 @@ namespace menu {
         // because two animations whose files both start at 000 would collide in the
         // dictionary and commit() drops colliding codes.
         // Returns nullptr if the directory is missing, empty, or nothing loaded.
-        animated_texture* load_from_dir(const char* name, const char* dir);
+        // `commit_now == false` leaves the frames buffered in the shared
+        // dictionary for a caller that is about to add more and commit itself.
+        // Every commit fabricates a fresh dictionary and orphans the previous
+        // one, so committing twice inside one operation doubles that churn for
+        // no gain -- see menu_images::apply, which does exactly that.
+        animated_texture* load_from_dir(const char* name, const char* dir, bool commit_now = true);
 
-        // load_from_dir("banner", "/data/insulin/anim/banner").
+        // load_from_dir("banner", "/data/Ozark/anim/banner").
         animated_texture* load_banner();
 
         // Advance every registered animation. Called once per tick.
@@ -79,5 +84,12 @@ namespace menu {
         // Banner frame if the animation named "banner" is loaded and ready,
         // otherwise the static {"insulin", "logo"} pair.
         stl::pair<stl::string, stl::string> header_asset();
+
+        // Current frame of `anim_name` if that animation is loaded and ready,
+        // otherwise the still texture `still_name` in the same dictionary. The
+        // header's own helper stays as it is - the banner button predates slots and
+        // still has its own name.
+        stl::pair<stl::string, stl::string> slot_asset(const char* anim_name,
+                                                        const stl::string& still_name);
     }
 }

@@ -13,7 +13,7 @@
 // script/game thread (menu tick or a button), with a session (e.g. Story Mode) up.
 namespace rage::gfx {
     // Create a grcTexture from an image file at `path` (absolute, e.g.
-    // "/data/insulin/logo.dds"). Passing NULL params is safe. Returns the
+    // "/data/Ozark/logo.dds"). Passing NULL params is safe. Returns the
     // grcTexture* or nullptr. Prefer texture_dictionary below for drawing.
     void* create_texture_from_file(const char* path);
 
@@ -24,7 +24,7 @@ namespace rage::gfx {
         explicit texture_dictionary(const char* dict_name);
 
         // Load `path` and add it under `tex_name`. If `tex_name` is null/empty the
-        // lowercased file stem is used ("/data/insulin/logo.dds" -> "logo").
+        // lowercased file stem is used ("/data/Ozark/logo.dds" -> "logo").
         // Buffers the texture; call commit() to (re)inject. Re-adding a name
         // replaces it. Returns true if the texture was created.
         // DDS only -- the engine's image loader parses no other format, and hands
@@ -45,6 +45,12 @@ namespace rage::gfx {
         bool commit();
 
         bool has(const char* tex_name) const;
+
+        // The grcTexture already registered under `tex_name`, or null. Lets a
+        // caller give a second name to a texture that is already loaded instead
+        // of loading the same file twice.
+        void* get(const char* tex_name) const;
+
         int  count() const;
         bool ready() const;
         const char* name() const;   // dictionary name, for draw_sprite()
@@ -64,6 +70,19 @@ namespace rage::gfx {
     // True if `dict_name` was injected by this manager -- the renderer must not
     // try to stream/request it (it lives only in memory).
     bool is_custom_dict(const char* dict_name);
+
+    // Sample the txd store slot the last commit() installed into: report any
+    // change the engine makes to it, and otherwise emit one heartbeat a minute
+    // carrying a monotonic frame count. Reads only -- no natives, no writes --
+    // so it is safe to call every frame from the game thread, and it is inert
+    // until something has been committed. The heartbeat is what dates a fault:
+    // this plugin's crashes end the log without a line of their own.
+    void watch_store_slot();
+
+    // The watcher's monotonic frame count. Exposed so other per-frame work can
+    // pace itself off the same clock the log is timestamped with, which keeps a
+    // log line and the thing it describes on one timeline.
+    uint32_t watch_frame();
 
     // Convenience for the header: menu_textures() committed and holds "logo".
     bool banner_ready();

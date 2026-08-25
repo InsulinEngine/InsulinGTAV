@@ -10,8 +10,22 @@ namespace instructionals {
     static const char* g_key_names_instructional[256] = { "" };
 
     void instructionals::setup() {
+        // Resolve the handle by NAME every frame; never trust a cached index.
+        //
+        // Scaleform handles are pool indices. The game tears its movies down and
+        // rebuilds them across a session change, and our index then belongs to
+        // whatever moved in - in multiplayer, the phone. The guard this replaces
+        // asked has_scaleform_movie_loaded(m_handle), which answers "is SOME
+        // movie loaded at this index", not "is it still mine". With the phone's
+        // movie sitting there the answer was yes, so the stale index survived,
+        // our button data went into the phone's movie, and close() drew THAT
+        // fullscreen: the phone filling the screen behind the menu.
+        //
+        // request_scaleform_movie returns the handle for the name, so this is
+        // self-correcting on the very next frame after any reshuffle.
+        m_handle = native::request_scaleform_movie("instructional_buttons");
         if (!native::has_scaleform_movie_loaded(m_handle)) {
-            m_handle = native::request_scaleform_movie("instructional_buttons");
+            m_count = 0;
             return;
         }
 
@@ -89,7 +103,11 @@ namespace instructionals {
         native::push_scaleform_movie_function_parameter_int(0);
         native::pop_scaleform_movie_function_void();
 
-        native::draw_scaleform_movie_fullscreen(m_handle, 255, 255, 255, 255, 0);
+        // Same reason as setup(): never draw a handle we have not just confirmed.
+        // Drawing an unloaded or foreign movie fullscreen is exactly the failure
+        // this pair of guards exists to prevent.
+        if (native::has_scaleform_movie_loaded(m_handle))
+            native::draw_scaleform_movie_fullscreen(m_handle, 255, 255, 255, 255, 0);
         m_count = 0;
     }
 

@@ -1,4 +1,6 @@
 #include "menu/base/util/theme.h"
+#include "menu/base/util/menu_images.h"
+#include "platform/paths.h"
 #include "global/ui_vars.h"
 #include "util/json.h"
 #include "platform/log.h"
@@ -11,7 +13,7 @@
 using namespace global::ui;
 
 namespace menu::theme {
-    const char* dir() { return "/data/insulin/themes"; }
+    const char* dir() { return OZARK_THEMES; }
 
     // ---- registries ---------------------------------------------------------
     struct nc { const char* name; color_rgba* p; };
@@ -27,8 +29,47 @@ namespace menu::theme {
         {"color_grid_bar",&g_color_grid_bar},{"notify_bar",&g_notify_bar},{"notify_background",&g_notify_background},
         {"panel_bar",&g_panel_bar},{"stacked_display_bar",&g_stacked_display_bar},{"stacked_display_background",&g_stacked_display_background},
         {"panel_background",&g_panel_background},{"hotkey_background",&g_hotkey_background},{"color_grid_background",&g_color_grid_background},
-        {"hotkey_input",&g_hotkey_input},{"instructional_background",&g_instructional_background},{"globe",&g_globe},
+        {"hotkey_input",&g_hotkey_input},{"instructional_background",&g_instructional_background},
     };
+
+    int color_count() { return (int)(sizeof(COLORS) / sizeof(COLORS[0])); }
+
+    const char* color_name(int index) {
+        if (index < 0 || index >= color_count()) return "";
+        return COLORS[index].name;
+    }
+
+    color_rgba* color_ptr(int index) {
+        if (index < 0 || index >= color_count()) return nullptr;
+        return COLORS[index].p;
+    }
+
+    // Returned buffer is a function-local static: the result is only valid
+    // until the next call, so build one display name at a time - never hold
+    // two calls' results in the same expression (e.g. two of these as
+    // printf args), the second call clobbers the first.
+    const char* color_display_name(int index) {
+        static char buf[64];
+        if (index < 0 || index >= color_count()) return "";
+
+        const char* src = COLORS[index].name;
+        size_t i = 0;
+        bool start_of_word = true;
+        for (; src[i] != '\0' && i < sizeof(buf) - 1; i++) {
+            char c = src[i];
+            if (c == '_') {
+                c = ' ';
+                start_of_word = true;
+            } else if (start_of_word) {
+                if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+                start_of_word = false;
+            }
+            buf[i] = c;
+        }
+        buf[i] = '\0';
+        return buf;
+    }
+
     static nf FONTS[] = {
         {"header",&g_header_font},{"sub_header",&g_sub_header_font},{"option",&g_option_font},{"open_tooltip",&g_open_tooltip_font},
         {"tooltip",&g_tooltip_font},{"stacked_display",&g_stacked_display_font},{"notify_title",&g_notify_title_font},
@@ -37,13 +78,13 @@ namespace menu::theme {
     static nv POS[] = {
         {"position",&g_position},{"scale",&g_scale},{"submenu_arrow_position",&g_submenu_arrow_position},
         {"submenu_arrow_scale",&g_submenu_arrow_scale},{"toggle_position",&g_toggle_position},{"toggle_scale",&g_toggle_scale},
-        {"globe_position",&g_globe_position},{"globe_scale",&g_globe_scale},{"stacked_display_scale",&g_stacked_display_scale},
+        {"stacked_display_scale",&g_stacked_display_scale},
         {"stacked_display_position",&g_stacked_display_position},
     };
 
     // ---- save ---------------------------------------------------------------
     void save(const char* name) {
-        sceKernelMkdir("/data/insulin", 0777);
+        platform::ensure_data_dir();
         sceKernelMkdir(dir(), 0777);
 
         tj::json root;
@@ -60,10 +101,12 @@ namespace menu::theme {
             o["x"] = tj::json((double)v.p->x);
             o["y"] = tj::json((double)v.p->y);
         }
-        root["misc"]["globe"] = tj::json(g_render_globe);
         root["misc"]["smooth"] = tj::json(g_scroll_lerp);
         root["misc"]["smooth_speed"] = tj::json((double)g_scroll_lerp_speed);
         root["misc"]["wrap"] = tj::json((double)g_wrap);
+
+        root["images"]["header"]     = tj::json(global::ui::m_header.m_texture.c_str());
+        root["images"]["background"] = tj::json(global::ui::m_background.m_texture.c_str());
 
         char path[256];
         snprintf(path, sizeof(path), "%s/%s.json", dir(), name);
@@ -74,6 +117,14 @@ namespace menu::theme {
     // ---- load ---------------------------------------------------------------
     bool load_file(const char* path) {
         tj::json root = tj::json::load_from_file(path);
+        // load_from_file returns a null json() both when sceKernelOpen fails
+        // (missing file) and when the file is empty - either way there is
+        // nothing to apply, so callers that check the return value (boot-time
+        // re-apply) can treat this the same as "missing".
+        if (root.is_null()) {
+            platform::logf("theme", "missing/unreadable \"%s\"", path);
+            return false;
+        }
 
         const tj::json* colors = root.try_get("colors");
         if (colors) for (nc& c : COLORS) {
@@ -85,6 +136,27 @@ namespace menu::theme {
                 c.p->a = (int)o->value_int("a", c.p->a);
             }
         }
+        // Convert-or-load, exactly as picking would - just not here. load_file
+        // runs inside menu::build() (via apply_last_theme()), so this only
+        // records the wanted picture; menu::images::update() (wired into
+        // menu::tick()) performs the actual apply() next frame. A theme naming
+        // a picture this console does not have leaves that slot alone and says
+        // so, rather than failing the whole theme.
+        const tj::json* imgs = root.try_get("images");
+        if (imgs) {
+            // json.h has value_bool / value_int / value_float but NO
+            // value_string - read the child and check its type by hand, same
+            // shape animated_texture.cpp uses for frames.json.
+            const tj::json* hj = imgs->try_get("header");
+            const tj::json* bj = imgs->try_get("background");
+            // Present-and-a-string is the theme expressing an intent, and "" is a
+            // real intent: this slot has no picture. Absent, or the wrong type, is
+            // the theme not saying - leave the slot as it is, so a theme written
+            // before this feature existed does not silently clear anyone's images.
+            if (hj && hj->is_string()) menu::images::request(hj->get_string(), menu::images::slot::header);
+            if (bj && bj->is_string()) menu::images::request(bj->get_string(), menu::images::slot::background);
+        }
+
         const tj::json* fonts = root.try_get("fonts");
         if (fonts) for (nf& f : FONTS) {
             const tj::json* v = fonts->try_get(f.name);
@@ -100,7 +172,6 @@ namespace menu::theme {
         }
         const tj::json* misc = root.try_get("misc");
         if (misc) {
-            g_render_globe = misc->value_bool("globe", g_render_globe);
             g_scroll_lerp = misc->value_bool("smooth", g_scroll_lerp);
             g_scroll_lerp_speed = (float)misc->value_float("smooth_speed", g_scroll_lerp_speed);
             g_wrap = (float)misc->value_float("wrap", g_wrap);
@@ -147,7 +218,7 @@ namespace menu::theme {
 
     // ---- default palette ----------------------------------------------------
     void reset_to_default() {
-        g_render_globe = true; g_scroll_lerp = true; g_scroll_lerp_speed = 25.f; g_wrap = 0.063f;
+        g_scroll_lerp = true; g_scroll_lerp_speed = 25.f; g_wrap = 0.063f;
 
         g_header_font = 0; g_sub_header_font = 4; g_option_font = 4; g_open_tooltip_font = 4; g_tooltip_font = 4;
         g_stacked_display_font = 0; g_notify_title_font = 0; g_notify_body_font = 0; g_panel_font = 4;
@@ -155,7 +226,6 @@ namespace menu::theme {
         g_position = { 0.70f, 0.3f }; g_scale = { 0.22f, 0.f };
         g_submenu_arrow_position = { 0.218f, 0.010f }; g_submenu_arrow_scale = { 0.007f, 0.013f };
         g_toggle_position = { 0.221f, 0.016f }; g_toggle_scale = { 0.007f, 0.011f };
-        g_globe_position = { 0.4405f, 0.328f }; g_globe_scale = { 0.978f, 0.906f };
         g_stacked_display_scale = { 0.15f, 0.015f }; g_stacked_display_position = { 0.845f, 0.01f };
 
         g_success = { 70, 219, 37, 255 }; g_error = { 219, 37, 37, 255 }; g_main_header = { 220, 76, 81, 255 };
@@ -168,6 +238,12 @@ namespace menu::theme {
         g_notify_background = { 40, 40, 40, 255 }; g_panel_bar = { 220, 76, 81, 255 }; g_stacked_display_bar = { 220, 76, 81, 255 };
         g_stacked_display_background = { 0, 0, 0, 180 }; g_panel_background = { 0, 0, 0, 180 }; g_hotkey_background = { 0, 0, 0, 180 };
         g_color_grid_background = { 0, 0, 0, 180 }; g_hotkey_input = { 40, 40, 40, 200 }; g_instructional_background = { 0, 0, 0, 255 };
-        g_globe = { 255, 255, 255, 255 };
+
+        // Route through request() too, the same one rule as load_file() above,
+        // so there is no "which calls are safe where" to remember. update()
+        // turns an empty name into apply(nullptr, s), which clears the slot's
+        // animation and flags.
+        menu::images::request(nullptr, menu::images::slot::header);
+        menu::images::request(nullptr, menu::images::slot::background);
     }
 }
