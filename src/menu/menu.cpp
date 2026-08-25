@@ -19,6 +19,7 @@
 #include "menu/base/submenus/network.h"
 #include "menu/base/submenus/network_players.h"
 #include "menu/base/submenus/protections.h"
+#include "protections/report.h"
 #include "menu/base/submenus/teleport.h"
 #include "menu/base/submenus/teleport_directional.h"
 #include "menu/base/submenus/teleport_ipl.h"
@@ -372,6 +373,14 @@ namespace menu {
         // g_delta drives the scroller lerp; refresh it from the frame time.
         global::ui::g_delta = native::get_frame_time();
 
+        // Placement matters twice over. It sits BELOW the overlay guard because
+        // it calls a native (the timer) and the whole point of that guard is
+        // that native work crashes the game while the ShellUI overlay is up.
+        // It sits ABOVE the player_valid() gate because it touches nothing that
+        // needs a player - and a protection can fire during loading, when the
+        // gate is still closed. Records simply wait in the ring until here.
+        protections::drain_reports();
+
         // Step every loaded animation before anything draws, so update and render
         // stay separate and the renderer keeps no side effects.
         menu::animation::update(global::ui::g_delta);
@@ -397,6 +406,18 @@ namespace menu {
         // here instead, once the game is actually up. Retried a few times because
         // "the player exists" and "every native is registered" are not the same
         // moment; each attempt is a cheap walk of 256 buckets.
+
+        // Detours for filters restored from config. add_savable puts the saved
+        // mode back but does not fire the change handler that installs the
+        // detour - so without this, a filter saved as Enforce comes back
+        // reading Enforce and doing nothing. Deferred to here rather than
+        // menu::build() so no detour lands while the game is still loading.
+        static bool s_filters_installed = false;
+        if (!s_filters_installed && game::player_valid()) {
+            protections::install_enabled_filters();
+            s_filters_installed = true;
+        }
+
         if (game::player_valid() && !rage::hash_natives::usable() && g_hash_tries < 10) {
             if ((native::get_frame_count() % 120) == 0) {
                 g_hash_tries++;
