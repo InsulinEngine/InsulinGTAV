@@ -1,4 +1,5 @@
 #include "protections/detour.h"
+#include "protections/branch_check.h"
 #include "rage/invoker/invoker.h"
 #include "platform/log.h"
 
@@ -21,6 +22,18 @@ bool install_detour(detour_slot* slot, uint64_t rva, void* hook)
     if (!rage::invoker::g_eboot_base) {
         LOG_ERROR("protections: detour @rva 0x%llx skipped - base unresolved",
                   (unsigned long long)rva);
+        return false;
+    }
+
+    // Read the target's first 32 bytes and refuse a prologue the SDK's
+    // non-relocating memcpy would corrupt. A refusal here is a filter that
+    // does not install - loud, and in the log. The alternative is a stub that
+    // jumps to a wrong address on a path we cannot debug from here.
+    const uint8_t* target = (const uint8_t*)(rage::invoker::g_eboot_base + rva);
+    const prologue_verdict v = check_prologue(target, 32);
+    if (!v.safe) {
+        LOG_ERROR("protections: detour @rva 0x%llx REFUSED - %s",
+                  (unsigned long long)rva, v.reason ? v.reason : "unsafe prologue");
         return false;
     }
 
