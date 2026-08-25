@@ -64,6 +64,10 @@ namespace protections {
     bool install_invalid_decal();
     bool install_searchlight();
     bool install_skeleton_extension();
+    // Detection only - reports network-message allocator exhaustion and never
+    // changes the return value. The recovery is deliberately unwritten; see
+    // src/protections/hooks_reliable_alloc.cpp.
+    bool install_reliable_alloc();
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a
     // 14-byte jump forces contains a rel8 branch that GoldHEN's stub does not

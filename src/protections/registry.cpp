@@ -17,7 +17,7 @@ namespace {
             { filter_id::render_entity,      "Render Entity",       1, (int)mode::log, (int)mode::log, false, &install_render_entity },
             { filter_id::render_big_ped,     "Render Big Ped",      1, (int)mode::log, (int)mode::log, false, &install_render_big_ped },
             { filter_id::pool_exhaustion,    "Pool Exhaustion",     1, (int)mode::log, (int)mode::log, false, nullptr },
-            { filter_id::reliable_alloc,     "Reliable Allocator",  1, (int)mode::log, (int)mode::log, false, nullptr },
+            { filter_id::reliable_alloc,     "Reliable Allocator",  1, (int)mode::log, (int)mode::log, false, &install_reliable_alloc },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;

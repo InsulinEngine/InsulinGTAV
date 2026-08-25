@@ -22,6 +22,7 @@ namespace protections {
     bool install_invalid_decal()      { return false; }
     bool install_searchlight()        { return false; }
     bool install_skeleton_extension() { return false; }
+    bool install_reliable_alloc()     { return false; }
 }
 
 static int g_failed = 0;
