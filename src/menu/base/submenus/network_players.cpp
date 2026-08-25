@@ -7,6 +7,7 @@
 #include "menu/base/util/notify.h"
 #include "menu/base/util/esp.h"
 #include "menu/base/submenus/helper_esp.h"
+#include "protections/players.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "rage/invoker/natives_hash.h"
@@ -176,6 +177,17 @@ void network_player_menu::load() {
             if (id < 0 || id >= game::players::MAX_PLAYERS) return;
             g_player_esp[id].m_ped = true;
             helper_esp_menu::open_for<network_player_menu>(&g_player_esp[id], "Player ESP");
+        }));
+
+    add_option(toggle_option("Block Net Events")
+        .add_tooltip("Drop network events from this player. Their sync and "
+                     "your view of them are unaffected.")
+        .add_click([](){
+            int idx = network_players_selected();
+            if (idx < 0 || idx >= game::players::MAX_PLAYERS) return;
+            using namespace protections;
+            const bool now = player_blocks().is_blocked(block_kind::net_events, idx);
+            player_blocks().set_blocked(block_kind::net_events, idx, !now);
         }));
 
     add_option(break_option("Info").ref());
