@@ -549,15 +549,50 @@ Expected: PASS — final line `all passed`
 Read `src/menu/base/submenus/network_players.cpp` before editing to match its existing per-player option style. Add one toggle per player row, bound through a small helper so the `stl::function` capture stays an `int` (the 64-byte capture cap forbids capturing anything larger):
 
 ```cpp
+// File-scope mirror. toggle_option renders and drives its state through a
+// bound bool; the bitmask is the truth, and this tracks it for the currently
+// selected player.
+namespace { bool g_block_net_events = false; }
+
     add_option(toggle_option("Block Net Events")
+        .add_toggle(g_block_net_events)
         .add_tooltip("Drop network events from this player. Their sync and "
                      "your view of them are unaffected.")
-        .add_click([idx] {
-            using namespace protections;
-            const bool now = player_blocks().is_blocked(block_kind::net_events, idx);
-            player_blocks().set_blocked(block_kind::net_events, idx, !now);
+        .add_update([](toggle_option*, int) {
+            // Refresh from the bitmask every frame. The mirror is per-selection,
+            // not per-player, so without this, moving the cursor to another
+            // player would show the previous player's state.
+            const int idx = /* the selected player index in this submenu */;
+            g_block_net_events = idx >= 0 &&
+                protections::player_blocks().is_blocked(
+                    protections::block_kind::net_events, idx);
+        })
+        .add_click([] {
+            // render_selected has ALREADY flipped the mirror before calling
+            // this (toggle.cpp:27-28), so push the new value through rather
+            // than recomputing it - recomputing would flip it back.
+            const int idx = /* the selected player index in this submenu */;
+            if (idx < 0) return;
+            protections::player_blocks().set_blocked(
+                protections::block_kind::net_events, idx, g_block_net_events);
         }));
 ```
+
+**`add_toggle` is not optional here.** `toggle_option::render_selected`
+(`src/menu/base/options/toggle.cpp:26`) gates the whole click path on
+`m_toggle` being non-null:
+
+```cpp
+if (m_toggle && m_requirement() && menu::input::is_option_pressed()) {
+    *m_toggle = !*m_toggle;
+    m_on_click();
+```
+
+Without a bound bool the option renders, highlights, and does **nothing** when
+confirmed — and its on/off indicator reads permanently "off", because the
+colour is chosen from `m_toggle` too. Every one of the ~90 `toggle_option`
+sites in this codebase binds one. Read the surrounding file for how it names
+the selected player index and substitute that for the comment placeholders.
 
 Do **not** call `add_savable` on it: a block is a decision about the player in front of you right now, and restoring it into a session with different players would silently drop traffic from someone who was never blocked.
 
