@@ -161,10 +161,9 @@ void vehicle_class_menu::update() {
     if (g_built != g_class)
         update_once();
 
-    // Vehicle preview temporarily disabled: the g_TxdStore walk crashed on first
-    // live test and needs live offset verification before re-enabling.
-    // menu::vehicle_preview::browse(highlighted_model());
-    (void)&highlighted_model;
+    // Shop-style preview of the highlighted vehicle (drawn once its image has
+    // safely streamed in). tick() runs globally from the menu loop.
+    menu::vehicle_preview::browse(highlighted_model());
 }
 
 void vehicle_class_menu::update_once() {

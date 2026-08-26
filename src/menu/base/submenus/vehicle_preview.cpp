@@ -1,6 +1,7 @@
 #include "menu/base/submenus/vehicle_preview.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/invoker.h"
+#include "platform/log.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -101,6 +102,10 @@ namespace {
     int  g_remaining    = 0;
     int  g_pass         = 0;
     const int kScanPasses = 300;  // frame budget; absent dicts never load
+    uint8_t g_stable[128] = {};   // per-dict: consecutive passes seen loaded
+    const int kStable = 4;        // settle this many passes before reading a dict's
+                                  // pgDictionary; a just-flipped "loaded" flag can
+                                  // precede the dictionary being fully constructed
 
     void scan_start() {
         if (g_scan_state != SCAN_IDLE) return;
@@ -123,13 +128,18 @@ namespace {
     bool scan_one(int i) {
         const uint64_t dict = find_txd(native::get_hash_key(g_dicts[i]));
         if (!dict) return false;
+        // Crash-markers: the last one printed before a hang/crash names exactly
+        // which read faulted (find_txd ptr, the +0x28/+0x20 reads, or the loop).
+        platform::klogf("vprev scan dict=%d(%s) ptr=%llx", i, g_dicts[i], (unsigned long long)dict);
         uint32_t* hashes = *(uint32_t* const volatile*)(dict + 0x20);
         uint32_t  count  = *(const volatile uint16_t*)(dict + 0x28);
+        platform::klogf("vprev scan dict=%d hashes=%llx count=%u", i, (unsigned long long)hashes, count);
         if (hashes && count) {
             if (count > 1024) count = 1024;       // sanity cap
             for (uint32_t j = 0; j < count; j++)
                 map_insert(hashes[j], (uint8_t)i);
         }
+        platform::klogf("vprev scan dict=%d done", i);
         return true;
     }
 
@@ -144,7 +154,8 @@ namespace {
         }
         for (int i = 0; i < g_dict_count; i++) {
             if (g_done[i]) continue;
-            if (!native::has_streamed_texture_dict_loaded(g_dicts[i])) continue;
+            if (!native::has_streamed_texture_dict_loaded(g_dicts[i])) { g_stable[i] = 0; continue; }
+            if (g_stable[i] < kStable) { g_stable[i]++; continue; }   // let the dict settle
             if (!scan_one(i)) continue;                // slot not ready; retry next pass
             if (g_req[i]) native::set_streamed_texture_dict_as_no_longer_needed(g_dicts[i]);
             g_done[i] = 1;
@@ -233,6 +244,10 @@ namespace {
     }
 
     void draw_box() {
+        // Marker fires once per drawn model, right before the first DRAW_SPRITE,
+        // so a draw-time crash is localised the same way the scan is.
+        static int s_logged = -2;
+        if (s_logged != g_pinned) { platform::klogf("vprev draw dict=%d tex=%s", g_pinned, g_tex); s_logged = g_pinned; }
         // Bottom-right, ~16:9, clear of the left-hand menu and the tooltip.
         const float w = 0.26f, h = 0.146f, cx = 0.845f, cy = 0.795f;
         native::draw_sprite(g_dicts[g_pinned], g_tex, cx, cy, w, h, 0.f, 255, 255, 255, 255, 0);
