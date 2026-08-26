@@ -135,6 +135,18 @@ void protections_menu::load() {
         .add_tooltip("Reset the sound-hash baseline")
         .add_click([] { protections::sound_learned_clear(); }));
 
+    add_option(button_option("Explosion Types Learned")
+        .add_tooltip("Distinct explosion tags seen this session")
+        .add_click([] {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "%d distinct explosion tags", protections::explosion_learned_count());
+            menu::notify::stacked("Protections", msg);
+        }));
+
+    add_option(button_option("Clear Explosion Types")
+        .add_tooltip("Reset the explosion-tag baseline")
+        .add_click([] { protections::explosion_learned_clear(); }));
+
     add_option(break_option("Local Self-Care").ref());
 
     add_option(toggle_option("Anti Fire")

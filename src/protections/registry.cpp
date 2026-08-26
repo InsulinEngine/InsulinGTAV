@@ -49,6 +49,11 @@ namespace {
             // the self-report telemetry goes nowhere. See ANCHORS section 20.
             { filter_id::report_cash_spawn,  "Report Cash Spawn",   2, (int)mode::log, (int)mode::log, false, nullptr,                     false },
             { filter_id::report_myself,      "Report Myself",       2, (int)mode::log, (int)mode::log, false, nullptr,                     false },
+            // Tier 2 Task 13. Only EXPLOSION is hookable; the other two Decides
+            // are refused by check_prologue (rel32 call / shared stub).
+            { filter_id::explosion,          "Explosion",           2, (int)mode::log, (int)mode::log, false, &install_explosion,          true  },
+            { filter_id::vehicle_special_ability, "Vehicle Special Ability", 2, (int)mode::log, (int)mode::log, false, nullptr,            false },
+            { filter_id::kick_votes,         "Kick Votes",          2, (int)mode::log, (int)mode::log, false, nullptr,                     false },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;

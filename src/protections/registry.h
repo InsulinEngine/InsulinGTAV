@@ -44,6 +44,9 @@ namespace protections {
         door_break          = 42,
         report_cash_spawn   = 43,   // identified but unhookable - rel8 in prologue
         report_myself       = 44,   // identified but unhookable - rel8 in prologue
+        explosion           = 45,
+        vehicle_special_ability = 46,   // unhookable - rel32 call in prologue
+        kick_votes          = 47,   // unhookable - Decide is the shared stub
     };
 
     struct filter {
@@ -143,6 +146,13 @@ namespace protections {
     bool install_door_break();
     int  sound_learned_count();
     void sound_learned_clear();
+
+    // Tier 2 Task 13. EXPLOSION hooked at Decide (the most-used remote kill);
+    // explosion-type learn + per-player block. VEHICLE_SPECIAL_ABILITY and
+    // KICK_VOTES are unhookable (null installers). See hooks_events_blast.cpp.
+    bool install_explosion();
+    int  explosion_learned_count();
+    void explosion_learned_clear();
 
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a

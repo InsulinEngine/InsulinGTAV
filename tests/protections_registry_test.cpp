@@ -44,6 +44,9 @@ namespace protections {
     bool install_door_break()         { return false; }
     int  sound_learned_count()        { return 0; }
     void sound_learned_clear()        {}
+    bool install_explosion()          { return false; }
+    int  explosion_learned_count()    { return 0; }
+    void explosion_learned_clear()    {}
 }
 
 static int g_failed = 0;
