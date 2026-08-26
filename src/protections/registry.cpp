@@ -30,6 +30,9 @@ namespace {
             { filter_id::weapon_damage,      "Weapon Damage",       2, (int)mode::log, (int)mode::log, false, &install_weapon_damage,      true  },
             { filter_id::give_weapon,        "Give Weapon",         2, (int)mode::log, (int)mode::log, false, &install_give_weapon,        true  },
             { filter_id::remove_weapon,      "Remove Weapon",       2, (int)mode::log, (int)mode::log, false, &install_remove_weapon,      true  },
+            // Tier 2 Task 8. Control take-over events; per-player path refuses.
+            { filter_id::give_control,       "Give Control",        2, (int)mode::log, (int)mode::log, false, &install_give_control,       true  },
+            { filter_id::request_control,    "Request Control",     2, (int)mode::log, (int)mode::log, false, &install_request_control,    true  },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;

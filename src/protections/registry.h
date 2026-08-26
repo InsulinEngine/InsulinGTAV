@@ -33,6 +33,8 @@ namespace protections {
         weapon_damage       = 31,
         give_weapon         = 32,
         remove_weapon       = 33,
+        give_control        = 34,
+        request_control     = 35,
     };
 
     struct filter {
@@ -106,6 +108,11 @@ namespace protections {
     bool install_remove_weapon();
     int  weapon_learned_count();
     void weapon_learned_clear();
+
+    // Tier 2 Task 8. Control events - GIVE / REQUEST, hooked at Decide. Per-player
+    // net_events block plus a report; see src/protections/hooks_events_control.cpp.
+    bool install_give_control();
+    bool install_request_control();
 
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a

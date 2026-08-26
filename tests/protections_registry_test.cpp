@@ -34,6 +34,8 @@ namespace protections {
     bool install_remove_weapon()      { return false; }
     int  weapon_learned_count()       { return 0; }
     void weapon_learned_clear()       {}
+    bool install_give_control()       { return false; }
+    bool install_request_control()    { return false; }
 }
 
 static int g_failed = 0;
