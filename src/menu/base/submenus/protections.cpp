@@ -147,6 +147,20 @@ void protections_menu::load() {
         .add_tooltip("Reset the explosion-tag baseline")
         .add_click([] { protections::explosion_learned_clear(); }));
 
+    add_option(button_option("Dump Learned Hashes")
+        .add_tooltip("Write every learned hash to /data/Ozark/insulingtav.log for FTP harvesting")
+        .add_click([] {
+            protections::learned_dump();
+            protections::weapon_learned_dump();
+            protections::sound_learned_dump();
+            protections::explosion_learned_dump();
+            char msg[80];
+            snprintf(msg, sizeof(msg), "Dumped %d/%d/%d/%d (evt/wpn/snd/exp) to log",
+                     protections::learned_count(), protections::weapon_learned_count(),
+                     protections::sound_learned_count(), protections::explosion_learned_count());
+            menu::notify::stacked("Protections", msg);
+        }));
+
     add_option(break_option("Local Self-Care").ref());
 
     add_option(toggle_option("Anti Fire")

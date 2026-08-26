@@ -112,6 +112,13 @@ namespace protections {
     bool learned_at(int index, uint32_t* hash, uint32_t* hits, uint8_t* first_player);
     void learned_clear();
 
+    // Write every learned hash for a group to /data/Ozark/insulingtav.log (for
+    // FTP harvesting into the Task 14 block-list baseline). Script thread only.
+    void learned_dump();            // script events
+    void weapon_learned_dump();
+    void sound_learned_dump();
+    void explosion_learned_dump();
+
     // Tier 2 Task 7. Weapon events - WEAPON_DAMAGE / GIVE / REMOVE, hooked at
     // Decide. Learn mode plus the per-player net_events block; see
     // src/protections/hooks_events_weapon.cpp.

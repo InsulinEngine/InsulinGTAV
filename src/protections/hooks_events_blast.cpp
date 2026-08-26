@@ -3,6 +3,7 @@
 #include "protections/report.h"
 #include "protections/learn.h"
 #include "protections/players.h"
+#include "platform/log.h"
 
 // Blast events. Only EXPLOSION_EVENT is hooked - it is the most-used remote kill.
 // Its Decide (0x16BFFF0, vtable slot 8) is hooked; the other two in the group are
@@ -70,4 +71,13 @@ bool install_explosion() {
 
 int  explosion_learned_count() { return explosion_tags().count(); }
 void explosion_learned_clear() { explosion_tags().clear(); }
+
+void explosion_learned_dump() {
+    uint32_t tag, hits; uint8_t first;
+    const int n = explosion_tags().count();
+    platform::logf("Learn", "explosion dump: %d distinct", n);
+    for (int i = 0; i < n; i++)
+        if (explosion_tags().at(i, &tag, &hits, &first))
+            platform::logf("Learn", "explosion %08x hits=%u p=%u", (unsigned)tag, (unsigned)hits, (unsigned)first);
+}
 }

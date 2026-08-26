@@ -3,6 +3,7 @@
 #include "protections/report.h"
 #include "protections/learn.h"
 #include "protections/players.h"
+#include "platform/log.h"
 
 // Weapon events - WEAPON_DAMAGE / GIVE_WEAPON / REMOVE_WEAPON, hooked at each
 // event class's Decide (vtable slot 8). Evidence: PROTECTIONS_ANCHORS.md section
@@ -121,4 +122,13 @@ bool install_remove_weapon() { return install_detour(&g_remove_weapon, RVA_REMOV
 
 int  weapon_learned_count() { return weapon_hashes().count(); }
 void weapon_learned_clear() { weapon_hashes().clear(); }
+
+void weapon_learned_dump() {
+    uint32_t hash, hits; uint8_t first;
+    const int n = weapon_hashes().count();
+    platform::logf("Learn", "weapon dump: %d distinct", n);
+    for (int i = 0; i < n; i++)
+        if (weapon_hashes().at(i, &hash, &hits, &first))
+            platform::logf("Learn", "weapon %08x hits=%u p=%u", (unsigned)hash, (unsigned)hits, (unsigned)first);
+}
 }

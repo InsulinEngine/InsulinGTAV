@@ -3,6 +3,7 @@
 #include "protections/report.h"
 #include "protections/learn.h"
 #include "protections/players.h"
+#include "platform/log.h"
 
 // CScriptedGameEvent::Decide - every incoming script event, with its sender.
 //
@@ -99,4 +100,15 @@ bool learned_at(int i, uint32_t* hash, uint32_t* hits, uint8_t* first) {
     return learned().at(i, hash, hits, first);
 }
 void learned_clear() { learned().clear(); }
+
+// Write every learned script-event hash to the file log for FTP harvesting.
+// Script thread only (menu action). Format: "[Learn] script_event <hash> hits=N p=P".
+void learned_dump() {
+    uint32_t hash, hits; uint8_t first;
+    const int n = learned().count();
+    platform::logf("Learn", "script_event dump: %d distinct", n);
+    for (int i = 0; i < n; i++)
+        if (learned().at(i, &hash, &hits, &first))
+            platform::logf("Learn", "script_event %08x hits=%u p=%u", (unsigned)hash, (unsigned)hits, (unsigned)first);
+}
 }

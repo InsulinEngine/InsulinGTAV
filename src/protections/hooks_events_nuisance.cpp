@@ -3,6 +3,7 @@
 #include "protections/report.h"
 #include "protections/learn.h"
 #include "protections/players.h"
+#include "platform/log.h"
 
 // Nuisance events - NETWORK_PLAY_SOUND / CHANGE_RADIO_STATION / DOOR_BREAK, hooked
 // at each event's Decide (vtable slot 8). Sound spam is the highest-volume attack
@@ -104,4 +105,13 @@ bool install_door_break()   { return install_detour(&g_door_break,   RVA_DOOR_BR
 
 int  sound_learned_count() { return sound_hashes().count(); }
 void sound_learned_clear() { sound_hashes().clear(); }
+
+void sound_learned_dump() {
+    uint32_t hash, hits; uint8_t first;
+    const int n = sound_hashes().count();
+    platform::logf("Learn", "sound dump: %d distinct", n);
+    for (int i = 0; i < n; i++)
+        if (sound_hashes().at(i, &hash, &hits, &first))
+            platform::logf("Learn", "sound %08x hits=%u p=%u", (unsigned)hash, (unsigned)hits, (unsigned)first);
+}
 }
