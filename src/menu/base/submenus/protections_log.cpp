@@ -9,19 +9,21 @@
 
 // One row per protections::recent_at() entry, newest first.
 //
-// Rebuilt only when the count or the newest record changes - the dirty-flag
-// pattern vehicle_class_menu.cpp uses for its per-class vehicle list, never a
-// rebuild every frame. update() only runs while this submenu is the one on
-// screen (submenu_handler::update() calls it on m_current alone), so even the
-// comparison itself costs nothing while the log is not being looked at, and a
-// rebuild fires at most once per newly-drained record - it cannot thrash,
-// because rebuild() immediately re-snapshots what it just built and the next
-// frame's comparison finds no difference until another record actually drains.
+// Rebuilt only when the history's generation changes - the dirty-flag pattern
+// vehicle_class_menu.cpp uses for its per-class vehicle list, never a rebuild
+// every frame. The generation increments on every append, so it catches a shift
+// even when the newest record is byte-identical to the previous one (which a
+// content comparison misses once the 32-entry buffer is full). update() only
+// runs while this submenu is the one on screen (submenu_handler::update() calls
+// it on m_current alone), so the comparison costs nothing while the log is not
+// being looked at, and a rebuild fires at most once per newly-drained record -
+// it cannot thrash, because rebuild() re-snapshots the generation it just built
+// against and the next frame finds no difference until another record drains.
 namespace {
-    int                  g_built_count      = -1;
-    bool                 g_built_has_newest = false;
-    protections::record  g_built_newest     = {};
-    uint32_t             g_built_suppressed = 0;
+    // A generation no real history reaches, so the first update() after load()
+    // rebuilds even if nothing has drained yet (recent_generation() == 0 then).
+    const uint32_t GEN_UNBUILT = 0xFFFFFFFFu;
+    uint32_t       g_built_generation = GEN_UNBUILT;
 
     void format_row(char* out, size_t out_size, const protections::record& r, uint32_t suppressed) {
         char player[16];
@@ -44,15 +46,7 @@ namespace {
     // the header stays to the three methods the brief specifies.
     void rebuild(protections_log_menu* self) {
         int count = protections::recent_count();
-
-        protections::record newest = {};
-        uint32_t suppressed = 0;
-        bool has_newest = protections::recent_at(0, &newest, &suppressed);
-
-        g_built_count      = count;
-        g_built_has_newest = has_newest;
-        g_built_newest     = newest;
-        g_built_suppressed = suppressed;
+        g_built_generation = protections::recent_generation();
 
         self->clear_options(0);
 
@@ -81,22 +75,9 @@ void protections_log_menu::load() {
 }
 
 void protections_log_menu::update() {
-    int count = protections::recent_count();
-
-    protections::record newest = {};
-    uint32_t suppressed = 0;
-    bool has_newest = protections::recent_at(0, &newest, &suppressed);
-
-    bool changed = (count != g_built_count) || (has_newest != g_built_has_newest) ||
-        (has_newest &&
-         (newest.filter_id != g_built_newest.filter_id ||
-          newest.player_index != g_built_newest.player_index ||
-          newest.flags != g_built_newest.flags ||
-          newest.detail_a != g_built_newest.detail_a ||
-          newest.detail_b != g_built_newest.detail_b ||
-          suppressed != g_built_suppressed));
-
-    if (changed)
+    // The generation increments on every drained record, so this catches a shift
+    // the newest-record content alone would hide once the buffer is full.
+    if (protections::recent_generation() != g_built_generation)
         rebuild(this);
 }
 

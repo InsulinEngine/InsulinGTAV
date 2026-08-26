@@ -30,6 +30,13 @@ namespace protections {
     // needs the last N to stay readable while the menu is open.
     static const int recent_capacity = 32;
 
-    int  recent_count();
+    int      recent_count();
+
+    // Increments on every append to the history. The log menu compares this to
+    // decide whether to rebuild its rows: once the buffer is full, two identical
+    // records in a row leave the newest record's content unchanged while the view
+    // has still shifted, and only the generation catches that.
+    uint32_t recent_generation();
+
     bool recent_at(int index_from_newest, record* out, uint32_t* suppressed_out);
 }

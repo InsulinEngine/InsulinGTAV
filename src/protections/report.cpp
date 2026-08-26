@@ -1,5 +1,6 @@
 #include "protections/report.h"
 #include "protections/ring.h"
+#include "protections/recent_history.h"
 #include "protections/coalesce.h"
 #include "menu/base/util/notify.h"
 #include "platform/log.h"
@@ -30,12 +31,11 @@ namespace {
     // Bounded history for the in-game log view (protections_log_menu). Written
     // only from drain_reports() on the script thread and read only from the
     // menu, also on the script thread - no atomics, unlike the ring above.
-    // Plain PODs zero-initialised via aggregate `= {}`, so this needs no
-    // .init_array entry.
-    struct recent_entry { record r; uint32_t suppressed; };
-    recent_entry g_recent[recent_capacity] = {};
-    int          g_recent_head  = 0;   // next write slot
-    int          g_recent_count = 0;
+    // Function-local static, so no .init_array entry.
+    recent_history_t<recent_capacity>& history() {
+        static recent_history_t<recent_capacity> instance;
+        return instance;
+    }
 }
 
 void report(filter_id id, int player_index, uint8_t flags,
@@ -108,10 +108,7 @@ void drain_reports()
         // Append to the in-game log history. `more` is the same coalesced
         // count the klog line above just printed as "+N more" - the menu shows
         // it as its own "+N" column instead of folding it into the row text.
-        g_recent[g_recent_head].r          = r;
-        g_recent[g_recent_head].suppressed = more;
-        g_recent_head = (g_recent_head + 1) % recent_capacity;
-        if (g_recent_count < recent_capacity) g_recent_count++;
+        history().append(r, more);
 
         // Then the screen, rate-limited. A sound-spam attack produces hundreds
         // of these per second; a notification each would be its own denial of
@@ -140,15 +137,11 @@ void drain_reports()
 uint32_t total_reports() { return __atomic_load_n(&g_total, __ATOMIC_RELAXED); }
 uint32_t total_dropped() { return reports().dropped(); }
 
-int recent_count() { return g_recent_count; }
+int recent_count() { return history().count(); }
+
+uint32_t recent_generation() { return history().generation(); }
 
 bool recent_at(int index_from_newest, record* out, uint32_t* suppressed_out) {
-    if (!out || index_from_newest < 0 || index_from_newest >= g_recent_count)
-        return false;
-    int slot = g_recent_head - 1 - index_from_newest;
-    while (slot < 0) slot += recent_capacity;
-    *out = g_recent[slot].r;
-    if (suppressed_out) *suppressed_out = g_recent[slot].suppressed;
-    return true;
+    return history().at(index_from_newest, out, suppressed_out);
 }
 }
