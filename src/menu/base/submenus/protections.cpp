@@ -123,6 +123,18 @@ void protections_menu::load() {
         .add_tooltip("Reset the weapon-hash baseline")
         .add_click([] { protections::weapon_learned_clear(); }));
 
+    add_option(button_option("Sound Hashes Learned")
+        .add_tooltip("Distinct network-play-sound hashes seen this session")
+        .add_click([] {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "%d distinct sound hashes", protections::sound_learned_count());
+            menu::notify::stacked("Protections", msg);
+        }));
+
+    add_option(button_option("Clear Sound Hashes")
+        .add_tooltip("Reset the sound-hash baseline")
+        .add_click([] { protections::sound_learned_clear(); }));
+
     add_option(break_option("Local Self-Care").ref());
 
     add_option(toggle_option("Anti Fire")

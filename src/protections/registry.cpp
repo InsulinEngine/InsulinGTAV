@@ -40,6 +40,10 @@ namespace {
             // 3-byte stub that check_prologue refuses (see hooks_events_scriptstate).
             { filter_id::script_world_state, "Script World State",  2, (int)mode::log, (int)mode::log, false, nullptr,                     false },
             { filter_id::script_entity_state,"Script Entity State", 2, (int)mode::log, (int)mode::log, false, &install_script_entity_state,true  },
+            // Tier 2 Task 11. Nuisance events; per-player path refuses.
+            { filter_id::play_sound,         "Play Sound",          2, (int)mode::log, (int)mode::log, false, &install_play_sound,         true  },
+            { filter_id::change_radio,       "Change Radio Station",2, (int)mode::log, (int)mode::log, false, &install_change_radio,       true  },
+            { filter_id::door_break,         "Door Break",          2, (int)mode::log, (int)mode::log, false, &install_door_break,         true  },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;

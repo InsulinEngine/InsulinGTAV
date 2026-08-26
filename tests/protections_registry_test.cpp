@@ -39,6 +39,11 @@ namespace protections {
     bool install_clear_ped_tasks()    { return false; }
     bool install_ragdoll_request()    { return false; }
     bool install_script_entity_state(){ return false; }
+    bool install_play_sound()         { return false; }
+    bool install_change_radio()       { return false; }
+    bool install_door_break()         { return false; }
+    int  sound_learned_count()        { return 0; }
+    void sound_learned_clear()        {}
 }
 
 static int g_failed = 0;

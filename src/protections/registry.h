@@ -39,6 +39,9 @@ namespace protections {
         ragdoll_request     = 37,
         script_world_state  = 38,   // identified but unhookable - Decide is a stub
         script_entity_state = 39,
+        play_sound          = 40,
+        change_radio        = 41,
+        door_break          = 42,
     };
 
     struct filter {
@@ -129,6 +132,15 @@ namespace protections {
     // SCRIPT_WORLD_STATE_EVENT is identified-but-unhookable (stub Decide) and has
     // a null installer, like pool_exhaustion.
     bool install_script_entity_state();
+
+    // Tier 2 Task 11. Nuisance events - PLAY_SOUND / CHANGE_RADIO / DOOR_BREAK,
+    // hooked at Decide. Sound-hash learn + per-player block; see
+    // src/protections/hooks_events_nuisance.cpp.
+    bool install_play_sound();
+    bool install_change_radio();
+    bool install_door_break();
+    int  sound_learned_count();
+    void sound_learned_clear();
 
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a
