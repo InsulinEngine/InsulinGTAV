@@ -36,6 +36,8 @@ namespace protections {
     void weapon_learned_clear()       {}
     bool install_give_control()       { return false; }
     bool install_request_control()    { return false; }
+    bool install_clear_ped_tasks()    { return false; }
+    bool install_ragdoll_request()    { return false; }
 }
 
 static int g_failed = 0;

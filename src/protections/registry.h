@@ -35,6 +35,8 @@ namespace protections {
         remove_weapon       = 33,
         give_control        = 34,
         request_control     = 35,
+        clear_ped_tasks     = 36,
+        ragdoll_request     = 37,
     };
 
     struct filter {
@@ -113,6 +115,12 @@ namespace protections {
     // net_events block plus a report; see src/protections/hooks_events_control.cpp.
     bool install_give_control();
     bool install_request_control();
+
+    // Tier 2 Task 9. Ped task events - CLEAR_PED_TASKS / RAGDOLL_REQUEST, hooked
+    // at Decide. Per-player net_events block plus a report; see
+    // src/protections/hooks_events_pedtask.cpp.
+    bool install_clear_ped_tasks();
+    bool install_ragdoll_request();
 
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a

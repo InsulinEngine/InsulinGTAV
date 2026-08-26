@@ -33,6 +33,9 @@ namespace {
             // Tier 2 Task 8. Control take-over events; per-player path refuses.
             { filter_id::give_control,       "Give Control",        2, (int)mode::log, (int)mode::log, false, &install_give_control,       true  },
             { filter_id::request_control,    "Request Control",     2, (int)mode::log, (int)mode::log, false, &install_request_control,    true  },
+            // Tier 2 Task 9. Ped griefing tools; per-player path refuses.
+            { filter_id::clear_ped_tasks,    "Clear Ped Tasks",     2, (int)mode::log, (int)mode::log, false, &install_clear_ped_tasks,    true  },
+            { filter_id::ragdoll_request,    "Ragdoll Request",     2, (int)mode::log, (int)mode::log, false, &install_ragdoll_request,    true  },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;
