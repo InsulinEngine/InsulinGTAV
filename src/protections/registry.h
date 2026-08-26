@@ -30,6 +30,9 @@ namespace protections {
 
         // Tier 2 - event filters.
         script_event        = 30,
+        weapon_damage       = 31,
+        give_weapon         = 32,
+        remove_weapon       = 33,
     };
 
     struct filter {
@@ -94,6 +97,15 @@ namespace protections {
     int  learned_count();
     bool learned_at(int index, uint32_t* hash, uint32_t* hits, uint8_t* first_player);
     void learned_clear();
+
+    // Tier 2 Task 7. Weapon events - WEAPON_DAMAGE / GIVE / REMOVE, hooked at
+    // Decide. Learn mode plus the per-player net_events block; see
+    // src/protections/hooks_events_weapon.cpp.
+    bool install_weapon_damage();
+    bool install_give_weapon();
+    bool install_remove_weapon();
+    int  weapon_learned_count();
+    void weapon_learned_clear();
 
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a

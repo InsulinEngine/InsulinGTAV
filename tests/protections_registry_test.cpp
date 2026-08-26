@@ -29,6 +29,11 @@ namespace protections {
     int  learned_count()              { return 0; }
     bool learned_at(int, uint32_t*, uint32_t*, uint8_t*) { return false; }
     void learned_clear()              {}
+    bool install_weapon_damage()      { return false; }
+    bool install_give_weapon()        { return false; }
+    bool install_remove_weapon()      { return false; }
+    int  weapon_learned_count()       { return 0; }
+    void weapon_learned_clear()       {}
 }
 
 static int g_failed = 0;

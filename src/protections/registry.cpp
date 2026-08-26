@@ -25,6 +25,11 @@ namespace {
             // Tier 2. can_block is true: the per-player net_events path genuinely
             // refuses events, even though the filter blocks nothing by type yet.
             { filter_id::script_event,       "Script Events",       2, (int)mode::log, (int)mode::log, false, &install_script_event,       true  },
+            // Tier 2 Task 7. can_block true: the per-player net_events path
+            // refuses. Weapon-hash validity block is a derived follow-up.
+            { filter_id::weapon_damage,      "Weapon Damage",       2, (int)mode::log, (int)mode::log, false, &install_weapon_damage,      true  },
+            { filter_id::give_weapon,        "Give Weapon",         2, (int)mode::log, (int)mode::log, false, &install_give_weapon,        true  },
+            { filter_id::remove_weapon,      "Remove Weapon",       2, (int)mode::log, (int)mode::log, false, &install_remove_weapon,      true  },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;

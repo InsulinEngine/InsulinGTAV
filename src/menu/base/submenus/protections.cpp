@@ -111,6 +111,18 @@ void protections_menu::load() {
         .add_tooltip("Start a fresh baseline - do this before a known-attack session")
         .add_click([] { protections::learned_clear(); }));
 
+    add_option(button_option("Weapon Hashes Learned")
+        .add_tooltip("Distinct weapon hashes seen across damage/give/remove events")
+        .add_click([] {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "%d distinct weapon hashes", protections::weapon_learned_count());
+            menu::notify::stacked("Protections", msg);
+        }));
+
+    add_option(button_option("Clear Weapon Hashes")
+        .add_tooltip("Reset the weapon-hash baseline")
+        .add_click([] { protections::weapon_learned_clear(); }));
+
     add_option(break_option("Local Self-Care").ref());
 
     add_option(toggle_option("Anti Fire")
