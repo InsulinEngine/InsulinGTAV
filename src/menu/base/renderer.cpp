@@ -84,9 +84,17 @@ namespace menu::renderer {
         }
 
         // scroller
+        const float scroll_target = global::ui::g_position.y + (scroller_position * global::ui::g_option_scale);
         if (global::ui::g_scroll_lerp) {
-            m_smooth_scroll = math::lerp(m_smooth_scroll, global::ui::g_position.y + (scroller_position * global::ui::g_option_scale), global::ui::g_delta * global::ui::g_scroll_lerp_speed);
-        } else m_smooth_scroll = global::ui::g_position.y + (scroller_position * global::ui::g_option_scale);
+            // Frame-rate-independent exponential smoothing. The old form
+            // lerp(a, b, dt * speed) overshoots as soon as dt*speed exceeds 1.0 -
+            // which happens below ~24 fps with speed 25 - and the scroller then
+            // jitters past its target, which is exactly what an fps drop showed.
+            // 1 - exp(-speed * dt) is always in [0,1) and converges at the same
+            // wall-clock rate at any frame rate.
+            const float t = 1.f - expf(-global::ui::g_scroll_lerp_speed * global::ui::g_delta);
+            m_smooth_scroll = math::lerp(m_smooth_scroll, scroll_target, t);
+        } else m_smooth_scroll = scroll_target;
 
         texture = get_texture(global::ui::m_scroller);
         draw_sprite_aligned(texture, { global::ui::g_position.x, m_smooth_scroll }, { global::ui::g_scale.x, global::ui::g_option_scale }, 0.f, global::ui::g_scroller);
