@@ -2,6 +2,7 @@
 #include "menu/base/base.h"
 #include "menu/base/submenu_handler.h"
 #include "menu/base/submenus/main.h"
+#include "menu/base/submenus/vehicle_preview.h"
 #include "rage/invoker/hash_natives.h"
 #include "rage/gfx.h"
 #include "platform/fault_handler.h"
@@ -383,6 +384,12 @@ namespace menu {
         // needs a player - and a protection can fire during loading, when the
         // gate is still closed. Records simply wait in the ring until here.
         protections::drain_reports();
+
+        // Vehicle-preview streaming pump: advances the background dict scan, the
+        // ready-frames settle gate and the deferred dict-release queue. Idle (no
+        // native work) until the spawner class list has been browsed. Below the
+        // overlay guard because it calls streaming natives.
+        menu::vehicle_preview::tick();
 
         // Step every loaded animation before anything draws, so update and render
         // stay separate and the renderer keeps no side effects.

@@ -7,6 +7,8 @@
 #include "menu/base/util/control.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/submenu_handler.h"
+#include "menu/base/base.h"
+#include "menu/base/submenus/vehicle_preview.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "game/vehicle_list.h"
@@ -90,6 +92,19 @@ namespace {
             menu::notify::stacked("Spawner", "Spawned");
         });
     }
+
+    // The highlighted option index maps 1:1 to the k-th vehicle of the current
+    // class: the class list has no header/break options before the buttons.
+    const char* highlighted_model() {
+        const int target = menu::base::get_current_option();
+        int seen = 0;
+        for (int i = 0; i < vehicle_list_count; i++) {
+            if (vehicle_list[i].cls != g_class) continue;
+            if (seen == target) return vehicle_list[i].model;
+            seen++;
+        }
+        return nullptr;
+    }
 }
 
 // ---- class list -------------------------------------------------------------
@@ -145,6 +160,10 @@ void vehicle_class_menu::update() {
     // separate steps, so rebuild here rather than relying on their ordering.
     if (g_built != g_class)
         update_once();
+
+    // Shop-style preview of the highlighted vehicle (drawn once its image has
+    // safely streamed in). tick() runs globally from the menu loop.
+    menu::vehicle_preview::browse(highlighted_model());
 }
 
 void vehicle_class_menu::update_once() {
