@@ -120,6 +120,7 @@ namespace {
             }
         }
         g_scan_state = SCAN_RUNNING;
+        platform::logf("VPrev", "scan start: %d dicts requested", g_dict_count);
     }
 
     // Read one loaded dict's texture-name hashes into the map. Returns false if the
@@ -128,18 +129,13 @@ namespace {
     bool scan_one(int i) {
         const uint64_t dict = find_txd(native::get_hash_key(g_dicts[i]));
         if (!dict) return false;
-        // Crash-markers: the last one printed before a hang/crash names exactly
-        // which read faulted (find_txd ptr, the +0x28/+0x20 reads, or the loop).
-        platform::klogf("vprev scan dict=%d(%s) ptr=%llx", i, g_dicts[i], (unsigned long long)dict);
         uint32_t* hashes = *(uint32_t* const volatile*)(dict + 0x20);
         uint32_t  count  = *(const volatile uint16_t*)(dict + 0x28);
-        platform::klogf("vprev scan dict=%d hashes=%llx count=%u", i, (unsigned long long)hashes, count);
         if (hashes && count) {
             if (count > 1024) count = 1024;       // sanity cap
             for (uint32_t j = 0; j < count; j++)
                 map_insert(hashes[j], (uint8_t)i);
         }
-        platform::klogf("vprev scan dict=%d done", i);
         return true;
     }
 
@@ -150,6 +146,7 @@ namespace {
                 if (!g_done[i] && g_req[i])
                     native::set_streamed_texture_dict_as_no_longer_needed(g_dicts[i]);
             g_scan_state = SCAN_DONE;
+            platform::logf("VPrev", "scan done: pass=%d remaining=%d", g_pass, g_remaining);
             return;
         }
         for (int i = 0; i < g_dict_count; i++) {
@@ -244,13 +241,21 @@ namespace {
     }
 
     void draw_box() {
-        // Marker fires once per drawn model, right before the first DRAW_SPRITE,
-        // so a draw-time crash is localised the same way the scan is.
+        // DIAGNOSTIC BUILD: the DRAW_SPRITE call is replaced by a flushed file-log
+        // of its exact arguments. This cannot fault the way the previous build did
+        // (no draw), and the logged pointer values tell us whether g_pinned / the
+        // dict pointer / g_tex are actually sane at draw time. Restore the draw
+        // once the log has pinned the cause.
         static int s_logged = -2;
-        if (s_logged != g_pinned) { platform::klogf("vprev draw dict=%d tex=%s", g_pinned, g_tex); s_logged = g_pinned; }
+        if (s_logged != g_pinned) {
+            const char* dname = (g_pinned >= 0 && g_pinned < g_dict_count) ? g_dicts[g_pinned] : "<OOR>";
+            platform::logf("VPrev", "draw pin=%d dict=%p name=%s tex_ptr=%p tex='%s'",
+                           g_pinned, (const void*)dname, dname, (const void*)g_tex, g_tex);
+            s_logged = g_pinned;
+        }
         // Bottom-right, ~16:9, clear of the left-hand menu and the tooltip.
-        const float w = 0.26f, h = 0.146f, cx = 0.845f, cy = 0.795f;
-        native::draw_sprite(g_dicts[g_pinned], g_tex, cx, cy, w, h, 0.f, 255, 255, 255, 255, 0);
+        // const float w = 0.26f, h = 0.146f, cx = 0.845f, cy = 0.795f;
+        // native::draw_sprite(g_dicts[g_pinned], g_tex, cx, cy, w, h, 0.f, 255, 255, 255, 255, 0);
     }
 }
 
