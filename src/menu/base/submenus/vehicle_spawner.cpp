@@ -7,7 +7,6 @@
 #include "menu/base/util/control.h"
 #include "menu/base/util/notify.h"
 #include "menu/base/submenu_handler.h"
-#include "menu/base/base.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "game/vehicle_list.h"
@@ -91,43 +90,6 @@ namespace {
             menu::notify::stacked("Spawner", "Spawned");
         });
     }
-
-    // ---- vehicle preview -----------------------------------------------------
-    // The highlighted option index maps 1:1 to the k-th vehicle of the current
-    // class: the class list has no header/break options before the buttons.
-    const char* highlighted_model() {
-        const int target = menu::base::get_current_option();
-        int seen = 0;
-        for (int i = 0; i < vehicle_list_count; i++) {
-            if (vehicle_list[i].cls != g_class) continue;
-            if (seen == target) return vehicle_list[i].model;
-            seen++;
-        }
-        return nullptr;
-    }
-
-    // Draw the highlighted vehicle's preview image the way the in-game shops do:
-    // the MPCarHUD* streamed dicts each hold one texture per vehicle, named after
-    // the model. Which of the four holds a given model is not queryable, so the
-    // model name is drawn against every loaded dict - the three that lack it draw
-    // nothing. Vehicles with no shop image simply show blank. Runs every frame
-    // the class list is open (from vehicle_class_menu::update).
-    void draw_preview() {
-        const char* model = highlighted_model();
-        if (!model || !model[0]) return;
-
-        static const char* const dicts[] = { "MPCarHUD", "MPCarHUD2", "MPCarHUD3", "MPCarHUD4" };
-
-        // Bottom-right box, ~16:9, clear of the left-hand menu and the tooltip.
-        const float w = 0.26f, h = 0.146f;
-        const float cx = 0.845f, cy = 0.795f;
-
-        for (int i = 0; i < 4; i++) {
-            native::request_streamed_texture_dict(dicts[i], false);
-            if (native::has_streamed_texture_dict_loaded(dicts[i]))
-                native::draw_sprite(dicts[i], model, cx, cy, w, h, 0.f, 255, 255, 255, 255, 0);
-        }
-    }
 }
 
 // ---- class list -------------------------------------------------------------
@@ -183,9 +145,6 @@ void vehicle_class_menu::update() {
     // separate steps, so rebuild here rather than relying on their ordering.
     if (g_built != g_class)
         update_once();
-
-    // Shop-style preview of the highlighted vehicle, redrawn each frame.
-    draw_preview();
 }
 
 void vehicle_class_menu::update_once() {
