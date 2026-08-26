@@ -42,6 +42,8 @@ namespace protections {
         play_sound          = 40,
         change_radio        = 41,
         door_break          = 42,
+        report_cash_spawn   = 43,   // identified but unhookable - rel8 in prologue
+        report_myself       = 44,   // identified but unhookable - rel8 in prologue
     };
 
     struct filter {

@@ -44,6 +44,11 @@ namespace {
             { filter_id::play_sound,         "Play Sound",          2, (int)mode::log, (int)mode::log, false, &install_play_sound,         true  },
             { filter_id::change_radio,       "Change Radio Station",2, (int)mode::log, (int)mode::log, false, &install_change_radio,       true  },
             { filter_id::door_break,         "Door Break",          2, (int)mode::log, (int)mode::log, false, &install_door_break,         true  },
+            // Tier 2 Task 12. Both Decides carry an early rel8 branch that
+            // check_prologue refuses, so no installer. Low value on LSO anyway -
+            // the self-report telemetry goes nowhere. See ANCHORS section 20.
+            { filter_id::report_cash_spawn,  "Report Cash Spawn",   2, (int)mode::log, (int)mode::log, false, nullptr,                     false },
+            { filter_id::report_myself,      "Report Myself",       2, (int)mode::log, (int)mode::log, false, nullptr,                     false },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;
