@@ -27,6 +27,9 @@ namespace protections {
         render_big_ped      = 18,
         pool_exhaustion     = 19,
         reliable_alloc      = 20,
+
+        // Tier 2 - event filters.
+        script_event        = 30,
     };
 
     struct filter {
@@ -82,6 +85,16 @@ namespace protections {
     // changes the return value. The recovery is deliberately unwritten; see
     // src/protections/hooks_reliable_alloc.cpp.
     bool install_reliable_alloc();
+
+    // Tier 2. CScriptedGameEvent::Decide - learn mode plus the per-player
+    // net_events block. See src/protections/hooks_script_event.cpp.
+    bool install_script_event();
+
+    // Learn-mode accessors for the menu. Script thread only.
+    int  learned_count();
+    bool learned_at(int index, uint32_t* hash, uint32_t* hits, uint8_t* first_player);
+    void learned_clear();
+
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a
     // 14-byte jump forces contains a rel8 branch that GoldHEN's stub does not

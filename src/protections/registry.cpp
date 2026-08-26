@@ -22,6 +22,9 @@ namespace {
             // null-checks every AllocCritical return, so there is nothing to
             // refuse. Detection only until a recovery exists.
             { filter_id::reliable_alloc,     "Reliable Allocator",  1, (int)mode::log, (int)mode::log, false, &install_reliable_alloc,     false },
+            // Tier 2. can_block is true: the per-player net_events path genuinely
+            // refuses events, even though the filter blocks nothing by type yet.
+            { filter_id::script_event,       "Script Events",       2, (int)mode::log, (int)mode::log, false, &install_script_event,       true  },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;

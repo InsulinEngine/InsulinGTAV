@@ -23,6 +23,12 @@ namespace protections {
     bool install_searchlight()        { return false; }
     bool install_skeleton_extension() { return false; }
     bool install_reliable_alloc()     { return false; }
+    bool install_script_event()       { return false; }
+    // Learn-mode accessors live in hooks_script_event.cpp, which this host test
+    // does not link; stub them so registry.h stays satisfiable on its own.
+    int  learned_count()              { return 0; }
+    bool learned_at(int, uint32_t*, uint32_t*, uint8_t*) { return false; }
+    void learned_clear()              {}
 }
 
 static int g_failed = 0;

@@ -99,6 +99,18 @@ void protections_menu::load() {
         .add_submenu<protections_log_menu>()
         .add_tooltip("The last 32 drained reports - filter, details, and how many more were coalesced into each one"));
 
+    add_option(button_option("Script Events Learned")
+        .add_tooltip("Distinct script-event hashes seen this session")
+        .add_click([] {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "%d distinct event hashes", protections::learned_count());
+            menu::notify::stacked("Protections", msg);
+        }));
+
+    add_option(button_option("Clear Learned Events")
+        .add_tooltip("Start a fresh baseline - do this before a known-attack session")
+        .add_click([] { protections::learned_clear(); }));
+
     add_option(break_option("Local Self-Care").ref());
 
     add_option(toggle_option("Anti Fire")
