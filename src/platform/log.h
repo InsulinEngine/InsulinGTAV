@@ -3,6 +3,10 @@
 // Ozark-compatible LOG* macros. On PS4 there is no console window; lines go to
 // a file (pullable over FTP) and, for the loud ones, an on-screen notification.
 namespace platform {
+    // Truncate the /data file log to empty. Call once at module_start so each
+    // boot starts fresh instead of appending to every prior session.
+    void log_reset();
+
     void log_line(const char* tag, const char* msg);
     void logf(const char* tag, const char* fmt, ...);
     void notify(const char* msg);   // on-screen + logged

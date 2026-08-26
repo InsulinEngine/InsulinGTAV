@@ -99,6 +99,10 @@ int module_start(size_t argc, const void *argp)
     // matters most when a boot goes wrong.
     platform::ensure_data_dir();
 
+    // Start each boot with a fresh file log - otherwise every session's lines
+    // pile up and the [Boot] marker we grep for is buried under the last run.
+    platform::log_reset();
+
     notify(PLUGIN_NAME " v" PLUGIN_VERSION " loaded");
 
     if (!rage::invoker::resolve_base())
