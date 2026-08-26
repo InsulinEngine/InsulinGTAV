@@ -37,6 +37,8 @@ namespace protections {
         request_control     = 35,
         clear_ped_tasks     = 36,
         ragdoll_request     = 37,
+        script_world_state  = 38,   // identified but unhookable - Decide is a stub
+        script_entity_state = 39,
     };
 
     struct filter {
@@ -121,6 +123,12 @@ namespace protections {
     // src/protections/hooks_events_pedtask.cpp.
     bool install_clear_ped_tasks();
     bool install_ragdoll_request();
+
+    // Tier 2 Task 10. SCRIPT_ENTITY_STATE_CHANGE, hooked at Decide. Per-player
+    // net_events block plus a report; see hooks_events_scriptstate.cpp.
+    // SCRIPT_WORLD_STATE_EVENT is identified-but-unhookable (stub Decide) and has
+    // a null installer, like pool_exhaustion.
+    bool install_script_entity_state();
 
     // No install_pool_exhaustion(): rage::fwBasePool::New() is identified
     // (RVA 0x1EF6A00) but cannot be detoured safely - the 15-byte steal a

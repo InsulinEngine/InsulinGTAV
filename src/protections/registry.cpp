@@ -36,6 +36,10 @@ namespace {
             // Tier 2 Task 9. Ped griefing tools; per-player path refuses.
             { filter_id::clear_ped_tasks,    "Clear Ped Tasks",     2, (int)mode::log, (int)mode::log, false, &install_clear_ped_tasks,    true  },
             { filter_id::ragdoll_request,    "Ragdoll Request",     2, (int)mode::log, (int)mode::log, false, &install_ragdoll_request,    true  },
+            // Tier 2 Task 10. script_world_state has no installer: its Decide is a
+            // 3-byte stub that check_prologue refuses (see hooks_events_scriptstate).
+            { filter_id::script_world_state, "Script World State",  2, (int)mode::log, (int)mode::log, false, nullptr,                     false },
+            { filter_id::script_entity_state,"Script Entity State", 2, (int)mode::log, (int)mode::log, false, &install_script_entity_state,true  },
         };
         *out_count = (int)(sizeof(t) / sizeof(t[0]));
         return t;
