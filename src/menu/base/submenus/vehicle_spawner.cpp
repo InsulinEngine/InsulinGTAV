@@ -1,5 +1,5 @@
 #include "menu/base/submenus/vehicle_spawner.h"
-#include "menu/base/submenus/spawner.h"
+#include "menu/base/submenus/vehicle.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/break.h"
 #include "menu/base/options/toggle.h"
@@ -95,7 +95,7 @@ namespace {
 // ---- class list -------------------------------------------------------------
 void vehicle_spawner_menu::load() {
     set_name("Vehicles");
-    set_parent<spawner_menu>();
+    set_parent<vehicle_menu>();
 
     add_option(toggle_option("Warp Into Vehicle")
         .add_toggle(g_warp)

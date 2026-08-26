@@ -18,6 +18,7 @@
 #include "menu/base/submenus/vehicle_doors.h"
 #include "menu/base/submenus/vehicle_tyre_tracks.h"
 #include "menu/base/submenus/handling_editor.h"
+#include "menu/base/submenus/vehicle_spawner.h"
 #include "menu/base/options/button.h"
 #include "menu/base/options/toggle.h"
 #include "menu/base/options/scroll.h"
@@ -97,6 +98,9 @@ void vehicle_menu::load() {
     add_option(scroll_option<int>(SCROLLSELECT, "Downgrades")
         .add_scroll(g_downgrades, 0, 1, g_downgrade_list)
         .add_click([] { set_all_mods(false); }));
+
+    add_option(submenu_option("Spawn Vehicle").add_submenu<vehicle_spawner_menu>()
+        .add_tooltip("Browse and spawn any vehicle by class"));
 
     add_option(submenu_option("Customs").add_submenu<vehicle_customs_menu>());
     add_option(submenu_option("Health").add_submenu<vehicle_health_menu>());
