@@ -1,15 +1,17 @@
 #include "net/jobs.h"
 
 namespace {
-    // Same primitive the protections ring and game_thread.cpp use. The critical
-    // section is a handful of field writes, so a spin is cheaper than anything
-    // that could put the HTTP thread to sleep holding the game thread up.
+    // Same primitive src/game/game_thread.cpp:35-40 uses (see its :9 note):
+    // clang's __atomic builtins are word-sized, lock-free on x86-64, and need
+    // no runtime lib. The critical section here is a handful of field writes,
+    // so a spin is cheaper than anything that could put the HTTP thread to
+    // sleep holding the game thread up.
     struct guard {
         volatile int* lock;
         explicit guard(volatile int* l) : lock(l) {
-            while (__sync_lock_test_and_set(lock, 1)) { }
+            while (__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE)) { }
         }
-        ~guard() { __sync_lock_release(lock); }
+        ~guard() { __atomic_store_n(lock, 0, __ATOMIC_RELEASE); }
     };
 }
 
