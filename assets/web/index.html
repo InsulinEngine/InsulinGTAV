@@ -76,14 +76,23 @@ pin.value = new URLSearchParams(location.search).get('pin')
 // map would stay blank forever even after the PIN is typed in. Rebuilding the
 // <img> tags is what makes the browser re-request the tiles with the PIN
 // that is actually current.
+//
+// tilesBroken records that at least one tile failed to load, for any reason
+// (bad PIN, a transient network hiccup, the server briefly off). It is not
+// acted on here - poll() already runs every 500ms and is the one place that
+// knows the server is reachable again, so it does the retrying. That reuses
+// the existing heartbeat instead of adding a second timer or any backoff.
+let tilesBroken = false;
 const tiles = $('tiles');
 function loadTiles() {
+  tilesBroken = false;
   tiles.innerHTML = '';
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++) {
       const img = document.createElement('img');
       img.src = `/map/tile_${r}_${c}.png?pin=${encodeURIComponent(pin.value)}`;
       img.alt = '';
+      img.onerror = () => { tilesBroken = true; };
       tiles.appendChild(img);
     }
 }
@@ -111,12 +120,21 @@ async function poll() {
     if (!r.ok)            { $('status').textContent = 'no state yet'; return; }
     const j = await r.json();
 
+    // A successful state fetch proves the server is reachable again. If a
+    // tile load failed earlier, that's the signal to retry it - once, right
+    // here, driven by the same heartbeat rather than a timer of its own.
+    // loadTiles() clears the flag itself, so this can't storm: while the
+    // server is actually down, this fetch fails too and nothing retries.
+    const tilesWereBroken = tilesBroken;
+    if (tilesWereBroken) loadTiles();
+
     const f = worldToFrac(j.x, j.y);
     const me = $('me');
+    let statusText;
     if (f.u < 0 || f.u > 1 || f.v < 0 || f.v > 1) {
       // Off the bitmap: interiors and the far ocean sit outside it.
       me.hidden = true;
-      $('status').textContent = 'off map';
+      statusText = 'off map';
     } else {
       me.hidden = false;
       me.style.left = (f.u * 100) + '%';
@@ -124,8 +142,9 @@ async function poll() {
       // The heading is degrees clockwise from north, which is what CSS
       // rotate() means too, so it goes straight in.
       me.style.transform = `rotate(${j.heading}deg)`;
-      $('status').textContent = 'connected';
+      statusText = 'connected';
     }
+    $('status').textContent = tilesWereBroken ? statusText + ' (reloading tiles)' : statusText;
     $('pos').textContent =
       `${j.x.toFixed(0)}, ${j.y.toFixed(0)}, ${j.z.toFixed(0)}  ${j.heading.toFixed(0)}°`;
   } catch (e) {
@@ -133,7 +152,24 @@ async function poll() {
   }
 }
 
+// A teleport can't be undone and the whole map is one tap target, so a click
+// that ends far from where the pointer went down - a scroll, a drag, a wipe
+// across the screen - must not fire one. 10 CSS px is enough slack for a
+// finger to wobble during a genuine tap (typical touch tap tolerances run
+// 8-10px) while still catching any real drag, since the map is up to 720px
+// across.
+const TAP_SLOP = 10;
+let downX = null, downY = null;
+$('wrap').addEventListener('pointerdown', ev => {
+  downX = ev.clientX;
+  downY = ev.clientY;
+});
+
 $('wrap').addEventListener('click', async ev => {
+  if (downX !== null && Math.hypot(ev.clientX - downX, ev.clientY - downY) > TAP_SLOP) {
+    return; // moved too far between pointerdown and click - not a tap
+  }
+
   const box = ev.currentTarget.getBoundingClientRect();
   const u = (ev.clientX - box.left) / box.width;
   const v = (ev.clientY - box.top)  / box.height;
