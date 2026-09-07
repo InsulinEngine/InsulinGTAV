@@ -12,6 +12,12 @@ file(GLOB_RECURSE INSULIN_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/
 add_orbis_target(InsulinGTAV
     TYPE GHPLUGIN
     SOURCES ${INSULIN_SOURCES}
+    # The GHPLUGIN defaults plus SceNet, for the companion server's socket.
+    # LIBS replaces the default list rather than extending it, and setting
+    # ORBIS_LIBS from out here does nothing: add_orbis_target runs
+    # cmake_parse_arguments with LIBS as a keyword, which clears the
+    # caller's ORBIS_LIBS inside the function before the default kicks in.
+    LIBS SceLibcInternal kernel SceSysmodule GoldHEN_Hook SceNet
 )
 
 target_include_directories(InsulinGTAV PRIVATE src)

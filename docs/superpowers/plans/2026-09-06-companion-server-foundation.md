@@ -1202,13 +1202,17 @@ The only file that touches sockets, and the only one in this plan that cannot be
 
 - [ ] **Step 1: Add SceNet to the link libraries**
 
-`cmake/OrbisTargets.cmake` only sets `ORBIS_LIBS` when it is not already defined, so the top-level file can pre-set it. Add this to `CMakeLists.txt` immediately **before** the `add_orbis_target(...)` call:
+Pass the `LIBS` keyword to `add_orbis_target(...)` in `CMakeLists.txt`. `LIBS` **replaces** the default list rather than extending it, so the GHPLUGIN defaults are repeated:
 
 ```cmake
-# Default GHPLUGIN libs plus SceNet: the companion server opens a socket.
-# OrbisTargets.cmake only fills ORBIS_LIBS in when it is not already set.
-set(ORBIS_LIBS SceLibcInternal kernel SceSysmodule GoldHEN_Hook SceNet)
+add_orbis_target(InsulinGTAV
+    TYPE GHPLUGIN
+    SOURCES ${INSULIN_SOURCES}
+    LIBS SceLibcInternal kernel SceSysmodule GoldHEN_Hook SceNet
+)
 ```
+
+Not by pre-setting `ORBIS_LIBS` from the top level: `add_orbis_target` runs `cmake_parse_arguments` with `LIBS` among its multi-value keywords, which clears the caller's `ORBIS_LIBS` inside the function before `if(NOT ORBIS_LIBS)` is reached. That route links without `-lSceNet` and fails at link time on every `sceNet*` symbol.
 
 - [ ] **Step 2: Write the header**
 
@@ -1427,6 +1431,8 @@ wsl.exe bash -lc 'export OO_PS4_TOOLCHAIN=/home/bbc/OpenOrbis-PS4-Toolchain; \
   cd /mnt/e/Projects/PS4/InsulinEngine/InsulinGTAV && cmake --build build-wsl'
 ```
 Expected: builds clean. If a `sceNet*` symbol or an `ORBIS_NET_*` constant does not resolve, check its spelling against `$OO_PS4_TOOLCHAIN/include/orbis/Net.h` and fix it there — that header is the authority, not this plan.
+
+Note that `orbis/Net.h` uses `size_t` and the fixed-width types without including anything that defines them, so `stddef.h`/`stdint.h` have to be included ahead of it.
 
 - [ ] **Step 5: Commit**
 
