@@ -14,7 +14,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 namespace {
 
@@ -112,32 +111,55 @@ void companion_menu::feature_update() {
     }
 
     // Deliberately above the `!g_started` gate below: if the server is turned
-    // off mid-teleport, the player can already be faded to black at 1000m.
-    // The machine's own frame counters are what get them back down and faded
-    // in (streaming/resolving timeouts, then fade_in in release()); stopping
-    // this tick when the server stops would freeze those counters and strand
-    // the player on a black screen until the server is re-enabled. Finishing
-    // an in-flight teleport is intended even with the server off - do not
-    // move this back into the block below.
+    // off mid-teleport, the player can already be faded to black and frozen
+    // partway down the sweep. The machine's own frame counters are what get
+    // them onto the ground and faded in (the per-rung dwells, then fade_in in
+    // finish()); stopping this tick when the server stops would freeze those
+    // counters and strand the player on a black screen until the server is
+    // re-enabled. Finishing an in-flight teleport is intended even with the
+    // server off - do not move this back into the block below.
     bool was_busy = g_teleporter.busy();
     g_teleporter.tick(game::live_actions());
 
     if (was_busy && !g_teleporter.busy()) {
         // The one piece of console evidence for "did the ground resolve, and
-        // what did it say": read straight off the entity (pure memory, no
-        // native - safe even with the server off, same reasoning as the tick
-        // above) rather than waiting for the snapshot block below, which is
-        // skipped when !g_started. Giving up leaves the subject sitting at
-        // probe_z to fall; landing moves it well off that altitude, so the
-        // two are easy to tell apart from the resulting z alone.
-        const float* m = game::local_player_matrix();
-        float z = m ? m[14] : game::tp::probe_z;
-        bool gave_up = g_last_req.ground &&
-                       fabsf(z - game::tp::probe_z) < 5.0f;
-        platform::logf("net", "teleport to %.1f %.1f %s, z=%.1f",
-                       g_last_req.x, g_last_req.y,
-                       gave_up ? "gave up (ground never resolved)" : "landed",
-                       z);
+        // what did it say". The machine reports its own outcome, so this is a
+        // fact rather than an inference: it used to be derived from the ped's
+        // z against the probe altitude, which was already fragile (the machine
+        // may have landed a VEHICLE, whose matrix that is not) and which the
+        // sweep makes impossible anyway - a give-up and a successful low
+        // landing now end at similar altitudes.
+        switch (g_teleporter.result()) {
+        case game::tp::outcome::landed:
+            platform::logf("net",
+                           "teleport to %.1f %.1f landed: ground=%.1f from rung %d/%d (%.0fm)",
+                           g_last_req.x, g_last_req.y,
+                           g_teleporter.ground_height(),
+                           g_teleporter.rung() + 1, game::tp::rung_count,
+                           game::tp::rungs[g_teleporter.rung()]);
+            break;
+        case game::tp::outcome::placed:
+            platform::logf("net", "teleport to %.1f %.1f placed at requested z=%.1f",
+                           g_last_req.x, g_last_req.y, g_last_req.z);
+            break;
+        case game::tp::outcome::no_ground:
+            platform::logf("net",
+                           "teleport to %.1f %.1f gave up: no ground from any of %d rungs "
+                           "(%.0fm..%.0fm), left at %.0fm to fall",
+                           g_last_req.x, g_last_req.y, game::tp::rung_count,
+                           game::tp::rungs[0],
+                           game::tp::rungs[game::tp::rung_count - 1],
+                           game::tp::fallback_z);
+            break;
+        case game::tp::outcome::no_fade:
+            platform::logf("net",
+                           "teleport to %.1f %.1f abandoned: screen never went black "
+                           "(something else faded it back in); player not moved",
+                           g_last_req.x, g_last_req.y);
+            break;
+        default:
+            break;
+        }
     }
 
     if (!g_started) return;
@@ -163,8 +185,9 @@ void companion_menu::feature_update() {
             game::tp::request r = { j.x, j.y, j.z, j.ground };
             g_teleporter.submit(r);
             g_last_req = r;
-            platform::logf("net", "teleport to %.1f %.1f ground=%d",
-                           j.x, j.y, (int)j.ground);
+            platform::logf("net", "teleport to %.1f %.1f ground=%d, ground native %s",
+                           j.x, j.y, (int)j.ground,
+                           game::ground_native_ready() ? "ready" : "MISSING");
         }
     }
 }

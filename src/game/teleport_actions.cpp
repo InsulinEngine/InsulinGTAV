@@ -1,6 +1,7 @@
 #include "game/teleport_actions.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/natives_hash.h"
+#include "rage/invoker/hash_natives.h"
 
 namespace {
 
@@ -26,6 +27,16 @@ namespace {
         // stream), so that first call legitimately has nothing captured yet
         // and must resolve live. Every later call in the same flight reuses
         // the captured handle instead.
+        //
+        // Those later calls - one per rung of the descending sweep, plus the
+        // final placement - all happen while the subject is FROZEN.
+        // set_entity_coords_no_offset teleports an entity regardless of the
+        // fixed-physics flag freeze_entity_position sets, which is what makes
+        // the sweep possible at all. If a console run ever shows the subject
+        // stuck on the top rung with the log reporting no rung answered, this
+        // assumption is the first thing to doubt: the fix would be to unfreeze
+        // and refreeze around each move (safe within one tick, since no frame
+        // is processed in between) rather than to abandon the sweep.
         Entity e = g_subject ? g_subject : game::teleport_subject();
         if (!e) return;
         native::set_entity_coords_no_offset(e, x, y, z, false, false, false);
@@ -46,11 +57,18 @@ namespace {
         return native::get_ground_z_for_3d_coord(x, y, probe, out, false, false);
     }
 
-    // Direct RVA natives (natives.h:413, natives.h:857) - both work from the
-    // first frame, unlike act_ground_z above. Holds the subject at probe
-    // altitude while collision streams in: without this it falls away from
-    // the point being probed, and the ground query never finds anything
-    // under it.
+    // A direct RVA native (natives.h:413) - works from the first frame,
+    // unlike act_ground_z above. Holds the subject at whichever rung of the
+    // sweep it was last moved to: without this it falls away between queries
+    // and the sweep's altitudes stop meaning anything.
+    //
+    // There used to be an act_collision_ready() next to this one, wrapping
+    // has_collision_loaded_around_entity (natives.h:857). It is gone. It asks
+    // whether collision is loaded AROUND THE ENTITY, and at 1000m that is the
+    // empty air the entity is sitting in: it reported ready instantly while
+    // the ground a kilometre below had never been asked for. The sweep's
+    // per-rung dwell plus the ground query itself subsume it, and the query
+    // is a strictly better signal because it answers the actual question.
     void act_freeze(bool on) {
         if (on) {
             // The one place g_subject is resolved. Everything else in the
@@ -66,11 +84,6 @@ namespace {
         if (g_subject) native::freeze_entity_position(g_subject, false);
         g_subject = 0;
     }
-
-    bool act_collision_ready() {
-        Entity e = g_subject ? g_subject : game::teleport_subject();
-        return e && native::has_collision_loaded_around_entity(e);
-    }
 }
 
 namespace game {
@@ -85,13 +98,23 @@ namespace game {
         return ped;
     }
 
+    bool ground_native_ready() {
+        // Same hash act_ground_z calls through: GET_GROUND_Z_FOR_3D_COORD,
+        // natives_hash.h:694. Duplicated deliberately - the generated header
+        // gives no way to ask "is this one registered", and a sweep that
+        // reports "no ground from any rung" because the table is not up yet
+        // is a completely different finding from one that streams badly.
+        return rage::hash_natives::usable() &&
+               rage::hash_natives::find(0xB1EAADCB692D69CEULL) != nullptr;
+    }
+
     const tp::actions& live_actions() {
         // Function-local static: .init_array does not run in this plugin, so a
         // namespace-scope object with an initialiser would stay zeroed.
         static tp::actions a = {
             act_fade_out, act_faded_out, act_fade_in,
             act_move, act_stream, act_ground_z,
-            act_freeze, act_collision_ready
+            act_freeze
         };
         return a;
     }

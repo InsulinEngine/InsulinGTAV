@@ -16,4 +16,12 @@ namespace game {
     // The real actions table. Safe to call before the hash natives are up; the
     // ground query simply reports "not yet", which the machine already handles.
     const tp::actions& live_actions();
+
+    // Is GET_GROUND_Z_FOR_3D_COORD actually callable yet? It is a hash native,
+    // so it is inert until the command table has been recovered and verified.
+    // While it is inert every rung of the sweep reports "no ground" and the
+    // give-up log looks exactly like a streaming failure - a different bug
+    // with a different fix. Logged once per teleport so a console run can
+    // never confuse the two.
+    bool ground_native_ready();
 }
