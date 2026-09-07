@@ -13,6 +13,7 @@
           border: 1px solid #333; background: #14161a; color: inherit; width: 5em; }
   .pill { background: #1e2128; border-radius: 999px; padding: 5px 11px;
           font-variant-numeric: tabular-nums; color: #b6bec9; }
+  #reload { font: inherit; border: 0; cursor: pointer; }
   #wrap { position: relative; width: 100%; max-width: 720px;
           aspect-ratio: 2 / 3; background: #0e1013; border-radius: 10px;
           overflow: hidden; touch-action: manipulation; }
@@ -35,6 +36,7 @@
   <label>PIN <input id="pin" maxlength="4" inputmode="numeric"></label>
   <span class="pill" id="pos">-</span>
   <span class="pill" id="status">waiting</span>
+  <button type="button" id="reload" class="pill" hidden>reload tiles</button>
 </div>
 
 <div id="wrap">
@@ -66,37 +68,86 @@ const pin = $('pin');
 pin.value = new URLSearchParams(location.search).get('pin')
          || localStorage.getItem('pin') || '';
 
-// Lay the tiles out. Row 0 is north, column 0 is west. The PIN rides in the
-// query string because an <img> request cannot set a header - which is exactly
-// why pin_ok() in src/net/conn.cpp accepts both forms.
+// Lay the tiles out, one request at a time. Row 0 is north, column 0 is
+// west. The PIN rides in the query string because an <img> request cannot
+// set a header - which is exactly why pin_ok() in src/net/conn.cpp accepts
+// both forms.
 //
-// This is a function, not a one-shot loop, because a first-time visitor has
-// no PIN yet (nothing in the URL, nothing in localStorage): the six <img>
-// requests would each 401 once and an <img> never retries on its own, so the
-// map would stay blank forever even after the PIN is typed in. Rebuilding the
-// <img> tags is what makes the browser re-request the tiles with the PIN
-// that is actually current.
+// Sequential, not six parallel fetches: write_response() in src/net/http.cpp
+// sends no Cache-Control/ETag/Last-Modified, the server closes the
+// connection after every response, and it listens with a backlog of 2
+// (sceNetListen(g_listen, 2)) - one request at a time is what it can
+// actually take. Chaining each <img>'s src off the previous one's onload
+// costs a fraction of a second on a LAN and doesn't fight the server for
+// its one or two connection slots.
 //
-// tilesBroken records that at least one tile failed to load, for any reason
-// (bad PIN, a transient network hiccup, the server briefly off). It is not
-// acted on here - poll() already runs every 500ms and is the one place that
-// knows the server is reachable again, so it does the retrying. That reuses
-// the existing heartbeat instead of adding a second timer or any backoff.
-let tilesBroken = false;
+// A generation counter is captured in the closure of each load chain. If
+// loadTiles() runs again (a corrected PIN, a manual reload) while an older
+// chain still has a request in flight, that chain's onload/onerror checks
+// its captured gen against the current tileGen and, if it no longer
+// matches, does nothing - it can't retry, advance, or reveal the reload
+// button on behalf of a generation nobody is looking at any more.
+//
+// Each tile gets up to MAX_TILE_RETRIES independent retries, done by
+// re-assigning its own .src to the same URL - with no cache headers to
+// short-circuit it, that reflecting the src attribute is a genuine re-fetch,
+// not a no-op. Only that one tile is retried, never all six, so a single
+// flaky tile can't turn into a six-image storm every time something else
+// happens to succeed (that was the bug: rebuilding the whole grid on every
+// successful /api/state poll while the server was merely congested rather
+// than down). Once a tile's retries are exhausted the chain moves on to the
+// rest, and the #reload button appears as the way to try again by hand.
+const MAX_TILE_RETRIES = 3;
+let tileGen = 0;
 const tiles = $('tiles');
+const reloadBtn = $('reload');
+
 function loadTiles() {
-  tilesBroken = false;
+  const gen = ++tileGen;
+  reloadBtn.hidden = true;
   tiles.innerHTML = '';
-  for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++) {
-      const img = document.createElement('img');
-      img.src = `/map/tile_${r}_${c}.png?pin=${encodeURIComponent(pin.value)}`;
-      img.alt = '';
-      img.onerror = () => { tilesBroken = true; };
-      tiles.appendChild(img);
-    }
+
+  const total = ROWS * COLS;
+  const imgs = [];
+  for (let i = 0; i < total; i++) {
+    const img = document.createElement('img');
+    img.alt = '';
+    tiles.appendChild(img);
+    imgs.push(img);
+  }
+
+  function loadOne(i) {
+    if (i >= total) return;
+    const img = imgs[i];
+    const r = Math.floor(i / COLS), c = i % COLS;
+    const url = `/map/tile_${r}_${c}.png?pin=${encodeURIComponent(pin.value)}`;
+    let retries = 0;
+
+    img.onload = () => { if (gen === tileGen) loadOne(i + 1); };
+    img.onerror = () => {
+      if (gen !== tileGen) return;        // a discarded generation - ignore
+      if (++retries <= MAX_TILE_RETRIES) {
+        img.src = url;                    // re-fetch: nothing caches this response
+      } else {
+        reloadBtn.hidden = false;         // gave up on this one; offer a manual retry
+        loadOne(i + 1);                   // don't let it block the rest of the chain
+      }
+    };
+    img.src = url;
+  }
+  loadOne(0);
 }
-pin.addEventListener('change', () => {
+
+reloadBtn.addEventListener('click', loadTiles);
+
+// 'input' rather than 'change' (which on mobile fires only on blur), so the
+// map recovers the instant a correct 4th digit lands instead of waiting for
+// the user to dismiss the keyboard. The length check keeps this from
+// spamming near-certain 401s for every incomplete prefix while the PIN is
+// still being typed - maxlength="4" means the value can only ever reach
+// length 4 by way of a complete, four-digit PIN (typed or pasted).
+pin.addEventListener('input', () => {
+  if (pin.value.length !== 4) return;
   localStorage.setItem('pin', pin.value);
   loadTiles();
 });
@@ -120,21 +171,12 @@ async function poll() {
     if (!r.ok)            { $('status').textContent = 'no state yet'; return; }
     const j = await r.json();
 
-    // A successful state fetch proves the server is reachable again. If a
-    // tile load failed earlier, that's the signal to retry it - once, right
-    // here, driven by the same heartbeat rather than a timer of its own.
-    // loadTiles() clears the flag itself, so this can't storm: while the
-    // server is actually down, this fetch fails too and nothing retries.
-    const tilesWereBroken = tilesBroken;
-    if (tilesWereBroken) loadTiles();
-
     const f = worldToFrac(j.x, j.y);
     const me = $('me');
-    let statusText;
     if (f.u < 0 || f.u > 1 || f.v < 0 || f.v > 1) {
       // Off the bitmap: interiors and the far ocean sit outside it.
       me.hidden = true;
-      statusText = 'off map';
+      $('status').textContent = 'off map';
     } else {
       me.hidden = false;
       me.style.left = (f.u * 100) + '%';
@@ -142,9 +184,8 @@ async function poll() {
       // The heading is degrees clockwise from north, which is what CSS
       // rotate() means too, so it goes straight in.
       me.style.transform = `rotate(${j.heading}deg)`;
-      statusText = 'connected';
+      $('status').textContent = 'connected';
     }
-    $('status').textContent = tilesWereBroken ? statusText + ' (reloading tiles)' : statusText;
     $('pos').textContent =
       `${j.x.toFixed(0)}, ${j.y.toFixed(0)}, ${j.z.toFixed(0)}  ${j.heading.toFixed(0)}°`;
   } catch (e) {
@@ -158,17 +199,31 @@ async function poll() {
 // finger to wobble during a genuine tap (typical touch tap tolerances run
 // 8-10px) while still catching any real drag, since the map is up to 720px
 // across.
+//
+// Each click consumes the pointerdown it belongs to - downX/downY reset to
+// null at the end, whether the click was accepted or not - so a stale
+// coordinate from an earlier, unrelated gesture can never validate a later
+// one. A click with no pointerdown on record at all (downX still null) is
+// deliberately BLOCKED, not let through: on real mouse/touch input a
+// pointerdown always precedes its click, so this branch only fires for
+// something outside that model (a synthetic click, an assistive tool), and
+// since a teleport can't be undone, an ambiguous case should fail closed,
+// not open.
 const TAP_SLOP = 10;
 let downX = null, downY = null;
 $('wrap').addEventListener('pointerdown', ev => {
   downX = ev.clientX;
   downY = ev.clientY;
 });
+$('wrap').addEventListener('pointercancel', () => {
+  downX = downY = null;
+});
 
 $('wrap').addEventListener('click', async ev => {
-  if (downX !== null && Math.hypot(ev.clientX - downX, ev.clientY - downY) > TAP_SLOP) {
-    return; // moved too far between pointerdown and click - not a tap
-  }
+  const isTap = downX !== null &&
+    Math.hypot(ev.clientX - downX, ev.clientY - downY) <= TAP_SLOP;
+  downX = downY = null;             // this click has consumed its pointerdown either way
+  if (!isTap) return;                // no matching pointerdown, or it moved too far
 
   const box = ev.currentTarget.getBoundingClientRect();
   const u = (ev.clientX - box.left) / box.width;
