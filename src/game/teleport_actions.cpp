@@ -4,12 +4,29 @@
 
 namespace {
 
+    // The subject captured for the life of one teleport. teleport_subject()
+    // returns the vehicle when the player is seated, else the ped - but
+    // nothing locks player input during the black screen, only the fade and
+    // the freeze, so the player can exit the vehicle mid-streaming/resolving
+    // and change which entity that function returns. Freezing one entity and
+    // later unfreezing a *different* one (re-resolved after the exit) leaves
+    // the first stranded, frozen, floating at probe altitude forever - worse
+    // than the fall this freeze exists to prevent. Capturing once at
+    // act_freeze(true) and reusing that handle everywhere else in the flight
+    // keeps freeze/unfreeze paired to the same entity regardless of what the
+    // player does in between.
+    Entity g_subject = 0;
+
     void act_fade_out()  { native::do_screen_fade_out(400); }
     bool act_faded_out() { return native::is_screen_faded_out(); }
     void act_fade_in()   { native::do_screen_fade_in(400); }
 
     void act_move(float x, float y, float z) {
-        Entity e = game::teleport_subject();
+        // The FSM calls move once before freeze(true) (order: move, freeze,
+        // stream), so that first call legitimately has nothing captured yet
+        // and must resolve live. Every later call in the same flight reuses
+        // the captured handle instead.
+        Entity e = g_subject ? g_subject : game::teleport_subject();
         if (!e) return;
         native::set_entity_coords_no_offset(e, x, y, z, false, false, false);
     }
@@ -35,12 +52,23 @@ namespace {
     // the point being probed, and the ground query never finds anything
     // under it.
     void act_freeze(bool on) {
-        Entity e = game::teleport_subject();
-        if (e) native::freeze_entity_position(e, on);
+        if (on) {
+            // The one place g_subject is resolved. Everything else in the
+            // flight reuses this handle rather than re-resolving, which is
+            // exactly what avoids the vehicle/ped aliasing above.
+            g_subject = game::teleport_subject();
+            if (g_subject) native::freeze_entity_position(g_subject, true);
+            return;
+        }
+        // Release the captured handle, not whatever teleport_subject() would
+        // return now - the player may have exited the vehicle since capture,
+        // and re-resolving here is exactly the bug this file exists to avoid.
+        if (g_subject) native::freeze_entity_position(g_subject, false);
+        g_subject = 0;
     }
 
     bool act_collision_ready() {
-        Entity e = game::teleport_subject();
+        Entity e = g_subject ? g_subject : game::teleport_subject();
         return e && native::has_collision_loaded_around_entity(e);
     }
 }
