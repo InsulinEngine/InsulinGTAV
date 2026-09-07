@@ -20,6 +20,7 @@
 #define OZARK_LOGO      OZARK_DIR "/logo.dds"
 #define OZARK_IMAGES    OZARK_DIR "/images"
 #define OZARK_IMGCACHE  OZARK_IMAGES "/.cache"
+#define OZARK_WEB       OZARK_DIR "/web"
 
 namespace platform {
     // Create OZARK_DIR if it is not there. Safe to call repeatedly and safe

@@ -8,6 +8,7 @@
 #include "net/jobs.h"
 #include "game/player_valid.h"
 #include "platform/log.h"
+#include "platform/paths.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -87,7 +88,7 @@ void companion_menu::feature_update() {
     if (g_enabled && !g_started) {
         make_pin();
         if (net::server_start((unsigned short)g_port,
-                              "/data/GoldHEN/insulin/web",
+                              OZARK_WEB,
                               g_pin, companion_state_json)) {
             g_started = true;
             char msg[96];
