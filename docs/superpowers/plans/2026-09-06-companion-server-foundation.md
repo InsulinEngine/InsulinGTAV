@@ -1671,26 +1671,46 @@ Append inside `namespace game`, and add `#include <math.h>` at the top of the fi
         return (const float*)(src + 0x60);
     }
 
-    // Degrees, matching GET_ENTITY_HEADING: atan2 of the forward row.
+    // Degrees in [0, 360), byte-for-byte what GET_ENTITY_HEADING computes:
+    // atan2f of +0x64 over +0x74 - right.y over forward.y.
+    //
+    // NOT atan2f(-forward.x, forward.y). The two agree for anything level,
+    // because right.y == -forward.x holds for a pure heading rotation, and
+    // they diverge as soon as the matrix carries roll or pitch - precisely
+    // the +0x14B0 case above, where the matrix belongs to a banking vehicle.
     inline float local_player_heading() {
         const float* m = local_player_matrix();
         if (!m) return 0.0f;
-        return atan2f(-m[4], m[5]) * 57.2957795f;
+
+        float deg = atan2f(m[1], m[5]) * 57.29578f;
+        if (deg < 0.0f)   deg += 360.0f;
+        if (deg > 360.0f) deg -= 360.0f;
+        return deg;
     }
 ```
 
 Then rewrite the body of `player_valid()` to `return local_player_ped() != 0;`, leaving its comment block intact.
 
-- [ ] **Step 4: Register the submenu**
+- [ ] **Step 4: Register the submenu, and give it an entry in its parent**
 
-In `src/menu/menu.cpp`, next to the existing registrations (the block around `misc_camera_menu`), add:
+Two separate things, and missing the second one costs a debugging round: the submenu exists, is registered, runs its `feature_update()` every frame - and no option anywhere leads to it.
+
+`set_parent<T>()` only sets the parent pointer for back-navigation and freezes the name stack used for the savable config key. The **visible entry** is a `submenu_option` in the parent's own `load()`.
+
+In `src/menu/menu.cpp`, add `#include "menu/base/submenus/companion.h"` with the other submenu includes, and register it immediately **after** `misc_menu`:
 
 ```cpp
         companion_menu::get()->load();
         menu::submenu::handler::add_submenu(companion_menu::get());
 ```
 
-and add `#include "menu/base/submenus/companion.h"` with the other submenu includes.
+Order matters: `set_parent<misc_menu>()` copies the parent's name into the config-key stack, and `misc_menu` has no name until its own `load()` has run.
+
+Then in `src/menu/base/submenus/misc.cpp`, next to the other `submenu_option` rows (`Camera`, `Radio`, `Panels`, ...), add the include and the entry:
+
+```cpp
+    add_option(submenu_option("Companion Server").add_submenu<companion_menu>());
+```
 
 - [ ] **Step 5: Write the page**
 

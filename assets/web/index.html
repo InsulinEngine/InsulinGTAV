@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Insulin Companion</title>
+<style>
+  body { font: 16px system-ui, sans-serif; margin: 0; padding: 24px;
+         background: #14161a; color: #e8e8e8; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  .card { background: #1e2128; border-radius: 10px; padding: 16px; max-width: 420px; }
+  .row { display: flex; justify-content: space-between; padding: 6px 0; }
+  .k { color: #8b94a3; }
+  .v { font-variant-numeric: tabular-nums; }
+  input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #333;
+          background: #14161a; color: inherit; width: 6em; }
+</style>
+<h1>Insulin Companion</h1>
+<div class="card">
+  <div class="row"><span class="k">PIN</span><input id="pin" maxlength="4" inputmode="numeric"></div>
+  <div class="row"><span class="k">X</span><span class="v" id="x">-</span></div>
+  <div class="row"><span class="k">Y</span><span class="v" id="y">-</span></div>
+  <div class="row"><span class="k">Z</span><span class="v" id="z">-</span></div>
+  <div class="row"><span class="k">Heading</span><span class="v" id="h">-</span></div>
+  <div class="row"><span class="k">Status</span><span class="v" id="s">waiting</span></div>
+</div>
+<script>
+  const pin = document.getElementById('pin');
+  pin.value = new URLSearchParams(location.search).get('pin') || '';
+
+  async function poll() {
+    try {
+      const r = await fetch('/api/state', { headers: { 'X-Insulin-Pin': pin.value } });
+      if (r.status === 401) { document.getElementById('s').textContent = 'wrong PIN'; return; }
+      if (!r.ok) { document.getElementById('s').textContent = 'no state yet'; return; }
+      const j = await r.json();
+      for (const [id, key] of [['x','x'],['y','y'],['z','z'],['h','heading']]) {
+        document.getElementById(id).textContent = j[key].toFixed(2);
+      }
+      document.getElementById('s').textContent = 'connected';
+    } catch (e) {
+      document.getElementById('s').textContent = 'offline';
+    }
+  }
+  setInterval(poll, 500);
+  poll();
+</script>

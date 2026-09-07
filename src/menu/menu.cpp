@@ -31,6 +31,7 @@
 #include "menu/base/submenus/misc_visions.h"
 #include "menu/base/submenus/misc_disables.h"
 #include "menu/base/submenus/misc_dispatch.h"
+#include "menu/base/submenus/companion.h"
 #include "menu/base/submenus/weapon.h"
 #include "menu/base/submenus/weapon_explosion_gun.h"
 #include "menu/base/submenus/weapon_gravity_gun.h"
@@ -227,6 +228,8 @@ namespace menu {
         menu::submenu::handler::add_submenu(spawner_peds_menu::get());
         misc_menu::get()->load();
         menu::submenu::handler::add_submenu(misc_menu::get());
+        companion_menu::get()->load();
+        menu::submenu::handler::add_submenu(companion_menu::get());
         player_model_menu::get()->load();
         menu::submenu::handler::add_submenu(player_model_menu::get());
         player_wardrobe_menu::get()->load();
