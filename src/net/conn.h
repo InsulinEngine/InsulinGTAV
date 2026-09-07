@@ -19,7 +19,11 @@ namespace net {
     typedef int (*read_fn)(void* ctx, char* buf, unsigned cap);
     // Bytes written, -1 on error. Partial writes are the caller's problem.
     typedef int (*write_fn)(void* ctx, const char* buf, unsigned len);
-    // Writes a JSON object into out, returns its length (0 on failure).
+    // Writes a JSON object into out, returns its length (0 on failure). The
+    // return value must be the number of bytes actually written, and never
+    // more than cap - unlike snprintf, which reports what it *would* have
+    // written. The caller still clamps defensively, but an implementation
+    // must not rely on that.
     typedef unsigned (*state_fn)(char* out, unsigned cap);
 
     struct config {
@@ -29,5 +33,11 @@ namespace net {
     };
 
     // Serves exactly one request, then returns. The caller closes the socket.
+    //
+    // Not reentrant: the request buffer, response buffer and static file
+    // buffer are shared statics with no synchronisation, traded for keeping
+    // a 256 KB frame off the server thread's stack. Call this from one
+    // thread at a time, one connection at a time - a thread-per-connection
+    // accept loop would corrupt responses across clients.
     void serve_one(const config& cfg, void* ctx, read_fn rd, write_fn wr);
 }

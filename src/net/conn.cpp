@@ -197,6 +197,12 @@ namespace net {
         if (span_eq(r.path, r.path_len, "/api/state") && r.m == method::get) {
             static char json[512];
             unsigned n = cfg.state(json, sizeof(json));
+            // state_fn is documented to return no more than cap, but a
+            // provider built on snprintf reports what it *would* have
+            // written, not what fit - clamp defensively so a future
+            // over-length provider can never make this an out-of-bounds
+            // read into g_out.
+            if (n > sizeof(json)) n = sizeof(json);
             if (!n) {
                 reply(ctx, wr, 503, "text/plain", "no state yet", 12);
                 return;

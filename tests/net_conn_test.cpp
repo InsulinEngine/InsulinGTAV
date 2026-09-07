@@ -52,6 +52,21 @@ static unsigned fake_state(char* out, unsigned cap) {
     return n < 0 ? 0u : (unsigned)n;
 }
 
+// A provider that misbehaves the way snprintf does when its output does not
+// fit: it reports how much it *would* have written, not how much fit in cap.
+// serve_one must clamp this itself - it fills every byte of the buffer it
+// was actually given (cap, whatever that is) with a known pattern and claims
+// a length far past that, so a response body longer than cap would prove the
+// clamp is missing rather than merely echoing whatever happened to follow
+// the buffer in memory.
+static unsigned g_overflow_cap = 0;
+
+static unsigned fake_state_overflow(char* out, unsigned cap) {
+    g_overflow_cap = cap;
+    for (unsigned i = 0; i < cap; i++) out[i] = (char)('A' + (i % 26));
+    return cap + 999;
+}
+
 static void run(net::config& cfg, const char* request, fake* f) {
     f->in = request;
     f->in_len = (unsigned)strlen(request);
@@ -115,6 +130,21 @@ int main() {
     check_true("state is 200", strstr(f.out, "HTTP/1.1 200") == f.out);
     check_true("state is json", strstr(f.out, "Content-Type: application/json") != 0);
     check_true("state body", strstr(f.out, "\"heading\":90.0") != 0);
+
+    // A provider that reports a length past its own buffer must not turn
+    // into an out-of-bounds read: the response body is clamped to the
+    // buffer's actual capacity, never to the provider's over-length claim.
+    cfg.state = fake_state_overflow;
+    run(cfg, "GET /api/state?pin=4711 HTTP/1.1\r\n\r\n", &f);
+    check_true("overflow state is 200", strstr(f.out, "HTTP/1.1 200") == f.out);
+    check_true("overflow cap was recorded", g_overflow_cap != 0);
+    char want_len[32];
+    snprintf(want_len, sizeof(want_len), "Content-Length: %u", g_overflow_cap);
+    check_true("overflow content-length clamped to buffer cap", strstr(f.out, want_len) != 0);
+    const char* overflow_body = strstr(f.out, "\r\n\r\n");
+    check_true("overflow body not longer than buffer cap",
+               overflow_body != 0 && strlen(overflow_body + 4) == g_overflow_cap);
+    cfg.state = fake_state;
 
     // /api/teleport pushes exactly one job and does not touch the engine.
     net::jobs().reset();
