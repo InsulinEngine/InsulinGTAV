@@ -28,6 +28,21 @@ namespace {
         // generator refuses to emit a name that already exists in the other.
         return native::get_ground_z_for_3d_coord(x, y, probe, out, false, false);
     }
+
+    // Direct RVA natives (natives.h:413, natives.h:857) - both work from the
+    // first frame, unlike act_ground_z above. Holds the subject at probe
+    // altitude while collision streams in: without this it falls away from
+    // the point being probed, and the ground query never finds anything
+    // under it.
+    void act_freeze(bool on) {
+        Entity e = game::teleport_subject();
+        if (e) native::freeze_entity_position(e, on);
+    }
+
+    bool act_collision_ready() {
+        Entity e = game::teleport_subject();
+        return e && native::has_collision_loaded_around_entity(e);
+    }
 }
 
 namespace game {
@@ -47,7 +62,8 @@ namespace game {
         // namespace-scope object with an initialiser would stay zeroed.
         static tp::actions a = {
             act_fade_out, act_faded_out, act_fade_in,
-            act_move, act_stream, act_ground_z
+            act_move, act_stream, act_ground_z,
+            act_freeze, act_collision_ready
         };
         return a;
     }

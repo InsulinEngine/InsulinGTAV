@@ -29,6 +29,12 @@ static float g_last_move_x, g_last_move_y, g_last_move_z;
 static bool  g_is_faded = false;      // what faded_out() reports
 static bool  g_ground_ok = true;      // whether ground_z() answers
 static float g_ground_value = 42.0f;
+// Split by value rather than one running total, so a test can assert
+// "true exactly once, false exactly once" directly instead of inferring it
+// from a combined count plus the last value.
+static int   g_freeze_true_calls = 0, g_freeze_false_calls = 0;
+static bool  g_last_freeze = false;
+static bool  g_collision_ready = false;   // what collision_ready() reports
 
 static void fake_fade_out()  { g_fade_out_calls++; }
 static bool fake_faded_out() { return g_is_faded; }
@@ -42,21 +48,30 @@ static bool fake_ground_z(float, float, float, float* out) {
     *out = g_ground_value;
     return true;
 }
+static void fake_freeze(bool on) {
+    if (on) g_freeze_true_calls++; else g_freeze_false_calls++;
+    g_last_freeze = on;
+}
+static bool fake_collision_ready() { return g_collision_ready; }
 
 static game::tp::actions fakes() {
     game::tp::actions a;
-    a.fade_out  = fake_fade_out;
-    a.faded_out = fake_faded_out;
-    a.fade_in   = fake_fade_in;
-    a.move      = fake_move;
-    a.stream    = fake_stream;
-    a.ground_z  = fake_ground_z;
+    a.fade_out         = fake_fade_out;
+    a.faded_out        = fake_faded_out;
+    a.fade_in          = fake_fade_in;
+    a.move             = fake_move;
+    a.stream           = fake_stream;
+    a.ground_z         = fake_ground_z;
+    a.freeze           = fake_freeze;
+    a.collision_ready  = fake_collision_ready;
     return a;
 }
 
 static void reset() {
     g_fade_out_calls = g_fade_in_calls = g_move_calls = g_stream_calls = 0;
     g_is_faded = false; g_ground_ok = true; g_ground_value = 42.0f;
+    g_freeze_true_calls = g_freeze_false_calls = 0;
+    g_last_freeze = false; g_collision_ready = false;
 }
 
 int main() {
@@ -164,6 +179,65 @@ int main() {
         check_true("left the player at probe height to fall",
                    g_last_move_z == game::tp::probe_z);
         check_true("accepts work again", m.submit(r));
+    }
+
+    // Collision loading is a readiness signal, not a fixed wait: the moment
+    // collision_ready() says yes, streaming must advance immediately rather
+    // than sit out the rest of stream_frames.
+    {
+        reset();
+        game::tp::machine m;
+        game::tp::request r = { 5.0f, 6.0f, 0.0f, true };
+        m.submit(r);
+        g_is_faded = true;
+        m.tick(a);   // fade seen, move to probe -> streaming
+        check_true("streaming while collision not ready",
+                   m.state() == game::tp::phase::streaming);
+
+        g_collision_ready = true;
+        m.tick(a);   // one frame after collision loads
+        check_true("collision ready advances immediately, not at the timeout",
+                   m.state() == game::tp::phase::resolving);
+    }
+
+    // Collision that never loads must still advance once stream_frames runs
+    // out - streaming is not allowed to hang forever waiting for a signal
+    // that a point far out at sea, say, will never send.
+    {
+        reset();
+        game::tp::machine m;
+        game::tp::request r = { 1.0f, 2.0f, 0.0f, true };
+        m.submit(r);
+        g_is_faded = true;
+        m.tick(a);   // -> streaming
+        for (int i = 0; i < game::tp::stream_frames - 1; i++) m.tick(a);
+        check_true("still streaming one frame before the timeout",
+                   m.state() == game::tp::phase::streaming);
+        m.tick(a);
+        check_true("timeout advances to resolving with no collision-ready signal",
+                   m.state() == game::tp::phase::resolving);
+    }
+
+    // The invariant that must not break: every path that reaches idle also
+    // unfreezes. Given its own test, separate from the give-up-path test
+    // above, because it is the one thing here that must never regress - a
+    // player left frozen at 1000m hangs there permanently, which is strictly
+    // worse than the fall the freeze exists to prevent.
+    {
+        reset();
+        game::tp::machine m;
+        game::tp::request r = { 10.0f, 20.0f, 0.0f, true };
+        m.submit(r);
+        g_is_faded = true;
+        m.tick(a);
+        for (int i = 0; i < game::tp::stream_frames; i++) m.tick(a);
+
+        g_ground_ok = false;
+        for (int i = 0; i < game::tp::resolve_frames + 2; i++) m.tick(a);
+        check_true("froze exactly once", g_freeze_true_calls == 1);
+        check_true("unfroze exactly once", g_freeze_false_calls == 1);
+        check_true("last freeze call released the subject", g_last_freeze == false);
+        check_true("idle once released", m.state() == game::tp::phase::idle);
     }
 
     printf(g_failed ? "\n%d FAILED\n" : "\nall passed\n", g_failed);

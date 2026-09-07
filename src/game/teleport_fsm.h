@@ -17,10 +17,13 @@ namespace game::tp {
     // until the player is already there.
     const float probe_z = 1000.0f;
 
-    // Frames spent waiting for collision to stream in before the first ground
-    // query, and frames spent retrying that query before giving up. At 30 fps
-    // that is one second of streaming and two seconds of asking.
-    const int stream_frames  = 30;
+    // Upper bound on frames spent waiting for collision to stream in before
+    // moving on regardless, and frames spent retrying the ground query before
+    // giving up. streaming advances early the moment collision_ready() says
+    // yes; this timeout only covers the case where it never does. 150 frames
+    // is five seconds at 30 fps - generous, because it costs nothing on the
+    // normal path where collision_ready() answers long before the timeout.
+    const int stream_frames  = 150;
     const int resolve_frames = 60;
 
     // How far above the resolved ground to place the player, so they settle
@@ -49,6 +52,15 @@ namespace game::tp {
         // Ground height under (x, y) probed from z. False when the answer is
         // not available yet, which is normal for the first frames after a move.
         bool (*ground_z)(float x, float y, float probe, float* out);
+        // Appended after the original six so their order stays untouched.
+        // Holds the subject at probe altitude while collision streams in and
+        // the ground query runs - without this it falls away from the point
+        // being probed, and the query never finds anything under it.
+        void (*freeze)(bool on);
+        // Has collision actually loaded around the subject yet? Read every
+        // frame while streaming; a fixed frame count is not a readiness
+        // signal; this is.
+        bool (*collision_ready)();
     };
 
     class machine {
@@ -75,16 +87,27 @@ namespace game::tp {
                 // Request the fade once, then wait for it to finish.
                 if (!m_asked) { a.fade_out(); m_asked = true; }
                 if (!a.faded_out()) return;
+                // Place first, then hold: freezing before the move would
+                // freeze the subject at its old position instead of probe_z.
                 a.move(m_req.x, m_req.y, probe_z);
+                a.freeze(true);
                 a.stream(m_req.x, m_req.y, probe_z);
                 m_phase  = phase::streaming;
                 m_frames = 0;
                 return;
 
             case phase::streaming:
-                if (++m_frames < stream_frames) return;
-                m_phase  = phase::resolving;
-                m_frames = 0;
+                // Ask every frame, not once - request_collision_at_coord is a
+                // hint the streamer can drop, so one call is not a guarantee.
+                a.stream(m_req.x, m_req.y, probe_z);
+                // Advance the moment collision has actually loaded. Otherwise
+                // fall back to the frame count as a timeout, so a point that
+                // never streams in (e.g. far out at sea) does not hang here
+                // forever - resolving's own give-up path takes it from there.
+                if (a.collision_ready() || ++m_frames >= stream_frames) {
+                    m_phase  = phase::resolving;
+                    m_frames = 0;
+                }
                 return;
 
             case phase::resolving: {
@@ -121,7 +144,14 @@ namespace game::tp {
         // Deciding by `z != probe_z` would read as clever and then silently
         // skip the move for a ground:false request that legitimately asked for
         // z = 1000.
+        //
+        // Both land() and release() reach here, so this is the one place the
+        // freeze set in fading_out gets cleared. Every path out of "in
+        // flight" passes through here on the way to idle - miss this and the
+        // player hangs frozen in the air permanently, which is worse than the
+        // fall this freeze exists to prevent.
         void release(const actions& a) {
+            a.freeze(false);
             a.fade_in();
             m_phase = phase::idle;
         }

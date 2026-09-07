@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 namespace {
 
@@ -32,7 +33,10 @@ namespace {
     };
     snapshot g_snap = { false, 0.0f, 0.0f, 0.0f, 0.0f };
 
-    game::tp::machine g_teleporter;
+    game::tp::machine  g_teleporter;
+    // What was last handed to g_teleporter, kept only so the completion log
+    // below can name the target. The machine keeps its own request private.
+    game::tp::request  g_last_req = { 0.0f, 0.0f, 0.0f, false };
 
     void make_pin() {
         // No RNG dependency: the address is randomised per boot and the frame
@@ -115,7 +119,26 @@ void companion_menu::feature_update() {
     // the player on a black screen until the server is re-enabled. Finishing
     // an in-flight teleport is intended even with the server off - do not
     // move this back into the block below.
+    bool was_busy = g_teleporter.busy();
     g_teleporter.tick(game::live_actions());
+
+    if (was_busy && !g_teleporter.busy()) {
+        // The one piece of console evidence for "did the ground resolve, and
+        // what did it say": read straight off the entity (pure memory, no
+        // native - safe even with the server off, same reasoning as the tick
+        // above) rather than waiting for the snapshot block below, which is
+        // skipped when !g_started. Giving up leaves the subject sitting at
+        // probe_z to fall; landing moves it well off that altitude, so the
+        // two are easy to tell apart from the resulting z alone.
+        const float* m = game::local_player_matrix();
+        float z = m ? m[14] : game::tp::probe_z;
+        bool gave_up = g_last_req.ground &&
+                       fabsf(z - game::tp::probe_z) < 5.0f;
+        platform::logf("net", "teleport to %.1f %.1f %s, z=%.1f",
+                       g_last_req.x, g_last_req.y,
+                       gave_up ? "gave up (ground never resolved)" : "landed",
+                       z);
+    }
 
     if (!g_started) return;
 
@@ -139,6 +162,7 @@ void companion_menu::feature_update() {
         if (net::jobs().pop(&j) && j.kind == net::job_kind::teleport) {
             game::tp::request r = { j.x, j.y, j.z, j.ground };
             g_teleporter.submit(r);
+            g_last_req = r;
             platform::logf("net", "teleport to %.1f %.1f ground=%d",
                            j.x, j.y, (int)j.ground);
         }
