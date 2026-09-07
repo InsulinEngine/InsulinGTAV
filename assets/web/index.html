@@ -3,43 +3,162 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Insulin Companion</title>
 <style>
-  body { font: 16px system-ui, sans-serif; margin: 0; padding: 24px;
+  :root { color-scheme: dark; }
+  body { font: 15px system-ui, sans-serif; margin: 0; padding: 12px;
          background: #14161a; color: #e8e8e8; }
-  h1 { font-size: 18px; margin: 0 0 16px; }
-  .card { background: #1e2128; border-radius: 10px; padding: 16px; max-width: 420px; }
-  .row { display: flex; justify-content: space-between; padding: 6px 0; }
-  .k { color: #8b94a3; }
-  .v { font-variant-numeric: tabular-nums; }
-  input { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #333;
-          background: #14161a; color: inherit; width: 6em; }
+  h1 { font-size: 16px; margin: 0 0 10px; font-weight: 600; }
+  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px;
+         flex-wrap: wrap; }
+  input { font: inherit; padding: 7px 8px; border-radius: 6px;
+          border: 1px solid #333; background: #14161a; color: inherit; width: 5em; }
+  .pill { background: #1e2128; border-radius: 999px; padding: 5px 11px;
+          font-variant-numeric: tabular-nums; color: #b6bec9; }
+  #wrap { position: relative; width: 100%; max-width: 720px;
+          aspect-ratio: 2 / 3; background: #0e1013; border-radius: 10px;
+          overflow: hidden; touch-action: manipulation; }
+  #tiles { display: grid; grid-template-columns: 1fr 1fr;
+           grid-template-rows: 1fr 1fr 1fr; width: 100%; height: 100%; }
+  #tiles img { width: 100%; height: 100%; display: block; }
+  #me { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+        pointer-events: none; transition: left .15s linear, top .15s linear; }
+  #me svg { display: block; }
+  #ping { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+          border: 2px solid #ffd24a; border-radius: 50%; opacity: 0;
+          pointer-events: none; }
+  #ping.on { animation: pop .6s ease-out; }
+  @keyframes pop { from { opacity: 1; transform: scale(.3); }
+                   to   { opacity: 0; transform: scale(1.6); } }
 </style>
-<h1>Insulin Companion</h1>
-<div class="card">
-  <div class="row"><span class="k">PIN</span><input id="pin" maxlength="4" inputmode="numeric"></div>
-  <div class="row"><span class="k">X</span><span class="v" id="x">-</span></div>
-  <div class="row"><span class="k">Y</span><span class="v" id="y">-</span></div>
-  <div class="row"><span class="k">Z</span><span class="v" id="z">-</span></div>
-  <div class="row"><span class="k">Heading</span><span class="v" id="h">-</span></div>
-  <div class="row"><span class="k">Status</span><span class="v" id="s">waiting</span></div>
-</div>
-<script>
-  const pin = document.getElementById('pin');
-  pin.value = new URLSearchParams(location.search).get('pin') || '';
 
-  async function poll() {
-    try {
-      const r = await fetch('/api/state', { headers: { 'X-Insulin-Pin': pin.value } });
-      if (r.status === 401) { document.getElementById('s').textContent = 'wrong PIN'; return; }
-      if (!r.ok) { document.getElementById('s').textContent = 'no state yet'; return; }
-      const j = await r.json();
-      for (const [id, key] of [['x','x'],['y','y'],['z','z'],['h','heading']]) {
-        document.getElementById(id).textContent = j[key].toFixed(2);
-      }
-      document.getElementById('s').textContent = 'connected';
-    } catch (e) {
-      document.getElementById('s').textContent = 'offline';
+<h1>Insulin Companion</h1>
+<div class="bar">
+  <label>PIN <input id="pin" maxlength="4" inputmode="numeric"></label>
+  <span class="pill" id="pos">-</span>
+  <span class="pill" id="status">waiting</span>
+</div>
+
+<div id="wrap">
+  <div id="tiles"></div>
+  <div id="me" hidden>
+    <svg width="16" height="16" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="7" fill="#4aa3ff" stroke="#0b0d10" stroke-width="2"/>
+      <path d="M8 1.5 L11 7 H5 Z" fill="#eaf4ff"/>
+    </svg>
+  </div>
+  <div id="ping"></div>
+</div>
+
+<script>
+// Projection straight out of x64a.rpf\data\tune\minimap.ymt, <Bitmap> block:
+//   iBitmapTilesX 2, iBitmapTilesY 3, vBitmapTileSize 4500x4500,
+//   vBitmapStart (-4140, 8400), Y decreasing downward.
+// Do NOT use the <Tiles> block in the same file - those numbers describe the
+// vector minimap, not this bitmap, and every marker would land slightly off.
+const COLS = 2, ROWS = 3, TILE = 4500;
+const WORLD = {
+  x0: -4140, y0: 8400,
+  w:  COLS * TILE,          //  9000
+  h:  ROWS * TILE           // 13500
+};
+
+const $ = id => document.getElementById(id);
+const pin = $('pin');
+pin.value = new URLSearchParams(location.search).get('pin')
+         || localStorage.getItem('pin') || '';
+
+// Lay the tiles out. Row 0 is north, column 0 is west. The PIN rides in the
+// query string because an <img> request cannot set a header - which is exactly
+// why pin_ok() in src/net/conn.cpp accepts both forms.
+//
+// This is a function, not a one-shot loop, because a first-time visitor has
+// no PIN yet (nothing in the URL, nothing in localStorage): the six <img>
+// requests would each 401 once and an <img> never retries on its own, so the
+// map would stay blank forever even after the PIN is typed in. Rebuilding the
+// <img> tags is what makes the browser re-request the tiles with the PIN
+// that is actually current.
+const tiles = $('tiles');
+function loadTiles() {
+  tiles.innerHTML = '';
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      const img = document.createElement('img');
+      img.src = `/map/tile_${r}_${c}.png?pin=${encodeURIComponent(pin.value)}`;
+      img.alt = '';
+      tiles.appendChild(img);
     }
+}
+pin.addEventListener('change', () => {
+  localStorage.setItem('pin', pin.value);
+  loadTiles();
+});
+loadTiles();
+
+const worldToFrac = (x, y) => ({
+  u: (x - WORLD.x0) / WORLD.w,
+  v: (WORLD.y0 - y) / WORLD.h
+});
+const fracToWorld = (u, v) => ({
+  x: WORLD.x0 + u * WORLD.w,
+  y: WORLD.y0 - v * WORLD.h
+});
+
+const headers = () => ({ 'X-Insulin-Pin': pin.value });
+
+async function poll() {
+  try {
+    const r = await fetch('/api/state', { headers: headers() });
+    if (r.status === 401) { $('status').textContent = 'wrong PIN'; return; }
+    if (!r.ok)            { $('status').textContent = 'no state yet'; return; }
+    const j = await r.json();
+
+    const f = worldToFrac(j.x, j.y);
+    const me = $('me');
+    if (f.u < 0 || f.u > 1 || f.v < 0 || f.v > 1) {
+      // Off the bitmap: interiors and the far ocean sit outside it.
+      me.hidden = true;
+      $('status').textContent = 'off map';
+    } else {
+      me.hidden = false;
+      me.style.left = (f.u * 100) + '%';
+      me.style.top  = (f.v * 100) + '%';
+      // The heading is degrees clockwise from north, which is what CSS
+      // rotate() means too, so it goes straight in.
+      me.style.transform = `rotate(${j.heading}deg)`;
+      $('status').textContent = 'connected';
+    }
+    $('pos').textContent =
+      `${j.x.toFixed(0)}, ${j.y.toFixed(0)}, ${j.z.toFixed(0)}  ${j.heading.toFixed(0)}°`;
+  } catch (e) {
+    $('status').textContent = 'offline';
   }
-  setInterval(poll, 500);
-  poll();
+}
+
+$('wrap').addEventListener('click', async ev => {
+  const box = ev.currentTarget.getBoundingClientRect();
+  const u = (ev.clientX - box.left) / box.width;
+  const v = (ev.clientY - box.top)  / box.height;
+  const w = fracToWorld(u, v);
+
+  const ping = $('ping');
+  ping.style.left = (u * 100) + '%';
+  ping.style.top  = (v * 100) + '%';
+  ping.classList.remove('on');
+  void ping.offsetWidth;            // restart the animation
+  ping.classList.add('on');
+
+  $('status').textContent = 'teleporting…';
+  try {
+    const r = await fetch('/api/teleport', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ x: w.x, y: w.y, ground: true })
+    });
+    $('status').textContent = r.ok ? 'sent' : ('refused ' + r.status);
+  } catch (e) {
+    $('status').textContent = 'offline';
+  }
+});
+
+setInterval(poll, 500);
+poll();
 </script>
