@@ -10,24 +10,11 @@
 #include "rage/invoker/natives.h"
 #include "rage/invoker/missing_natives.h"
 #include "rage/invoker/natives_hash.h"
+#include "game/teleport_actions.h"
 
 namespace {
-    Ped self_ped() { return native::get_player_ped(-1); }
-
-    // Move the vehicle when seated, not the ped: pulling the ped out from under a
-    // car leaves the car behind and drops you through the world.
-    Entity teleport_subject() {
-        Ped ped = self_ped();
-        if (ped && native::is_ped_in_any_vehicle(ped, false)) {
-            Vehicle veh = native::get_vehicle_ped_is_in(ped, false);
-            if (veh)
-                return veh;
-        }
-        return ped;
-    }
-
     void warp(float x, float y, float z) {
-        Entity e = teleport_subject();
+        Entity e = game::teleport_subject();
         if (!e)
             return;
         native::set_entity_coords_no_offset(e, x, y, z, false, false, false);
@@ -88,7 +75,7 @@ void teleport_menu::load() {
 
     add_option(button_option("Up 10m")
         .add_click([] {
-            Entity e = teleport_subject();
+            Entity e = game::teleport_subject();
             if (!e) return;
             math::vector3<float> c = native::get_entity_coords(e, true);
             warp(c.x, c.y, c.z + 10.f);
@@ -96,7 +83,7 @@ void teleport_menu::load() {
 
     add_option(button_option("Forward 20m")
         .add_click([] {
-            Entity e = teleport_subject();
+            Entity e = game::teleport_subject();
             if (!e) return;
             math::vector3<float> c = native::get_entity_coords(e, true);
             math::vector3<float> f = native::get_entity_forward_vector(e);

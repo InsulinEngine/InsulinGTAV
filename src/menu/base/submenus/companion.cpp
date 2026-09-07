@@ -7,6 +7,8 @@
 #include "net/server.h"
 #include "net/jobs.h"
 #include "game/player_valid.h"
+#include "game/teleport_fsm.h"
+#include "game/teleport_actions.h"
 #include "platform/log.h"
 #include "platform/paths.h"
 
@@ -29,6 +31,8 @@ namespace {
         volatile float x, y, z, heading;
     };
     snapshot g_snap = { false, 0.0f, 0.0f, 0.0f, 0.0f };
+
+    game::tp::machine g_teleporter;
 
     void make_pin() {
         // No RNG dependency: the address is randomised per boot and the frame
@@ -118,14 +122,17 @@ void companion_menu::feature_update() {
         }
     }
 
-    // Drain whatever the HTTP thread queued. Natives are safe here.
-    net::job j;
-    while (net::jobs().pop(&j)) {
-        if (j.kind == net::job_kind::teleport) {
-            platform::logf("net", "teleport job %.1f %.1f ground=%d",
+    // Step whatever is in flight first, then take one new job. Ticking before
+    // popping means a submit on an idle machine can never be refused.
+    g_teleporter.tick(game::live_actions());
+
+    if (!g_teleporter.busy()) {
+        net::job j;
+        if (net::jobs().pop(&j) && j.kind == net::job_kind::teleport) {
+            game::tp::request r = { j.x, j.y, j.z, j.ground };
+            g_teleporter.submit(r);
+            platform::logf("net", "teleport to %.1f %.1f ground=%d",
                            j.x, j.y, (int)j.ground);
-            // Wired to the real teleport in the next plan; logging it here keeps
-            // this task's deliverable to "the queue drains on the game thread".
         }
     }
 }
