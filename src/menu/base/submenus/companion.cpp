@@ -107,6 +107,16 @@ void companion_menu::feature_update() {
         g_started = false;
     }
 
+    // Deliberately above the `!g_started` gate below: if the server is turned
+    // off mid-teleport, the player can already be faded to black at 1000m.
+    // The machine's own frame counters are what get them back down and faded
+    // in (streaming/resolving timeouts, then fade_in in release()); stopping
+    // this tick when the server stops would freeze those counters and strand
+    // the player on a black screen until the server is re-enabled. Finishing
+    // an in-flight teleport is intended even with the server off - do not
+    // move this back into the block below.
+    g_teleporter.tick(game::live_actions());
+
     if (!g_started) return;
 
     // Publish the snapshot the HTTP thread serves. Pure memory reads through
@@ -122,10 +132,8 @@ void companion_menu::feature_update() {
         }
     }
 
-    // Step whatever is in flight first, then take one new job. Ticking before
-    // popping means a submit on an idle machine can never be refused.
-    g_teleporter.tick(game::live_actions());
-
+    // Take at most one new job per frame, and only while nothing is in
+    // flight already - the tick above already advanced whatever was pending.
     if (!g_teleporter.busy()) {
         net::job j;
         if (net::jobs().pop(&j) && j.kind == net::job_kind::teleport) {
