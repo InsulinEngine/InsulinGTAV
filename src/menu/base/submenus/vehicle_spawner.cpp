@@ -105,6 +105,13 @@ namespace {
         }
         return nullptr;
     }
+
+    // Accessor handed to vehicle_preview::audit, so the preview can walk the
+    // whole list without including it. Ignores the class filter on purpose: the
+    // audit is about every model the spawner can offer, not the current page.
+    const char* audit_model_at(int index) {
+        return (index >= 0 && index < vehicle_list_count) ? vehicle_list[index].model : nullptr;
+    }
 }
 
 // ---- class list -------------------------------------------------------------
@@ -164,6 +171,11 @@ void vehicle_class_menu::update() {
     // Shop-style preview of the highlighted vehicle (drawn once its image has
     // safely streamed in). tick() runs globally from the menu loop.
     menu::vehicle_preview::browse(highlighted_model());
+
+    // Diagnostic: let the preview check every model in the list against its own
+    // resolver and log the ones without an image. Self-limiting - it needs the
+    // scan to be finished, chunks itself and runs once per boot.
+    menu::vehicle_preview::audit(audit_model_at, vehicle_list_count);
 }
 
 void vehicle_class_menu::update_once() {

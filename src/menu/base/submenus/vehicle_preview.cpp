@@ -38,9 +38,36 @@ namespace {
         "sssa_dlc_independence","sssa_dlc_lts_creator","sssa_dlc_mp_to_sp",
         "sssa_dlc_smuggler","sssa_dlc_stunt","sssa_dlc_summer2020",
         "sssa_dlc_valentines","sssa_dlc_vinewood","sssa_dlc_xmas2017",
-        "lgm_dlc_tuner","sssa_dlc_tuner"
+        "lgm_dlc_tuner","sssa_dlc_tuner",
+
+        // Everything above came from the 360 port and stops at Los Santos
+        // Tuners. The dicts below are the rest of what the shipped game keeps in
+        // update.rpf/x64/patch/data/cdimages/scaleform_web.rpf, read out of the
+        // archives rather than guessed - that directory IS the website dict set.
+        // Anything this build predates simply never loads (see scan_pump) -
+        // though on a current console none of these are absent: the scan
+        // reported remaining=0 for all 127, up to and including the 2026 dicts.
+        // Adding them is what fixed the Issi8, which resolves out of
+        // sssa_dlc_xmas2022 (measured - the model ships in a later pack than
+        // the dict its showroom image ended up in).
+        "sssa_dlc_heist4","sssa_dlc_security","sssa_dlc_sum2","sssa_dlc_xmas2022",
+        "sssa_dlc_2023_01","sssa_dlc_2023_2","sssa_dlc_2024_1","sssa_dlc_2024_2",
+        "sssa_dlc_2025_1","sssa_dlc_2025_2","sssa_dlc_2026_1",
+        "lgm_dlc_heist4","lgm_dlc_security","lgm_dlc_sum2","lgm_dlc_xmas2022",
+        "lgm_dlc_2023_01","lgm_dlc_2023_2","lgm_dlc_2024_1","lgm_dlc_2024_2",
+        "lgm_dlc_2025_1","lgm_dlc_2025_2","lgm_dlc_2026_1",
+        "candc_heist4","candc_sub","candc_xmas2022","candc_2023_01","candc_2023_2",
+        "candc_dlc_2024_1","candc_dlc_2024_2","candc_dlc_2025_1","candc_dlc_2025_2",
+        "candc_dlc_2026_1",
+        "elt_dlc_sum2","elt_dlc_2024_2","dock_dlc_heist4","lsc_dlc_sum2",
+        "pandm_dlc_2023_01","mba_garage"
     };
     const int g_dict_count = (int)(sizeof(g_dicts) / sizeof(g_dicts[0]));
+
+    // The map below packs a dict index into a uint8_t, and the per-dict arrays
+    // are sized from this count rather than a hardcoded 128 - which the list had
+    // already grown to within one entry of.
+    static_assert(g_dict_count <= 255, "dict index is stored as uint8_t in map_slot");
 
     // ---- g_TxdStore resolver ---------------------------------------------------
     // g_TxdStore @ RVA 0x3E4B218. The lookup itself lives in rage/txd_store.cpp
@@ -60,17 +87,23 @@ namespace {
     }
 
     // ---- model-hash -> dict-index map (open-addressed, power-of-two) -----------
-    const int MAP_BITS = 12;
-    const int MAP_SIZE = 1 << MAP_BITS;          // 4096 slots
+    // 8192 slots, not the 4096 this started with. Open addressing degrades
+    // sharply as it fills, and a full map silently drops entries - which would
+    // show up as exactly the symptom this list was extended to fix, a car with
+    // no image, from an unrelated cause. g_map_fill is logged at scan end so the
+    // real load factor is a measured number rather than an assumption.
+    const int MAP_BITS = 13;
+    const int MAP_SIZE = 1 << MAP_BITS;
     const int MAP_MASK = MAP_SIZE - 1;
     struct map_slot { uint32_t hash; uint8_t dict; };
     map_slot g_map[MAP_SIZE] = {};               // hash 0 == empty
+    int      g_map_fill = 0;
 
     void map_insert(uint32_t h, uint8_t d) {
         if (!h) return;                          // 0 is the empty marker; skip
         uint32_t i = h & MAP_MASK;
         for (int p = 0; p < MAP_SIZE; p++, i = (i + 1) & MAP_MASK) {
-            if (g_map[i].hash == 0) { g_map[i].hash = h; g_map[i].dict = d; return; }
+            if (g_map[i].hash == 0) { g_map[i].hash = h; g_map[i].dict = d; g_map_fill++; return; }
             if (g_map[i].hash == h) return;      // first dict wins
         }
     }
@@ -87,12 +120,12 @@ namespace {
     // ---- background scan -------------------------------------------------------
     enum { SCAN_IDLE, SCAN_RUNNING, SCAN_DONE };
     int  g_scan_state = SCAN_IDLE;
-    uint8_t g_done[128] = {};     // per-dict: read or permanently skipped
-    uint8_t g_req[128]  = {};     // per-dict: we issued the streaming request
+    uint8_t g_done[g_dict_count] = {};     // per-dict: read or permanently skipped
+    uint8_t g_req[g_dict_count]  = {};     // per-dict: we issued the streaming request
     int  g_remaining    = 0;
     int  g_pass         = 0;
     const int kScanPasses = 300;  // frame budget; absent dicts never load
-    uint8_t g_stable[128] = {};   // per-dict: consecutive passes seen loaded
+    uint8_t g_stable[g_dict_count] = {};   // per-dict: consecutive passes seen loaded
     const int kStable = 4;        // settle this many passes before reading a dict's
                                   // pgDictionary; a just-flipped "loaded" flag can
                                   // precede the dictionary being fully constructed
@@ -136,7 +169,28 @@ namespace {
                 if (!g_done[i] && g_req[i])
                     native::set_streamed_texture_dict_as_no_longer_needed(g_dicts[i]);
             g_scan_state = SCAN_DONE;
-            platform::logf("VPrev", "scan done: pass=%d remaining=%d", g_pass, g_remaining);
+            platform::logf("VPrev", "scan done: pass=%d remaining=%d map=%d/%d",
+                           g_pass, g_remaining, g_map_fill, MAP_SIZE);
+
+            // Name the dicts that never resolved. A dict this build predates is
+            // the expected case, and the names are what say which list entries
+            // are worth keeping - "remaining=38" on its own says nothing. Built
+            // in batches because logf's buffer is 512 bytes.
+            char line[400];
+            int  n = 0;
+            for (int i = 0; i < g_dict_count; i++) {
+                if (g_done[i]) continue;
+                const int len = (int)strlen(g_dicts[i]);
+                if (n + len + 2 >= (int)sizeof(line)) {
+                    line[n] = 0;
+                    platform::logf("VPrev", "absent: %s", line);
+                    n = 0;
+                }
+                if (n) line[n++] = ' ';
+                memcpy(line + n, g_dicts[i], (size_t)len);
+                n += len;
+            }
+            if (n) { line[n] = 0; platform::logf("VPrev", "absent: %s", line); }
             return;
         }
         for (int i = 0; i < g_dict_count; i++) {
@@ -204,52 +258,179 @@ namespace {
     // the +"2" case needs a place to live across the frame.
     char        g_tex[80] = {};
 
-    // Resolve the highlighted model to (dict index, texture name). Tries the model
-    // name, then model+"2" (some images use the "2" name), mirroring the 360 code.
+    // Arena War themed conversions. Their images live in the Maze Bank Arena
+    // dict as <stem>_c_<1..3>, and the stem is NOT the model name: issi4 is
+    // stored under "issi3_c_1", dominator4 under "dominato_c_1" - truncated, in
+    // the game's own data. No string rule produces those, so they are a table.
+    //
+    // The stems and suffixes were read out of mba_vehicles.ytd in the archives;
+    // what is INFERRED is which model gets which of the three, taken to follow
+    // the shop order Apocalypse, Future Shock, Nightmare. A wrong guess there
+    // shows the right car in the wrong theme, which the eye catches at once.
+    struct alias { const char* model; const char* tex; };
+    const alias g_aliases[] = {
+        { "issi4",      "issi3_c_1"     }, { "issi5",      "issi3_c_2"     }, { "issi6",      "issi3_c_3"     },
+        { "impaler2",   "impaler_c_1"   }, { "impaler3",   "impaler_c_2"   }, { "impaler4",   "impaler_c_3"   },
+        { "slamvan4",   "slamvan_c_1"   }, { "slamvan5",   "slamvan_c_2"   }, { "slamvan6",   "slamvan_c_3"   },
+        { "dominator4", "dominato_c_1"  }, { "dominator5", "dominato_c_2"  }, { "dominator6", "dominato_c_3"  },
+        { "bruiser",    "bruiser_c_1"   }, { "bruiser2",   "bruiser_c_2"   }, { "bruiser3",   "bruiser_c_3"   },
+        { "deathbike",  "deathbike_c_1" }, { "deathbike2", "deathbike_c_2" }, { "deathbike3", "deathbike_c_3" },
+        { "monster3",   "monster_c_1"   }, { "monster4",   "monster_c_2"   }, { "monster5",   "monster_c_3"   },
+
+        // The two survivors of the old suffix rule. Both were found by the
+        // audit, and both are kept for the same reason the other 28 were
+        // dropped: their target is not itself a model, so the image can only
+        // belong to this car.
+        { "hardy",      "hardy1"        }, { "btype",      "btype2"        },
+    };
+    const int g_alias_count = (int)(sizeof(g_aliases) / sizeof(g_aliases[0]));
+
+    // Try one texture name against the scan's map. Pure lookup: it writes the
+    // out-parameters only on a hit and touches no selection state, which is what
+    // lets audit() call the resolver as freely as the preview does.
+    bool try_tex(const char* name, char* tex, unsigned cap, int* dict) {
+        const int d = map_lookup(native::get_hash_key(name));
+        if (d < 0) return false;
+        strncpy(tex, name, cap - 1);
+        tex[cap - 1] = 0;
+        *dict = d;
+        return true;
+    }
+
+    enum { path_direct = 0, path_alias, path_count };
+
+    // Resolve a model to (texture name, dict index), or -1 for no image.
+    //
+    // There is deliberately no "try the model name with a digit stuck on the
+    // end" rule here. The 360 port had one (model -> model+"2") and it was
+    // wrong: the audit logged all 30 of its hits on this build, and 28 of the
+    // targets are THEMSELVES models in the spawner list, so the preview was
+    // quietly showing a different car - baller wearing the Baller II's photo,
+    // voltic the Rocket Voltic's, sultan the Sultan Classic's. A wrong image is
+    // worse than none, because it looks like the feature worked. The two hits
+    // whose target is not a model of its own survived, as table rows.
+    int resolve_tex(const char* model, char* tex, unsigned cap, int* dict) {
+        if (!model || !model[0]) return -1;
+        if (try_tex(model, tex, cap, dict)) return path_direct;
+
+        for (int i = 0; i < g_alias_count; i++)
+            if (strcmp(g_aliases[i].model, model) == 0)
+                return try_tex(g_aliases[i].tex, tex, cap, dict) ? path_alias : -1;
+        return -1;
+    }
+
+    // The preview's own use: resolve and remember for this frame's draw.
     bool resolve_model(const char* model) {
-        if (!model || !model[0]) return false;
-        int d = map_lookup(native::get_hash_key(model));
-        if (d >= 0) {
-            strncpy(g_tex, model, sizeof(g_tex) - 1);
-            g_tex[sizeof(g_tex) - 1] = 0;
-            g_model_dict = d;
-            return true;
-        }
-        char alt[80];
-        strncpy(alt, model, sizeof(alt) - 3);
-        alt[sizeof(alt) - 3] = 0;
-        size_t n = strlen(alt);
-        alt[n] = '2'; alt[n + 1] = 0;
-        d = map_lookup(native::get_hash_key(alt));
-        if (d >= 0) {
-            strncpy(g_tex, alt, sizeof(g_tex) - 1);
-            g_tex[sizeof(g_tex) - 1] = 0;
-            g_model_dict = d;
-            return true;
-        }
-        return false;
+        char tex[80];
+        int  dict = -1;
+        if (resolve_tex(model, tex, sizeof(tex), &dict) < 0) return false;
+        strncpy(g_tex, tex, sizeof(g_tex) - 1);
+        g_tex[sizeof(g_tex) - 1] = 0;
+        g_model_dict = dict;
+        return true;
+    }
+
+    // ---- one-shot audit --------------------------------------------------------
+    // Checking previews by hand means highlighting hundreds of cars one at a
+    // time. This does it instead: every model the spawner offers goes through the
+    // resolver above, and the ones with no image are logged by name. Chunked so
+    // it never costs a visible frame, and it runs once per boot.
+    const int kAuditChunk = 64;
+    int  g_audit_at = 0;
+    int  g_audit_hits[path_count] = {};
+    int  g_audit_miss = 0;
+
+    // Many names per line: logf's buffer is 512 bytes, and one write per model
+    // would be hundreds of file opens. Holds no pointers, so it needs no
+    // constructor - this plugin has no .init_array.
+    struct linebuf { char buf[400]; int len; };
+    linebuf g_miss_buf;
+    linebuf g_pair_buf;
+
+    void buf_flush(linebuf* b, const char* tag) {
+        if (!b->len) return;
+        b->buf[b->len] = 0;
+        platform::logf("VPrev", "%s: %s", tag, b->buf);
+        b->len = 0;
+    }
+    void buf_add(linebuf* b, const char* tag, const char* text) {
+        const int len = (int)strlen(text);
+        if (len + 2 >= (int)sizeof(b->buf)) return;          // never truncate mid-name
+        if (b->len + len + 2 >= (int)sizeof(b->buf)) buf_flush(b, tag);
+        if (b->len) b->buf[b->len++] = ' ';
+        memcpy(b->buf + b->len, text, (size_t)len);
+        b->len += len;
     }
 
     void draw_box() {
-        // DIAGNOSTIC BUILD: the DRAW_SPRITE call is replaced by a flushed file-log
-        // of its exact arguments. This cannot fault the way the previous build did
-        // (no draw), and the logged pointer values tell us whether g_pinned / the
-        // dict pointer / g_tex are actually sane at draw time. Restore the draw
-        // once the log has pinned the cause.
+        // Reached only through browse()'s gates: the pin matches the resolved
+        // model, the dict reports loaded, and it has done so for kReady frames
+        // since our own request. The index is still re-checked here, because this
+        // is the one place that hands a pointer to the renderer.
+        if (g_pinned < 0 || g_pinned >= g_dict_count) return;
+        const char* dname = g_dicts[g_pinned];
+
+        // One line per pin change, not per frame. Kept from the diagnostic build:
+        // this is the log that proved the scan maps models correctly (pin=39,
+        // lgm_dlc_business, for 'alpha'), and it costs one write per selection.
         static int s_logged = -2;
         if (s_logged != g_pinned) {
-            const char* dname = (g_pinned >= 0 && g_pinned < g_dict_count) ? g_dicts[g_pinned] : "<OOR>";
-            platform::logf("VPrev", "draw pin=%d dict=%p name=%s tex_ptr=%p tex='%s'",
-                           g_pinned, (const void*)dname, dname, (const void*)g_tex, g_tex);
+            platform::logf("VPrev", "draw pin=%d name=%s tex='%s'", g_pinned, dname, g_tex);
             s_logged = g_pinned;
         }
+
         // Bottom-right, ~16:9, clear of the left-hand menu and the tooltip.
-        // const float w = 0.26f, h = 0.146f, cx = 0.845f, cy = 0.795f;
-        // native::draw_sprite(g_dicts[g_pinned], g_tex, cx, cy, w, h, 0.f, 255, 255, 255, 255, 0);
+        const float w = 0.26f, h = 0.146f, cx = 0.845f, cy = 0.795f;
+        native::draw_sprite(dname, g_tex, cx, cy, w, h, 0.f, 255, 255, 255, 255, 0);
     }
 }
 
 // ---------------------------------------------------------------------------
+void audit(model_at_fn at, int count) {
+    if (g_scan_state != SCAN_DONE || !at || g_audit_at >= count) return;
+
+    const int end = (g_audit_at + kAuditChunk < count) ? g_audit_at + kAuditChunk : count;
+    for (; g_audit_at < end; g_audit_at++) {
+        const char* m = at(g_audit_at);
+        if (!m) continue;
+        char tex[80];
+        int  dict = -1;
+        const int p = resolve_tex(m, tex, sizeof(tex), &dict);
+        if (p < 0) {
+            g_audit_miss++;
+            buf_add(&g_miss_buf, "no image", m);
+            continue;
+        }
+        g_audit_hits[p]++;
+
+        // Every non-direct hit is logged as model=texture. A rule that renames
+        // a model is exactly where a wrong-but-plausible image comes from -
+        // "scarab" finding "scarab2" looks like success and is not - so these
+        // pairs get read rather than trusted.
+        if (p != path_direct) {
+            char pair[176];
+            const int a = (int)strlen(m), b = (int)strlen(tex);
+            if (a + b + 2 < (int)sizeof(pair)) {
+                memcpy(pair, m, (size_t)a);
+                pair[a] = '=';
+                memcpy(pair + a + 1, tex, (size_t)b);
+                pair[a + 1 + b] = 0;
+                buf_add(&g_pair_buf, "mapped", pair);
+            }
+        }
+    }
+
+    if (g_audit_at >= count) {
+        buf_flush(&g_pair_buf, "mapped");
+        buf_flush(&g_miss_buf, "no image");
+        platform::logf("VPrev",
+                       "audit: %d models, %d with image (direct=%d alias=%d), %d without",
+                       count, count - g_audit_miss,
+                       g_audit_hits[path_direct], g_audit_hits[path_alias],
+                       g_audit_miss);
+    }
+}
+
 void browse(const char* model) {
     g_idle = 0;                      // seen this frame -> not idle
     scan_start();                    // idempotent

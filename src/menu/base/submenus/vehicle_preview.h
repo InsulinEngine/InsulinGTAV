@@ -16,6 +16,16 @@ namespace menu { namespace vehicle_preview {
     // dict and draws its image once it has safely finished streaming.
     void browse(const char* model);
 
+    // Diagnostic self-test, one pass per boot. Once the scan has finished, runs
+    // every model of a list through the same resolver browse() uses and logs the
+    // ones with no showroom image, plus a count of which naming rule matched the
+    // rest. Answers "which cars have no picture" without a human highlighting
+    // hundreds of them by hand, and makes a rule that never fires visible.
+    // Pure lookups: draws nothing, disturbs no selection, chunked across frames.
+    // The list is passed as an accessor so this file needs no vehicle list.
+    typedef const char* (*model_at_fn)(int index);
+    void audit(model_at_fn at, int count);
+
     // Call every menu frame, always (from the global menu tick). Advances the
     // ready-frames settle gate and the deferred dict-release queue, and releases
     // the pinned dict a few frames after browse() stops (i.e. after the user
