@@ -1,6 +1,7 @@
 #include "menu/base/submenus/vehicle_preview.h"
 #include "rage/invoker/natives.h"
 #include "rage/invoker/invoker.h"
+#include "rage/txd_store.h"
 #include "platform/log.h"
 
 #include <stdint.h>
@@ -41,32 +42,21 @@ namespace {
     };
     const int g_dict_count = (int)(sizeof(g_dicts) / sizeof(g_dicts[0]));
 
-    // ---- g_TxdStore resolver (RE catalog + CScriptHud::GetSpriteTexture 0x9BBB30)
-    // g_TxdStore @ RVA 0x3E4B218. vtable+0x48 = FindSlotFromHashKey(hash) -> slot.
-    // pool: base *(store+0x38), flags *(store+0x40), stride *(u32*)(store+0x4C).
-    // slot invalid if flags[slot] & 0x80. pgDictionary at *(base + stride*slot):
-    //   +0x10 parent, +0x20 u32* hashes (sorted), +0x28 u16 count, +0x30 entries.
+    // ---- g_TxdStore resolver ---------------------------------------------------
+    // g_TxdStore @ RVA 0x3E4B218. The lookup itself lives in rage/txd_store.cpp
+    // so it can be host-tested; see that header for the table layout and for why
+    // this does NOT go through vtable+0x48. Short version: it used to, and
+    // vtable+0x48 takes a name, not a hash - it hashed our hash and the console
+    // died in atStringHash+0xB with rdi = 0xB63C4BA0 = hash("candc_apartments").
+    // pgDictionary, once resolved: +0x10 parent, +0x20 u32* hashes (sorted),
+    // +0x28 u16 count, +0x30 entries.
     const uint64_t RVA_TXD_STORE = 0x3E4B218;
 
     uint64_t find_txd(uint32_t dict_hash) {
         const uint64_t base_img = (uint64_t)rage::invoker::g_eboot_base;
         if (!base_img) return 0;
         const uint64_t store = base_img + RVA_TXD_STORE;
-
-        const uint64_t vtable = *(const volatile uint64_t*)store;
-        if (!vtable) return 0;
-        typedef int (*find_slot_fn)(uint64_t, uint32_t);
-        const find_slot_fn find_slot = *(find_slot_fn*)(vtable + 0x48);
-        const int slot = find_slot(store, dict_hash);
-        if (slot < 0) return 0;
-
-        const uint64_t flags = *(const volatile uint64_t*)(store + 0x40);
-        if (!flags || (*(const volatile uint8_t*)(flags + (uint32_t)slot) & 0x80)) return 0;
-
-        const uint64_t pool  = *(const volatile uint64_t*)(store + 0x38);
-        const uint32_t stride = *(const volatile uint32_t*)(store + 0x4C);
-        if (!pool) return 0;
-        return *(const volatile uint64_t*)(pool + (uint64_t)stride * (uint32_t)slot);
+        return rage::txd::dict_from_slot(store, rage::txd::slot_from_hash(store, dict_hash));
     }
 
     // ---- model-hash -> dict-index map (open-addressed, power-of-two) -----------
