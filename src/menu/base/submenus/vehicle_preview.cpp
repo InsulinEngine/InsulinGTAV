@@ -282,6 +282,12 @@ namespace {
         // dropped: their target is not itself a model, so the image can only
         // belong to this car.
         { "hardy",      "hardy1"        }, { "btype",      "btype2"        },
+
+        // Hand-made abbreviations, which no rule produces. Only added where
+        // exactly one model can claim the texture: "khamel" is unambiguous
+        // because khamelion is the only model with that stem. "cavcade" is
+        // deliberately NOT here - both cavalcade and cavalcade2 could own it.
+        { "khamelion",  "khamel"        },
     };
     const int g_alias_count = (int)(sizeof(g_aliases) / sizeof(g_aliases[0]));
 
@@ -297,7 +303,43 @@ namespace {
         return true;
     }
 
-    enum { path_direct = 0, path_alias, path_count };
+    enum { path_direct = 0, path_alias, path_trunc, path_count };
+
+    // A great many textures are the model name cut to 8 characters, keeping a
+    // trailing digit: dilettante -> dilettan, schwarzer -> schwarze,
+    // bfinjection -> bfinject, carbonizzare -> carboniz, sandking2 -> sandkin2.
+    // It is the same cut that makes the Arena Dominator "dominato_c_1", and it
+    // was read off sssa_default.ytd and lgm_default.ytd, not invented.
+    //
+    // Unlike the model+"2" rule this replaces, it was checked against the whole
+    // spawner list before being trusted: of 872 models, 226 are cut, and only
+    // five cut names are ambiguous - either two models land on the same cut
+    // (nightshade and nightshark both give "nightsha") or the cut IS another
+    // model's full name (trailersmall -> trailers). Those five are skipped
+    // rather than guessed, on the same principle that removed the old rule: no
+    // image beats a confident picture of the wrong car.
+    const char* const g_ambiguous_cuts[] = {
+        "nightsha", "trailers", "trailer2", "trailerl", "freight2"
+    };
+
+    bool cut_to_8(const char* model, char* out, unsigned cap) {
+        const size_t n = strlen(model);
+        if (n <= 8 || cap < 9) return false;              // nothing to cut
+
+        size_t digits = 0;
+        while (digits < n && model[n - 1 - digits] >= '0' && model[n - 1 - digits] <= '9')
+            digits++;
+        if (digits >= 8) return false;                    // pathological; leave it
+
+        const size_t stem = 8 - digits;
+        memcpy(out, model, stem);
+        memcpy(out + stem, model + n - digits, digits);
+        out[8] = 0;
+
+        for (unsigned i = 0; i < sizeof(g_ambiguous_cuts) / sizeof(g_ambiguous_cuts[0]); i++)
+            if (strcmp(out, g_ambiguous_cuts[i]) == 0) return false;
+        return true;
+    }
 
     // Resolve a model to (texture name, dict index), or -1 for no image.
     //
@@ -313,9 +355,14 @@ namespace {
         if (!model || !model[0]) return -1;
         if (try_tex(model, tex, cap, dict)) return path_direct;
 
+        // The table is measured per model, so it outranks the general cut.
         for (int i = 0; i < g_alias_count; i++)
             if (strcmp(g_aliases[i].model, model) == 0)
                 return try_tex(g_aliases[i].tex, tex, cap, dict) ? path_alias : -1;
+
+        char cut[16];
+        if (cut_to_8(model, cut, sizeof(cut)) && try_tex(cut, tex, cap, dict))
+            return path_trunc;
         return -1;
     }
 
@@ -424,10 +471,10 @@ void audit(model_at_fn at, int count) {
         buf_flush(&g_pair_buf, "mapped");
         buf_flush(&g_miss_buf, "no image");
         platform::logf("VPrev",
-                       "audit: %d models, %d with image (direct=%d alias=%d), %d without",
+                       "audit: %d models, %d with image (direct=%d alias=%d cut8=%d), %d without",
                        count, count - g_audit_miss,
                        g_audit_hits[path_direct], g_audit_hits[path_alias],
-                       g_audit_miss);
+                       g_audit_hits[path_trunc], g_audit_miss);
     }
 }
 
